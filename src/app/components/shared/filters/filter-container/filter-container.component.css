@@ -1,0 +1,23 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+.filter-container {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.filter-container.column {
+  align-items: stretch;
+  flex-direction: column;
+}
+.filter-container.search-select {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(135px, .65fr);
+}
+@media (max-width: 460px) {
+  .filter-container.search-select {
+    grid-template-columns: 1fr;
+  }
+}

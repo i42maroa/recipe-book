@@ -1,0 +1,181 @@
+﻿.ingredient-detail-page,
+.ingredient-not-found {
+  max-width: 1050px;
+  margin: 0 auto;
+  padding: 36px 5.2% 50px;
+}
+.ingredient-detail-actions {
+  display: flex;
+  margin: 12px auto;
+  justify-content: center;
+  gap: 12px;
+}
+.ingredient-detail-actions > div {
+  display: flex;
+  gap: 8px;
+}
+.ingredient-detail-card {
+  display: grid;
+  justify-items: center;
+  padding: 44px 24px 38px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+  text-align: center;
+}
+.ingredient-detail-icon {
+  display: grid;
+  width: 84px;
+  height: 84px;
+  margin-bottom: 18px;
+  place-items: center;
+  border-radius: 24px;
+  background: var(--color-success-soft);
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 43px;
+}
+.ingredient-detail-card h1 {
+  margin: 8px 0 12px;
+  color: var(--color-text);
+  font: 600 clamp(28px, 4vw, 40px) var(--font-serif);
+}
+.ingredient-category {
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: var(--color-success-soft);
+  color: var(--color-primary-dark);
+  font-size: 11px;
+  font-weight: 600;
+}
+.ingredient-components {
+  margin-top: 20px;
+  padding: 20px 23px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+.ingredient-components ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 13px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ingredient-components li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 5px;
+  background: var(--color-success-soft);
+  font-size: 11px;
+}
+.ingredient-components li a {
+  color: var(--color-primary-dark);
+  text-decoration: none;
+}
+.ingredient-components li a:hover {
+  text-decoration: underline;
+}
+.ingredient-components li small {
+  color: var(--color-text-muted);
+  font-size: 9px;
+}
+.ingredient-component-groups {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+}
+.ingredient-component-group h3 {
+  margin: 0 0 6px;
+  color: var(--color-text-muted);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.ingredient-component-group ul {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ingredient-component-group li {
+  justify-content: space-between;
+  padding: 9px 11px;
+}
+.ingredient-component-group li small {
+  margin-left: auto;
+  color: var(--color-secondary);
+  font-weight: 600;
+}
+.ingredient-recipes {
+  margin-top: 27px;
+  padding: 24px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-surface);
+}
+.ingredient-recipes header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 15px;
+  margin-bottom: 17px;
+}
+.ingredient-recipes h2 {
+  margin: 7px 0 0;
+  font: 600 21px var(--font-serif);
+}
+.recipe-count,
+.ingredient-recipes li small {
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+.ingredient-recipes ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ingredient-recipes li + li {
+  border-top: 1px solid var(--color-border);
+}
+.ingredient-recipes li a {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 2px;
+  color: var(--color-primary-dark);
+  font-size: 12px;
+  text-decoration: none;
+}
+.ingredient-recipes li a:hover span {
+  text-decoration: underline;
+}
+.no-recipes,
+.ingredient-not-found p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+.ingredient-not-found {
+  text-align: center;
+}
+.ingredient-not-found h1 {
+  font: 600 30px var(--font-serif);
+}
+@media (max-width: 760px) {
+  .ingredient-detail-page,
+  .ingredient-not-found {
+    padding: 28px 17px 36px;
+  }
+  .ingredient-detail-card {
+    padding: 34px 18px 30px;
+  }
+  .ingredient-recipes {
+    padding: 19px;
+  }
+}
+

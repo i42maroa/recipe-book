@@ -1,0 +1,11 @@
+    <div class="modal-scrim detail-scrim" (click)="close.emit()"><article class="detail-modal" (click)="$event.stopPropagation()" role="dialog" aria-modal="true">
+      <button class="icon-button detail-close" type="button" aria-label="Cerrar" (click)="close.emit()"><app-icon name="close" /></button>
+      <div [class]="'detail-hero photo-' + recipe().id.slice(-1)"><span><app-meal-icon [mealType]="recipe().mealTypes[0] ?? 'Plato'" /></span></div>
+      <div class="detail-content"><div class="detail-tags">@for (type of recipe().mealTypes; track type) { <span class="meal-label">{{ type }}</span> } @for (cuisine of recipe().cuisineTypes ?? []; track cuisine) { <span class="cuisine-label">{{ cuisine }}</span> } @if (recipe().pending) { <span class="pending-badge"><i></i> Por probar</span> }</div>
+        <h2>{{ recipe().name }}</h2><div class="detail-meta"><span><app-icon class="meta-icon" name="clock" /> &nbsp;{{ recipe().minutes ?? '—' }} min</span>@if (recipe().rating) { <span class="rating"><app-icon class="rating-icon" name="star" /> {{ recipe().rating }} / 10</span> }</div>
+        <div class="detail-columns"><section><h3>Ingredientes <span>({{ recipeIngredients().length }})</span></h3><ul class="detail-ingredients">@for (item of recipeIngredients(); track item.id) { <li><i></i>{{ item.name }}<small>{{ item.category }}</small></li> }</ul></section><section><h3>Preparación</h3><ol class="detail-steps">@for (step of recipe().steps; track $index) { <li><span>{{ $index + 1 }}</span><p>{{ step }}</p></li> } @empty { <li class="no-steps">Todavía no has añadido los pasos.</li> }</ol></section></div>
+        @if (recipe().sourceUrl) { <a class="source-link" [href]="recipe().sourceUrl" target="_blank" rel="noreferrer">Ver receta original <app-icon name="arrow-up-right" /></a> }
+      </div>
+    </article></div>
+
+

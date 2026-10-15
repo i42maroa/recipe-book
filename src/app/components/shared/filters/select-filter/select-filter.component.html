@@ -1,0 +1,11 @@
+﻿<label class="select-filter" [attr.data-filter-type]="filterType">
+  @if (label) { <span>{{ label }}</span> }
+  <select [value]="value" [disabled]="disabled" [attr.aria-label]="ariaLabel || label || placeholder" (change)="updateValue($any($event.target).value)" (blur)="markTouched()">
+    @if (placeholder) { <option value="">{{ placeholder }}</option> }
+    @for (option of options; track option.value) {
+      <option [value]="option.value">{{ option.label }}</option>
+    }
+  </select>
+  <app-icon class="select-chevron" name="chevron-down" />
+</label>
+

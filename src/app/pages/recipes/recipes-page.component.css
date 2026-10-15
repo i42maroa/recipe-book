@@ -1,0 +1,217 @@
+﻿:host {
+  display: block;
+}
+.recipes-page {
+  max-width: 1380px;
+  margin: 0 auto;
+  padding: 43px 5.2% 30px;
+}
+.page-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+.page-heading h1 {
+  margin: 11px 0 8px;
+  font: 500 clamp(29px, 3vw, 39px)/1.18 var(--font-serif);
+  letter-spacing: -.7px;
+}
+.page-heading h1 em {
+  color: var(--color-primary);
+  font-weight: 500;
+}
+.page-heading p {
+  margin-bottom: 0;
+  color: var(--color-secondary);
+  font-size: 12px;
+}
+.recipe-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 13px;
+  margin-top: 31px;
+}
+.recipe-stats article {
+  display: flex;
+  min-height: 85px;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 17px;
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  background: var(--color-surface);
+}
+.recipe-stats .pending-stat {
+  cursor: pointer;
+  transition: border-color .18s, box-shadow .18s;
+}
+.recipe-stats .pending-stat:hover,
+.recipe-stats .pending-stat:focus-visible {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-success-soft);
+  outline: 0;
+}
+.stat-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  font-size: 18px;
+}
+.stat-green {
+  background: var(--color-success-soft);
+  color: var(--color-primary);
+}
+.stat-peach {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+.stat-yellow {
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+.recipe-stats strong {
+  display: block;
+  font: 600 23px var(--font-serif);
+}
+.recipe-stats small {
+  display: block;
+  margin-top: 2px;
+  color: var(--color-secondary);
+  font-size: 10px;
+}
+.stat-foot {
+  align-self: flex-end;
+  margin: 0 0 4px auto;
+  color: var(--color-text-muted);
+  font-size: 9px;
+  white-space: nowrap;
+}
+.recipe-list-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin: 37px 0 16px;
+}
+.recipe-list-header h2 {
+  margin-bottom: 5px;
+  font: 600 20px var(--font-serif);
+}
+.recipe-list-header h2 span {
+  margin-left: 5px;
+  color: var(--color-text-muted);
+  font: 400 10px var(--font-sans);
+}
+.recipe-list-header p {
+  margin-bottom: 0;
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+.recipe-controls {
+  margin-bottom: 17px;
+}
+.recipe-controls app-search-filter {
+  min-width: min(260px, 100%);
+  flex: 1 1 260px;
+}
+.recipe-controls app-select-filter {
+  flex: 1 1 143px;
+}
+.recipe-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 17px;
+}
+.page-footnote {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  margin: 24px 0 4px;
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+.page-footnote span {
+  color: var(--color-danger);
+}
+@media (max-width: 1120px) {
+  .recipe-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .recipes-page {
+    padding-right: 4%;
+    padding-left: 4%;
+  }
+}
+@media (max-width: 760px) {
+  .recipes-page {
+    padding: 30px 17px 25px;
+  }
+  .page-heading {
+    align-items: flex-start;
+  }
+  .page-heading h1 {
+    font-size: 30px;
+  }
+  .page-heading p {
+    max-width: 380px;
+    line-height: 1.6;
+  }
+  .recipe-stats {
+    gap: 7px;
+    margin-top: 23px;
+  }
+  .recipe-stats article {
+    min-height: 72px;
+    gap: 7px;
+    padding: 10px 8px;
+  }
+  .stat-icon {
+    width: 30px;
+    height: 30px;
+    font-size: 14px;
+  }
+  .recipe-stats strong {
+    font-size: 18px;
+  }
+  .recipe-stats small {
+    font-size: 8px;
+  }
+  .stat-foot {
+    display: none;
+  }
+  .recipe-list-header {
+    margin-top: 27px;
+  }
+  .recipe-controls app-select-filter {
+    flex: 1;
+  }
+}
+@media (max-width: 460px) {
+  .page-heading {
+    gap: 8px;
+  }
+  .page-heading h1 {
+    font-size: 26px;
+  }
+  .page-heading p {
+    max-width: 245px;
+    font-size: 10px;
+  }
+  .recipe-stats article {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .stat-icon {
+    display: none;
+  }
+  .recipe-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+.empty-state-icon { width: 28px; height: 28px; margin-bottom: 10px; }
+

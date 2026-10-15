@@ -1,0 +1,37 @@
+:root {
+  color-scheme: light;
+
+  /* Colores principales */
+  --color-primary: #41664c;
+  --color-primary-dark: #34543d;
+  --color-secondary: #789078;
+  --color-secondary-warm: #ad8d46;
+
+  /* Superficies y texto */
+  --color-background: #f8f8f5;
+  --color-surface: #fff;
+  --color-surface-soft: #f3f4f0;
+  --color-text: #29362e;
+  --color-text-secondary: #58685a;
+  --color-text-muted: #8d948d;
+  --color-border: #e9e9e3;
+
+  /* Estados */
+  --color-success-soft: #edf3ec;
+  --color-warning: #ad8d46;
+  --color-warning-soft: #f7f1e2;
+  --color-danger: #a85e4e;
+  --color-danger-soft: #faeee9;
+
+  /* Elevación y superposiciones */
+  --shadow-card: 0 9px 25px #38473312;
+  --shadow-dialog: 0 20px 70px #17201635;
+  --shadow-notification: 0 8px 24px #2936291a;
+  --shadow-photo: 0 8px 5px #39271230;
+  --overlay: #20291f80;
+  --overlay-topbar: rgb(255 255 255 / 57%);
+
+  /* Tipografía */
+  --font-serif: 'Playfair Display', Georgia, serif;
+  --font-sans: 'DM Sans', Arial, sans-serif;
+}

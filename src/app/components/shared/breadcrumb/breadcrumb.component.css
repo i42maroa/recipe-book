@@ -1,0 +1,30 @@
+.breadcrumb {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.breadcrumb a {
+  overflow: hidden;
+  color: inherit;
+  text-decoration: none;
+  text-overflow: ellipsis;
+}
+.breadcrumb a:hover {
+  color: var(--color-primary);
+}
+.breadcrumb i {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-style: normal;
+}
+.breadcrumb b {
+  overflow: hidden;
+  color: var(--color-primary-dark);
+  font-weight: 600;
+  text-overflow: ellipsis;
+}

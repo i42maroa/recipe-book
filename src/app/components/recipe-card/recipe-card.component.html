@@ -1,0 +1,22 @@
+﻿<button class="recipe-card" type="button" (click)="selected.emit(recipe())">
+  <span [class]="'recipe-photo ' + photoClass()"><span class="photo-illustration"><app-meal-icon [mealType]="recipe().mealTypes[0] ?? 'Plato'" /></span></span>
+  <span class="recipe-card-content">
+    <span class="recipe-card-topline">
+      <span class="meal-label">{{ recipe().mealTypes.join(' · ') || 'Sin categoría' }}</span>
+      @if (recipe().pending) { <span class="pending-badge"><i></i> Por probar</span> }
+    </span>
+    @if (recipe().cuisineTypes?.length) {
+      <span class="cuisine-tags" [title]="recipe().cuisineTypes?.join(', ')">
+        @for (cuisine of recipe().cuisineTypes ?? []; track cuisine) { <span class="cuisine-tag">{{ cuisine }}</span> }
+      </span>
+    }
+    <span class="recipe-title">{{ recipe().name }}</span>
+    <span class="recipe-card-meta"><span><app-icon class="meta-icon" name="clock" /> &nbsp;{{ recipe().minutes ?? '—' }} min</span><span class="meta-separator">·</span><span>{{ recipe().ingredientIds.length }} ingredientes</span></span>
+    <span class="recipe-card-traits">
+      @if (recipe().difficulty) { <span class="difficulty-badge">{{ recipe().difficulty }}</span> }
+      @if (recipe().fitness) { <span class="fitness-badge">Fitness</span> }
+    </span>
+    <span class="recipe-card-bottom"><span class="rating">@if (recipe().rating) { <app-icon class="rating-icon" name="star" /> {{ recipe().rating }} } @else { <span class="unrated">Sin valorar</span> }</span></span>
+  </span>
+</button>
+

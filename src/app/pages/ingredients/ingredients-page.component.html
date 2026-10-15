@@ -1,0 +1,22 @@
+    <section class="ingredients-page">
+      <div class="ingredients-heading">
+        <h1>Ingredientes</h1>
+        <app-button customClass="add-ingredient" (clicked)="forms.openForm('ingredient')">Añadir ingrediente</app-button>
+      </div>
+      <app-filter-container class="pantry-tools" gap="10px">
+        <app-search-filter placeholder="Busca un ingrediente…" ariaLabel="Buscar ingredientes" [formControl]="search"></app-search-filter>
+        <app-select-filter label="Categoría" filterType="ingredient-category" [options]="categoryOptions" [formControl]="category"></app-select-filter>
+        <span class="ingredient-total">{{ (filteredIngredients$ | async)?.length ?? 0 }} ingredientes</span>
+      </app-filter-container>
+      <div class="pantry-grid">
+        @for (ingredient of (filteredIngredients$ | async) ?? []; track ingredient.id) {
+          <app-ingredient-card [ingredient]="ingredient" (selected)="openIngredient($event)"/>
+        } @empty { 
+          <div class="empty-state">
+            <h3>Ingrediente no encontrado</h3>
+            <p>Prueba con otra busqueda o añade uno nuevo.</p></div> }
+          </div>
+      <aside class="pantry-tip"><p>Los ingredientes que forman parte de una receta estan protegidos y no se pueden eliminar.</p></aside>
+    </section>
+
+

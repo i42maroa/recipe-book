@@ -1,0 +1,85 @@
+@if (recipe$ | async; as recipe) {
+  @let recipeIngredients = ingredientsFor(recipe, ingredients$ | async);
+  @let ingredientGroups = ingredientGroupsFor(recipeIngredients);
+  <article class="recipe-detail-page">
+
+    <div [class]="'recipe-detail-hero ' + photoClass(recipe)">
+      <span class="hero-emoji"><app-meal-icon [mealType]="recipe.mealTypes[0] ?? 'Plato'" /></span>
+      
+    </div>
+
+    <div class="recipe-detail-content">
+      <div class="recipe-detail-tags">
+        @for (type of recipe.mealTypes; track type) {
+          <span class="meal-label">{{ type }}</span>
+        }
+        @for (cuisine of recipe.cuisineTypes ?? []; track cuisine) {
+          <span class="cuisine-label">{{ cuisine }}</span>
+        }
+        @if (recipe.pending) {
+          <span class="pending-badge"><i></i> Por probar</span>
+        }
+        @if (recipe.fitness) {
+          <span class="fitness-badge">Fitness</span>
+        }
+        @if (recipe.difficulty) {
+          <span class="difficulty-badge">{{ recipe.difficulty }}</span>
+        }
+      </div>
+
+      <h1>{{ recipe.name }}</h1>
+      <div class="recipe-row">   
+        <div class="recipe-detail-meta">
+          <span><app-icon class="meta-icon" name="clock" /> &nbsp;{{ durationLabel(recipe.minutes) }}</span>
+          @if (recipe.rating) { <span class="rating"><app-icon class="rating-icon" name="star" /> {{ recipe.rating }} / 10</span> }
+          <app-button variant="soft" customClass="rate-button" (clicked)="ratingControl.setValue(recipe.rating ?? 5); isRating = !isRating">Puntuar</app-button> 
+        </div>
+
+        <div class="recipe-detail-actions"><div><app-button variant="ghost" (clicked)="forms.openForm('recipe', recipe)">Editar</app-button><app-button variant="ghost" customClass="delete-action" (clicked)="deleteRecipe(recipe)">Eliminar</app-button></div></div>
+      </div>
+      @if (isRating) { <form class="rating-form" (ngSubmit)="saveRating(recipe)"><label for="recipe-rating">Tu puntuación</label><select id="recipe-rating" [formControl]="ratingControl">@for (score of ratingOptions; track score) { <option [ngValue]="score">{{ score }} / 10</option> }</select><app-button type="submit">Guardar</app-button><app-button variant="ghost" type="button" (clicked)="isRating = false">Cancelar</app-button></form> }
+
+      <div class="recipe-detail-columns">
+        <section>
+          <h2>Ingredientes <span>({{ recipeIngredients.length }})</span></h2>
+          <ul class="detail-ingredients">
+            @for (group of ingredientGroups; track group.category) {
+              <li class="ingredient-category-group"><strong>{{ group.category }}</strong><ul class="ingredient-group-items">
+                @for (ingredient of group.ingredients; track ingredient.id) {
+                  <li><i></i><a [routerLink]="['/ingredients', ingredient.id]" [queryParams]="{ fromRecipeId: recipe.id }">{{ ingredient.name }}</a><span class="ingredient-detail-info">@if (amountLabel(recipe, ingredient.id); as amount) { <small class="ingredient-quantity">{{ amount }}</small> }</span></li>
+                }
+              </ul></li>
+            }
+          </ul>
+        </section>
+
+        <section>
+          <h2>Preparación</h2>
+          <ol class="detail-steps">
+            @for (step of recipe.steps; track $index) {
+              <li><span>{{ $index + 1 }}</span><p>{{ step }}</p></li>
+            } @empty {
+              <li class="no-steps">Sin pasos.</li>
+            }
+          </ol>
+        </section>
+      </div>
+
+      @if (recipe.annotations?.trim()) {
+        <section class="recipe-annotations"><h2>Anotaciones</h2><p>{{ recipe.annotations }}</p></section>
+      }
+
+      @if (recipe.sourceUrl) {
+        <a class="source-link" [href]="recipe.sourceUrl" target="_blank" rel="noreferrer">Receta original</a>
+      }
+    </div>
+  </article>
+} @else {
+  <section class="recipe-not-found">
+    <h1>No encontramos esa receta</h1>
+    <p>Puede que el enlace ya no sea válido o que la receta no esté guardada.</p>
+    
+  </section>
+}
+
+

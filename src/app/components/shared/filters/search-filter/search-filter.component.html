@@ -1,0 +1,13 @@
+﻿<label class="search-box">
+  <app-icon class="search-icon" name="search" />
+  <input
+    type="search"
+    [value]="value"
+    [disabled]="disabled"
+    [placeholder]="placeholder"
+    [attr.aria-label]="ariaLabel"
+    (input)="updateValue($any($event.target).value)"
+    (blur)="markTouched()">
+  @if (shortcut) { <kbd><app-icon name="command" /> {{ shortcut }}</kbd> }
+</label>
+

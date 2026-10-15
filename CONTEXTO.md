@@ -15,7 +15,12 @@ El producto o servicio concreto de Firebase que se usará para persistencia y la
 ## Diseño y arquitectura de frontend
 
 - **Estilo visual:** la interfaz debe ser clara, sencilla y coherente, y facilitar la consulta y gestión de recetas e ingredientes. Los detalles visuales (paleta, tipografía, espaciado y adaptación a distintos tamaños de pantalla) se concretarán al diseñar el MVP.
+- **Variables visuales:** los colores y otros valores visuales compartidos se centralizarán en `src/styles/root.css` bajo `:root`; las hojas de estilos de los componentes consumirán estas variables para reutilizar la paleta.
 - **Componentes independientes:** los componentes Angular se crearán como componentes standalone, organizados por funcionalidad y con responsabilidades acotadas.
+- **Archivos de componentes:** cada componente tendrá su plantilla HTML y su hoja de estilos CSS en archivos independientes (`templateUrl` y `styleUrl`); no se incluirá el HTML ni el CSS en el archivo TypeScript del componente.
+- **Componentes reutilizables de interfaz:** los elementos comunes, como botones, navegación/navbar y otros controles compartidos, se implementarán como componentes reutilizables para mantener una experiencia coherente y evitar duplicar estructura y estilos.
+- **Organización de carpetas:** los componentes compartidos vivirán en `components/shared/`, cada componente específico tendrá su propia carpeta dentro de `components/` y las pantallas enrutables se organizarán dentro de `pages/`, también en carpetas por página.
+- **Enrutado y composición de la aplicación:** el componente raíz será el marco común de la web e incluirá el navbar, el `router-outlet` para mostrar la página activa y el centro global de notificaciones. El archivo de rutas registrará las páginas disponibles.
 - **Servicios reutilizables:** cuando una funcionalidad o lógica de negocio vaya a reutilizarse, se encapsulará en un servicio y se inyectará en los componentes o servicios que la necesiten. Los componentes evitarán concentrar lógica de acceso a datos.
 - **Formularios reactivos:** los formularios usarán formularios reactivos de Angular y observables para gestionar los datos y los cambios de estado de forma reactiva.
 - **Formulario base reutilizable:** habrá un componente reutilizable para presentar formularios. Este componente seleccionará mediante un `switch` entre distintas plantillas de formulario, según el tipo de formulario que se necesite.
@@ -48,6 +53,7 @@ La persona usuaria podrá:
   - URL del sitio donde encontró la receta.
 - Consultar un listado de recetas.
 - Abrir una receta del listado y consultar su información completa.
+- Mostrar la receta seleccionada en una página dedicada, identificada por su ID en la URL (`/recipes/:id`).
 - Buscar recetas por nombre, por estado pendiente (pendiente o no pendiente) y por ingredientes.
 
 ### Ingredientes

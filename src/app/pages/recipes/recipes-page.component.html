@@ -1,0 +1,34 @@
+<section class="recipes-page">
+  <div class="page-heading">
+    <h1>Recetas para <em>disfrutar.</em></h1>    
+    <app-button customClass="add-recipe" (clicked)="forms.openForm('recipe')">Nueva receta</app-button>
+  </div>
+
+  <div class="recipe-stats">
+    <article><span class="stat-icon stat-green"><app-icon name="recipes" /></span><div><strong>{{ recipeCount$ | async }}</strong><small>Recetas guardadas</small></div></article>
+    <article class="pending-stat" role="button" tabindex="0" (click)="showPendingRecipes()" (keydown.enter)="showPendingRecipes()" (keydown.space)="$event.preventDefault(); showPendingRecipes()" aria-label="Filtrar las recetas por probar"><span class="stat-icon stat-peach"><app-icon name="pending" /></span><div><strong>{{ pendingCount$ | async }}</strong><small>Por probar</small></div></article>
+  </div>
+
+  <div class="recipe-list-header">
+    <h2>Tu colección</h2>     
+  </div>
+
+<app-filter-container class="recipe-controls" gap="10px">
+  <app-search-filter placeholder="Busca por receta o ingrediente…" ariaLabel="Buscar recetas por nombre o ingrediente" shortcut="K" [formControl]="search"></app-search-filter>
+  <app-select-filter label="Estado" filterType="status" [options]="statusOptions" [formControl]="pendingFilter"></app-select-filter>
+  <app-select-filter label="Orden" filterType="order" [options]="sortOptions" [formControl]="sortFilter"></app-select-filter>
+  <app-select-filter label="Tipo de plato" filterType="meal-type" [options]="mealTypeOptions" [formControl]="mealTypeFilter"></app-select-filter>
+  <app-select-filter label="Dificultad" filterType="difficulty" [options]="difficultyOptions" [formControl]="difficultyFilter"></app-select-filter>
+</app-filter-container>
+
+  <div class="recipe-grid">
+    @for (recipe of (filteredRecipes$ | async) ?? []; track recipe.id) {
+      <app-recipe-card [recipe]="recipe" (selected)="showRecipe($event)"></app-recipe-card>
+    } @empty {
+      <div class="empty-state"><app-icon class="empty-state-icon" name="sparkle" /><h3>Aún no hay recetas por aquí</h3><p>Guarda tu primera receta y empieza a llenar tu recetario.</p><app-button (clicked)="forms.openForm('recipe')">Añadir receta</app-button></div>
+    }
+  </div>
+</section>
+
+
+

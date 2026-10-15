@@ -1,0 +1,10 @@
+﻿:host { display: block; min-width: 0; }
+.pantry-card { display: flex; min-width: 0; align-items: center; gap: 11px; padding: 13px; border: 1px solid var(--color-border); border-radius: 7px; background: var(--color-surface); }
+.pantry-card-main { display: flex; min-width: 0; flex: 1; align-items: center; gap: 11px; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.pantry-card-main:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.pantry-icon { display: grid; width: 39px; height: 39px; flex: 0 0 auto; place-items: center; border-radius: 9px; background: var(--color-border); color: var(--color-primary-dark); font-size: 22px; }
+.category-fruta, .category-pescado, .category-legumbre, .category-lacteo { background: var(--color-border); }
+.pantry-copy { min-width: 0; }
+.pantry-copy strong { display: block; margin: 0 0 4px; overflow: hidden; font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.pantry-copy small { display: block; color: var(--color-text-muted); font-size: 9px; }
+

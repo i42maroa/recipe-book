@@ -1,0 +1,151 @@
+    <div class="modal-scrim" (click)="cancel.emit()">
+      <section class="form-modal" (click)="$event.stopPropagation()" aria-modal="true" role="dialog" [attr.aria-label]="formType === 'recipe' ? 'Nueva receta' : 'Nuevo ingrediente'">
+        <header class="form-modal-header"><div><span class="eyebrow">{{ formType === 'recipe' ? 'AÑADIR AL RECETARIO' : 'TU DESPENSA' }}</span><h2>{{ formType === 'recipe' ? 'Nueva receta' : 'Nuevo ingrediente' }}</h2></div><button class="icon-button" type="button" aria-label="Cerrar" (click)="cancel.emit()"><app-icon name="close" /></button></header>
+        @switch (formType) {
+          @case ('recipe') {
+            <form [formGroup]="recipeForm" (ngSubmit)="saveRecipe()" class="form-body recipe-wizard">
+  <nav class="form-tabs" role="tablist" aria-label="Secciones de la receta">
+    @for (tab of recipeTabLabels; track tab; let index = $index) {
+      <button type="button" role="tab" [attr.aria-selected]="activeRecipeTab === index" [class.active]="activeRecipeTab === index" [class.completed]="activeRecipeTab > index" (click)="setRecipeTab(index)">
+        <span>{{ index + 1 }}</span>{{ tab }}
+      </button>
+    }
+  </nav>
+
+  @if (activeRecipeTab === 0) {
+    <section class="recipe-tab-panel" role="tabpanel" aria-label="Datos de la receta">
+  <label class="field-label">Nombre de la receta <b>*</b><input formControlName="name" placeholder="Ej. Pasta cremosa de lim&#xF3;n"></label>
+  @if (recipeForm.controls.name.touched && recipeForm.controls.name.invalid) { <small class="error-text">Escribe el nombre de la receta.</small> }
+  <div class="field-row recipe-type-row">
+    <fieldset class="field-set"><legend>Tipo de comida</legend><div class="chip-options">@for (type of mealTypes; track type) { <label class="check-chip"><input type="checkbox" [checked]="hasMealType(type)" (change)="toggleMealType(type)"><span>{{ type }}</span></label> }</div></fieldset>
+    <fieldset class="field-set"><legend>Tipo de receta</legend><label class="check-chip"><input type="checkbox" formControlName="fitness"><span>Fitness</span></label></fieldset>
+  </div>
+  <fieldset class="field-set cuisine-style-field"><legend>Estilo de cocina <span>(opcional, puedes elegir varios)</span></legend><div class="chip-options cuisine-options">@for (type of cuisineTypes; track type) { <label class="check-chip"><input type="checkbox" [checked]="hasCuisineType(type)" (change)="toggleCuisineType(type)"><span>{{ type }}</span></label> }</div></fieldset>
+  <fieldset class="field-set"><legend>Estado de la receta <b>*</b></legend><div class="chip-options state-options"><label class="check-chip"><input type="radio" formControlName="pending" value="yes"><span>Pendiente por probar</span></label><label class="check-chip"><input type="radio" formControlName="pending" value="no"><span>Ya elaborada</span></label></div></fieldset>
+  <div class="field-row"><label class="field-label">Dificultad<select formControlName="difficulty">@for (difficulty of difficulties; track difficulty) { <option [value]="difficulty">{{ difficulty }}</option> }</select></label><label class="field-label">Tiempo de elaboraci&#xF3;n <span>(minutos)</span><input type="number" min="1" formControlName="minutes" placeholder="25"></label></div>
+  <label class="field-label">Valoraci&#xF3;n <span>(1&#x2013;10, opcional)</span><input type="number" min="1" max="10" formControlName="rating" placeholder="Sin valorar"></label>
+  <label class="field-label">Enlace de origen <span>(opcional)</span><input type="url" formControlName="sourceUrl" placeholder="https://"></label>
+</section>
+  }
+
+  @if (activeRecipeTab === 1) {
+    <section class="recipe-tab-panel" role="tabpanel" aria-label="Ingredientes">
+  <fieldset class="field-set"><legend>Busca y selecciona ingredientes <b>*</b></legend>
+    <app-filter-container class="ingredient-filters" layout="search-select" gap="7px">
+      <label class="ingredient-search"><app-icon class="search-icon" name="search" /><input [formControl]="ingredientSearch" placeholder="Buscar por nombre"></label>
+      <app-select-filter filterType="ingredient-category" ariaLabel="Filtrar por categoría" [options]="ingredientCategoryOptions" [formControl]="ingredientCategoryFilter"></app-select-filter>
+    </app-filter-container>
+    <div class="ingredient-picker">
+      @for (group of (filteredIngredients$ | async) ?? []; track group.category) {
+        <section class="ingredient-category-group">
+          <h3>{{ group.category }}</h3>
+          <div class="ingredient-category-options">
+            @for (ingredient of group.ingredients; track ingredient.id) {
+              <label class="ingredient-option-select"><input type="checkbox" [checked]="isSelected(ingredient.id)" (change)="toggleIngredient(ingredient.id)"><span>{{ ingredient.name }}</span></label>
+            }
+          </div>
+        </section>
+      } @empty { <p class="ingredient-empty">No hay ingredientes que coincidan con la b&#xFA;squeda.</p> }
+    </div>
+    @if (recipeForm.controls.ingredientIds.touched && recipeForm.controls.ingredientIds.value.length === 0) { <small class="error-text">A&#xF1;ade al menos un ingrediente.</small> }
+    <div class="quick-add"><span class="quick-add-title">&#xBF;Falta alguno? A&#xF1;&#xE1;delo aqu&#xED;</span><div class="quick-add-row"><input [formControl]="newIngredientName" placeholder="Nombre del ingrediente"><select [formControl]="newIngredientCategory"><option value="">Categor&#xED;a</option>@for (category of categories; track category) { <option [value]="category">{{ category }}</option> }</select><app-button variant="soft" customClass="button-small" (clicked)="addQuickIngredient()"><app-icon name="plus" /> A&#xF1;adir</app-button></div></div>
+  </fieldset>
+  <fieldset class="field-set selected-ingredients"><legend>Ingredientes seleccionados</legend>
+    <div class="selected-ingredient-list">
+      @for (group of (selectedIngredients$ | async) ?? []; track group.category) {
+        <section class="selected-ingredient-category">
+          <h3>{{ group.category }}</h3>
+          @for (ingredient of group.ingredients; track ingredient.id) {
+            <div class="selected-ingredient">
+              <div class="selected-ingredient-heading"><strong>{{ ingredient.name }}</strong></div>
+              <div class="ingredient-amount-controls">
+                <select [value]="ingredientAmountKind(ingredient.id)" [attr.aria-label]="'Cantidad de ' + ingredient.name" (change)="setIngredientAmountKind(ingredient.id, $any($event.target).value)"><option value="none">Sin cantidad</option><option value="spoon">1 cucharada</option><option value="glass">1 vaso</option><option value="specific">Cantidad espec&#xED;fica</option></select>
+                @if (ingredientAmount(ingredient.id); as amount) {
+                  @if (amount.kind === 'specific') {
+                    <input type="number" min="0.01" step="any" [value]="amount.value ?? ''" [attr.aria-label]="'Cantidad de ' + ingredient.name" placeholder="Cantidad" (input)="setSpecificAmountValue(ingredient.id, $any($event.target).value)">
+                    <select [value]="amount.unit" [attr.aria-label]="'Unidad de ' + ingredient.name" (change)="setSpecificAmountUnit(ingredient.id, $any($event.target).value)"><option value="g">g</option><option value="ml">ml</option><option value="pieza">pieza</option></select>
+                  }
+                }
+              </div>
+            </div>
+          }
+        </section>
+      } @empty { <p class="ingredient-empty">Selecciona ingredientes arriba para indicar sus cantidades.</p> }
+    </div>
+  </fieldset>
+</section>
+  }
+
+  @if (activeRecipeTab === 2) {
+    <section class="recipe-tab-panel" role="tabpanel" aria-label="Pasos de preparaci&#xF3;n">
+  <label class="field-label">Preparaci&#xF3;n <span>(un paso por l&#xED;nea)</span><textarea formControlName="steps" rows="7" placeholder="Cuece la pasta al dente&#x2026;"></textarea></label>
+  <label class="field-label">Anotaciones <span>(opcional)</span><textarea formControlName="annotations" rows="4" placeholder="Trucos, cambios o notas para la pr&#xF3;xima vez&#x2026;"></textarea></label>
+</section>
+  }
+
+  <footer class="form-actions recipe-form-actions">
+    <app-button variant="ghost" type="button" (clicked)="cancel.emit()">Cancelar</app-button>
+    @if (activeRecipeTab > 0) { <app-button variant="outline" type="button" (clicked)="previousRecipeTab()">Anterior</app-button> }
+    @if (activeRecipeTab < 2) { <app-button customClass="form-submit" type="button" (clicked)="nextRecipeTab()">Siguiente <app-icon name="arrow-right" /></app-button> }
+    @else { <app-button customClass="form-submit" type="submit">Guardar receta <app-icon name="arrow-right" /></app-button> }
+  </footer>
+</form>
+          }
+          @case ('ingredient') {
+            <form [formGroup]="ingredientForm" (ngSubmit)="saveIngredient()" class="form-body">
+              <label class="field-label">Nombre del ingrediente <b>*</b><input formControlName="name" placeholder="Ej. Garbanzos"></label>
+              <label class="field-label">Categoría <b>*</b><select formControlName="category"><option value="">Elige una categoría</option>@for (category of categories; track category) { <option [value]="category">{{ category }}</option> }</select></label>
+              @if (ingredientForm.controls.category.value === 'Elaboracion') {
+                <fieldset class="field-set"><legend>Ingredientes de la elaboraci&#xF3;n <b>*</b></legend>
+                  <app-filter-container class="ingredient-filters" layout="search-select" gap="7px">
+                    <label class="ingredient-search"><app-icon class="search-icon" name="search" /><input [formControl]="compositionSearch" placeholder="Buscar por nombre"></label>
+                    <app-select-filter filterType="ingredient-category" ariaLabel="Filtrar por categoría" [options]="compositionCategoryOptions" [formControl]="compositionCategoryFilter"></app-select-filter>
+                  </app-filter-container>
+                  <div class="composition-picker">
+                    @for (group of (filteredCompositionIngredients$ | async) ?? []; track group.category) {
+                      <section class="ingredient-category-group">
+                        <h3>{{ group.category }}</h3>
+                        <div class="composition-category-options">
+                          @for (component of group.ingredients; track component.id) {
+                            <label class="ingredient-option"><input type="checkbox" [checked]="isCompositionSelected(component.id)" (change)="toggleCompositionIngredient(component.id)"><span>{{ component.name }}</span></label>
+                          }
+                        </div>
+                      </section>
+                    } @empty {
+                      <p class="ingredient-empty">A&#xF1;ade ingredientes a la despensa antes de crear una elaboraci&#xF3;n.</p>
+                    }
+                  </div>
+                </fieldset>
+                <fieldset class="field-set selected-ingredients"><legend>Componentes seleccionados</legend>
+                  <div class="selected-ingredient-list">
+                    @for (group of (selectedCompositionIngredients$ | async) ?? []; track group.category) {
+                      <section class="selected-ingredient-category">
+                        <h3>{{ group.category }}</h3>
+                        @for (component of group.ingredients; track component.id) {
+                          <div class="selected-ingredient">
+                            <div class="selected-ingredient-heading"><strong>{{ component.name }}</strong></div>
+                            <div class="ingredient-amount-controls">
+                              <select [value]="compositionAmountKind(component.id)" [attr.aria-label]="'Cantidad de ' + component.name" (change)="setCompositionAmountKind(component.id, $any($event.target).value)"><option value="none">Sin cantidad</option><option value="spoon">1 cucharada</option><option value="glass">1 vaso</option><option value="specific">Cantidad espec&#xED;fica</option></select>
+                              @if (compositionAmount(component.id); as amount) {
+                                @if (amount.kind === 'specific') {
+                                  <input type="number" min="0.01" step="any" [value]="amount.value ?? ''" [attr.aria-label]="'Cantidad de ' + component.name" placeholder="Cantidad" (input)="setCompositionAmountValue(component.id, $any($event.target).value)">
+                                  <select [value]="amount.unit" [attr.aria-label]="'Unidad de ' + component.name" (change)="setCompositionAmountUnit(component.id, $any($event.target).value)"><option value="g">g</option><option value="ml">ml</option><option value="pieza">pieza</option></select>
+                                }
+                              }
+                            </div>
+                          </div>
+                        }
+                      </section>
+                    } @empty { <p class="ingredient-empty">Selecciona componentes arriba para indicar sus cantidades.</p> }
+                  </div>
+                </fieldset>
+              }
+              <footer class="form-actions"><app-button variant="ghost" (clicked)="cancel.emit()">Cancelar</app-button><app-button customClass="form-submit" type="submit">A&#xF1;adir ingrediente <app-icon name="arrow-right" /></app-button></footer>
+            </form>
+          }
+        }
+      </section>
+    </div>
+
+
+

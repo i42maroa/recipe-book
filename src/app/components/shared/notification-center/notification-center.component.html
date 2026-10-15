@@ -1,0 +1,10 @@
+    <div class="toast-stack" aria-live="polite">
+      @for (item of (notifications$ | async) ?? []; track item.id) {
+        <div class="toast" [class.toast-error]="item.kind === 'error'" role="status">
+          <span class="toast-mark"><app-icon [name]="item.kind === 'success' ? 'check' : 'warning'" /></span>
+          <span>{{ item.message }}</span>
+          <button type="button" class="toast-close" aria-label="Cerrar notificación" (click)="dismiss(item.id)"><app-icon name="close" /></button>
+        </div>
+      }
+    </div>
+

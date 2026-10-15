@@ -1,0 +1,12 @@
+<nav class="breadcrumb" aria-label="Ruta de navegación">
+  @for (item of items$ | async; track $index; let first = $first) {
+    @if (!first) {
+      <i aria-hidden="true">/</i>
+    }
+    @if (item.url) {
+      <a [routerLink]="item.url">{{ item.label }}</a>
+    } @else {
+      <b aria-current="page">{{ item.label }}</b>
+    }
+  }
+</nav>

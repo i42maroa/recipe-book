@@ -1,0 +1,52 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+.select-filter {
+  display: flex;
+  min-width: 143px;
+  height: 39px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+}
+.select-filter > span {
+  flex: 0 0 auto;
+  color: var(--color-text-muted);
+  font-size: 9px;
+}
+.select-filter select {
+  width: 100%;
+  min-width: 0;
+  appearance: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: 10px var(--font-sans);
+}
+.select-filter select:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.select-filter select:disabled {
+  opacity: .6;
+}
+.select-filter b {
+  flex: 0 0 auto;
+  color: var(--color-secondary);
+  font-size: 12px;
+  font-weight: 400;
+}
+.select-filter[data-filter-type='ingredient-category'] {
+  width: 100%;
+  min-width: 0;
+  height: 37px;
+  border-radius: 5px;
+}
+.select-filter[data-filter-type='ingredient-category'] select {
+  font-size: 11px;
+}

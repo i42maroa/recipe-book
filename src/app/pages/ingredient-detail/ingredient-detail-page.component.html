@@ -1,0 +1,48 @@
+@if (details$ | async; as details) {
+  @if (details.ingredient; as ingredient) {
+    <article class="ingredient-detail-page">
+
+      <section class="ingredient-detail-card">
+        <div class="ingredient-detail-icon"><app-ingredient-icon [category]="ingredient.category" /></div>
+        <h1>{{ ingredient.name }}</h1>
+        <span class="ingredient-category">{{ ingredient.category }}</span>
+      </section>
+
+      @if (details.madeFrom.length) {
+        <section class="ingredient-components">
+          <span class="eyebrow">ELABORADO CON</span>
+          <div class="ingredient-component-groups">
+            @for (group of details.madeFrom; track group.category) {
+              <section class="ingredient-component-group"><h3>{{ group.category }}</h3><ul>
+                @for (component of group.components; track component.id) {
+                  <li><a [routerLink]="['/ingredients', component.id]">{{ component.name }}</a>@if (amountLabel(ingredient, component.id); as amount) { <small>{{ amount }}</small> }</li>
+                }
+              </ul></section>
+            }
+          </div>
+        </section>
+      }
+
+      <section class="ingredient-recipes">
+        <header><h2>Recetas con este ingrediente</h2><span class="recipe-count">{{ recipeCountLabel(details.usedIn) }}</span></header>
+        @if (details.usedIn.length) {
+          <ul>
+            @for (recipe of details.usedIn; track recipe.id) {
+              <li><a [routerLink]="['/recipes', recipe.id]"><span>{{ recipe.name }}</span><small>{{ recipe.minutes ?? '—' }} min</small></a></li>
+            }
+          </ul>
+        } @else {
+          <p class="no-recipes">Todavía no has usado este ingrediente en ninguna receta.</p>
+        }
+      </section>
+      
+      <div class="ingredient-detail-actions"><div><app-button variant="ghost" (clicked)="forms.openForm('ingredient', ingredient)">Editar</app-button><app-button variant="ghost" customClass="delete-action" (clicked)="deleteIngredient(ingredient)">Eliminar</app-button></div></div>
+    </article>
+  } @else {
+    <section class="ingredient-not-found">
+      <h1>No encontramos ese ingrediente</h1>
+      <p>Puede que ya no esté en tu despensa.</p>
+      
+    </section>
+  }
+}
