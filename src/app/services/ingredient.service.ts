@@ -3,51 +3,53 @@ import { BehaviorSubject } from 'rxjs';
 import { Ingredient, IngredientCategory } from '../models/recipe.model';
 import { NotificationService } from './notification.service';
 import { RecipeService } from './recipe.service';
-
-const initialIngredients: Ingredient[] = [
-  { id: 'i1', name: 'Aguacate', category: 'Fruta' }, { id: 'i2', name: 'Huevo', category: 'Otro' }, { id: 'i3', name: 'Pan de masa madre', category: 'Cereal' }, { id: 'i4', name: 'Limón', category: 'Fruta' },
-  { id: 'i5', name: 'Pasta', category: 'Cereal' }, { id: 'i6', name: 'Nata', category: 'Lacteo' }, { id: 'i7', name: 'Parmesano', category: 'Lacteo' }, { id: 'i8', name: 'Pimienta', category: 'Especia' },
-  { id: 'i9', name: 'Garbanzos', category: 'Legumbre' }, { id: 'i10', name: 'Tomate', category: 'Verdura' }, { id: 'i11', name: 'Pepino', category: 'Verdura' }, { id: 'i12', name: 'Plátano', category: 'Fruta' },
-  { id: 'i13', name: 'Avena', category: 'Cereal' }, { id: 'i15', name: 'Calabaza', category: 'Verdura' }, { id: 'i16', name: 'Cebolla', category: 'Verdura' }, { id: 'i17', name: 'Caldo', category: 'Otro' },
-  { id: 'i18', name: 'Salmón', category: 'Pescado' }, { id: 'i19', name: 'Miel', category: 'Otro' }, { id: 'i20', name: 'Salsa de soja', category: 'Otro' },
-  { id: 'i21', name: 'Harina', category: 'Cereal' }, { id: 'i22', name: 'Mantequilla', category: 'Lacteo' }, { id: 'i23', name: 'Leche', category: 'Lacteo' },
-  { id: 'i24', name: 'Bechamel', category: 'Elaboracion', derivedFromIds: ['i21', 'i22', 'i23'], derivedFromAmounts: { i21: { kind: 'specific', value: 50, unit: 'g' }, i22: { kind: 'specific', value: 50, unit: 'g' }, i23: { kind: 'specific', value: 500, unit: 'ml' } } }
-];
+import { SupabaseService } from './supabase.service';
 
 @Injectable({ providedIn: 'root' })
 export class IngredientService {
-  private readonly ingredientsSubject = new BehaviorSubject<Ingredient[]>(initialIngredients);
+  private readonly ingredientsSubject = new BehaviorSubject<Ingredient[]>([]);
   readonly ingredients$ = this.ingredientsSubject.asObservable();
-
-  constructor(private readonly recipes: RecipeService, private readonly notifications: NotificationService) {}
-
-  add(name: string, category: IngredientCategory, derivedFromIds: string[] = [], derivedFromAmounts: Ingredient['derivedFromAmounts'] = {}): Ingredient {
-    const ingredient = { id: crypto.randomUUID(), name: name.trim(), category, derivedFromIds, derivedFromAmounts };
-    this.ingredientsSubject.next([...this.ingredientsSubject.value, ingredient]);
-    return ingredient;
+  constructor(private readonly supabase: SupabaseService, private readonly recipes: RecipeService, private readonly notifications: NotificationService) {
+    if (supabase.configured) void this.refresh().catch((error: unknown) => {
+      console.error('Error al cargar ingredientes desde Supabase:', error);
+      const detail = error instanceof Error ? error.message : 'Error desconocido';
+      this.notifications.error(`No se pudieron cargar los ingredientes de Supabase: ${detail}`);
+    });
   }
 
-  getById(id: string): Ingredient | undefined {
-    return this.ingredientsSubject.value.find((ingredient) => ingredient.id === id);
+  async refresh(): Promise<void> {
+    const { data, error } = await this.supabase.requireClient().from('ingredients').select('*, ingredient_components!ingredient_components_parent_ingredient_id_fkey(component_ingredient_id,amount_kind,amount_value,amount_unit)').order('name');
+    if (error) throw error;
+    this.ingredientsSubject.next((data ?? []).map((row: any) => {
+      const components = row.ingredient_components ?? [];
+      return { id: row.id, name: row.name, category: row.category, derivedFromIds: components.map((c: any) => c.component_ingredient_id),
+        derivedFromAmounts: Object.fromEntries(components.filter((c: any) => c.amount_kind !== 'none').map((c: any) => [c.component_ingredient_id, c.amount_kind === 'specific' ? { kind: 'specific', value: Number(c.amount_value), unit: c.amount_unit } : { kind: c.amount_kind }])) } as Ingredient;
+    }));
   }
-
-  update(id: string, changes: Pick<Ingredient, 'name' | 'category' | 'derivedFromIds' | 'derivedFromAmounts'>): void {
-    this.ingredientsSubject.next(this.ingredientsSubject.value.map((ingredient) => ingredient.id === id ? { ...ingredient, ...changes, name: changes.name.trim() } : ingredient));
+  async add(name: string, category: IngredientCategory, derivedFromIds: string[] = [], derivedFromAmounts: Ingredient['derivedFromAmounts'] = {}): Promise<Ingredient> {
+    const id = crypto.randomUUID();
+    const ingredient: Ingredient = { id, name: name.trim(), category, derivedFromIds, derivedFromAmounts };
+    const { error } = await this.supabase.requireClient().rpc('save_ingredient', { p_id: id, p_name: ingredient.name, p_category: category, p_components: this.components(ingredient) });
+    if (error) throw error;
+    await this.refresh();
+    return this.getById(id) ?? ingredient;
   }
-
-  isUsed(id: string): boolean {
-    return this.recipes.usesIngredient(id)
-      || this.ingredientsSubject.value.some((ingredient) => ingredient.derivedFromIds?.includes(id));
+  getById(id: string): Ingredient | undefined { return this.ingredientsSubject.value.find((item) => item.id === id); }
+  async update(id: string, changes: Pick<Ingredient, 'name' | 'category' | 'derivedFromIds' | 'derivedFromAmounts'>): Promise<void> {
+    const { error } = await this.supabase.requireClient().rpc('save_ingredient', { p_id: id, p_name: changes.name.trim(), p_category: changes.category, p_components: this.components({ id, ...changes }) });
+    if (error) throw error;
+    await this.refresh();
   }
-
-  remove(id: string): boolean {
-    if (this.isUsed(id)) {
-      this.notifications.error('Este ingrediente est\u00e1 en uso en una receta o elaboraci\u00f3n y no se puede eliminar.');
-      return false;
+  private components(ingredient: Ingredient): object[] { return (ingredient.derivedFromIds ?? []).map((componentId) => ({ ingredient_id: componentId, ...(ingredient.derivedFromAmounts?.[componentId] ?? { kind: 'none' }) })); }
+  isUsed(id: string): boolean { return this.recipes.usesIngredient(id) || this.ingredientsSubject.value.some((item) => item.derivedFromIds?.includes(id)); }
+  async remove(id: string): Promise<boolean> {
+    try {
+      const { error } = await this.supabase.requireClient().from('ingredients').delete().eq('id', id);
+      if (error) throw error;
+      this.ingredientsSubject.next(this.ingredientsSubject.value.filter((item) => item.id !== id));
+      this.notifications.success('Ingrediente eliminado.'); return true;
+    } catch (error) {
+      this.notifications.error('No se pudo eliminar: puede estar asociado a una receta o elaboración.'); return false;
     }
-    this.ingredientsSubject.next(this.ingredientsSubject.value.filter((item) => item.id !== id));
-    this.notifications.success('Ingrediente eliminado.');
-    return true;
   }
 }
-

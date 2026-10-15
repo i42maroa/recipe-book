@@ -1,41 +1,49 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { Recipe } from '../models/recipe.model';
-
-const initialRecipes: Recipe[] = [
-  { id: 'r1', name: 'Tostada de aguacate y huevo', ingredientIds: ['i1', 'i2', 'i3', 'i4'], ingredientAmounts: { i1: { kind: 'specific', value: 75, unit: 'g' }, i2: { kind: 'specific', value: 1, unit: 'pieza' }, i3: { kind: 'specific', value: 40, unit: 'g' }, i4: { kind: 'specific', value: 5, unit: 'ml' } }, minutes: 15, steps: ['Tuesta el pan hasta que quede dorado.', 'Machaca el aguacate con unas gotas de limón.', 'Prepara el huevo a tu gusto y monta la tostada.'], pending: false, mealTypes: ['Desayuno'], cuisineTypes: ['Espa\u00f1ola'], rating: 9, sourceUrl: '', difficulty: 'F\u00e1cil' },
-  { id: 'r2', name: 'Pasta cremosa de limón', ingredientIds: ['i5', 'i6', 'i7', 'i8'], ingredientAmounts: { i5: { kind: 'specific', value: 200, unit: 'g' }, i6: { kind: 'glass' }, i7: { kind: 'specific', value: 30, unit: 'ml' }, i8: { kind: 'spoon' } }, minutes: 25, steps: ['Cuece la pasta en agua con sal.', 'Mezcla la nata con ralladura y zumo de limón.', 'Añade parmesano y sirve con pimienta.'], pending: false, mealTypes: ['Plato'], cuisineTypes: ['Italiana'], rating: 8, sourceUrl: '', difficulty: 'Media' },
-  { id: 'r3', name: 'Ensalada de garbanzos', ingredientIds: ['i9', 'i10', 'i11'], ingredientAmounts: { i9: { kind: 'specific', value: 240, unit: 'g' }, i10: { kind: 'specific', value: 100, unit: 'g' }, i11: { kind: 'specific', value: 80, unit: 'g' } }, minutes: 12, steps: ['Enjuaga y escurre los garbanzos.', 'Corta el tomate y el pepino en dados.', 'Aliña y mezcla todos los ingredientes.'], pending: true, mealTypes: ['Entrante', 'Plato'], cuisineTypes: ['Mediterr\u00e1nea'], rating: null, sourceUrl: '', fitness: true, difficulty: 'F\u00e1cil' },
-  { id: 'r4', name: 'Tortitas de plátano', ingredientIds: ['i12', 'i13', 'i2'], ingredientAmounts: { i12: { kind: 'specific', value: 120, unit: 'g' }, i13: { kind: 'specific', value: 80, unit: 'g' }, i2: { kind: 'specific', value: 1, unit: 'pieza' } }, minutes: 20, steps: ['Tritura el plátano con el huevo.', 'Incorpora la avena hasta tener una masa suave.', 'Cocina pequeñas tortitas en una sartén.'], pending: true, mealTypes: ['Desayuno', 'Postre'], cuisineTypes: ['Americana'], rating: null, sourceUrl: '', difficulty: 'F\u00e1cil' },
-  { id: 'r5', name: 'Crema de calabaza', ingredientIds: ['i15', 'i16', 'i17'], ingredientAmounts: { i15: { kind: 'specific', value: 500, unit: 'g' }, i16: { kind: 'specific', value: 1, unit: 'g' }, i17: { kind: 'glass' } }, minutes: 35, steps: ['Trocea la calabaza y la cebolla.', 'Cuece con caldo hasta que esté tierna.', 'Tritura y termina con un chorrito de aceite.'], pending: false, mealTypes: ['Entrante'], cuisineTypes: ['Espa\u00f1ola', 'Mediterr\u00e1nea'], rating: 10, sourceUrl: '', difficulty: 'Media' },
-  { id: 'r6', name: 'Salmón con miel y soja', ingredientIds: ['i18', 'i19', 'i20'], ingredientAmounts: { i18: { kind: 'specific', value: 2, unit: 'g' }, i19: { kind: 'spoon' }, i20: { kind: 'spoon' } }, minutes: 22, steps: ['Mezcla la miel con la salsa de soja.', 'Pinta el salmón con la mezcla.', 'Hornea hasta que quede jugoso.'], pending: true, mealTypes: ['Plato'], cuisineTypes: ['Japonesa'], rating: null, sourceUrl: '', difficulty: 'F\u00e1cil' }
-];
+import { NotificationService } from './notification.service';
+import { SupabaseService } from './supabase.service';
 
 @Injectable({ providedIn: 'root' })
 export class RecipeService {
-  private readonly recipesSubject = new BehaviorSubject<Recipe[]>(initialRecipes);
+  private readonly recipesSubject = new BehaviorSubject<Recipe[]>([]);
   readonly recipes$ = this.recipesSubject.asObservable();
-
-  create(recipe: Omit<Recipe, 'id'>): void {
-    this.recipesSubject.next([{ ...recipe, id: crypto.randomUUID() }, ...this.recipesSubject.value]);
+  constructor(private readonly supabase: SupabaseService, private readonly notifications: NotificationService) {
+    if (supabase.configured) void this.refresh().catch((error: unknown) => this.reportLoadError(error));
+    else this.notifications.error('Falta configurar la conexión con Supabase.');
   }
 
-  update(id: string, recipe: Omit<Recipe, 'id'>): void {
-    this.recipesSubject.next(this.recipesSubject.value.map((item) => item.id === id ? { ...recipe, id } : item));
+  private reportLoadError(error: unknown): void {
+    console.error('Error al cargar recetas desde Supabase:', error);
+    const detail = error instanceof Error ? error.message : 'Error desconocido';
+    this.notifications.error(`No se pudieron cargar las recetas de Supabase: ${detail}`);
   }
 
-  remove(id: string): void {
+  async refresh(): Promise<void> {
+    const { data, error } = await this.supabase.requireClient().from('recipes').select('*, recipe_ingredients(ingredient_id,amount_kind,amount_value,amount_unit), recipe_steps(position,description), recipe_cuisine_types(cuisine_types(name))').order('name');
+    if (error) throw error;
+    this.recipesSubject.next((data ?? []).map((row: any) => ({
+      id: row.id, name: row.name, minutes: row.minutes, pending: row.pending, mealTypes: row.meal_types ?? [],
+      rating: row.rating, sourceUrl: row.source_url ?? '', annotations: row.annotations ?? '', fitness: row.fitness,
+      difficulty: row.difficulty, steps: (row.recipe_steps ?? []).sort((a: any,b: any) => a.position-b.position).map((s: any) => s.description),
+      ingredientIds: (row.recipe_ingredients ?? []).map((i: any) => i.ingredient_id),
+      ingredientAmounts: Object.fromEntries((row.recipe_ingredients ?? []).filter((i: any) => i.amount_kind !== 'none').map((i: any) => [i.ingredient_id, i.amount_kind === 'specific' ? { kind: 'specific', value: Number(i.amount_value), unit: i.amount_unit } : { kind: i.amount_kind }])),
+      cuisineTypes: (row.recipe_cuisine_types ?? []).map((c: any) => c.cuisine_types?.name).filter(Boolean),
+    } as Recipe)));
+  }
+
+  async create(recipe: Omit<Recipe, 'id'>): Promise<void> { await this.save(null, recipe); }
+  async update(id: string, recipe: Omit<Recipe, 'id'>): Promise<void> { await this.save(id, recipe); }
+  private async save(id: string | null, recipe: Omit<Recipe, 'id'>): Promise<void> {
+    const { error } = await this.supabase.requireClient().rpc('save_recipe', { p_id: id, p_recipe: recipe });
+    if (error) throw error;
+    await this.refresh();
+  }
+  async remove(id: string): Promise<void> {
+    const { error } = await this.supabase.requireClient().from('recipes').delete().eq('id', id);
+    if (error) throw error;
     this.recipesSubject.next(this.recipesSubject.value.filter((recipe) => recipe.id !== id));
   }
-
-  getById(id: string): Recipe | undefined {
-    return this.recipesSubject.value.find((recipe) => recipe.id === id);
-  }
-
-  usesIngredient(id: string): boolean {
-    return this.recipesSubject.value.some((recipe) => recipe.ingredientIds.includes(id));
-  }
+  getById(id: string): Recipe | undefined { return this.recipesSubject.value.find((recipe) => recipe.id === id); }
+  usesIngredient(id: string): boolean { return this.recipesSubject.value.some((recipe) => recipe.ingredientIds.includes(id)); }
 }
-
-
-

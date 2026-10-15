@@ -1,5 +1,5 @@
 export type MealType = 'Desayuno' | 'Entrante' | 'Plato' | 'Postre';
-export type CuisineType = 'Española' | 'Mexicana' | 'Italiana' | 'Japonesa' | 'China' | 'India' | 'Tailandesa' | 'Francesa' | 'Mediterránea' | 'Peruana' | 'Americana' | 'Otra';
+export type CuisineType = 'Española' | 'Italiana' | 'Mexicana' | 'Japonesa' | 'China' | 'India' | 'Francesa' | 'Peruana' | 'Árabe' | 'Otra';
 export type IngredientCategory = 'Verdura' | 'Fruta' | 'Legumbre' | 'Pescado' | 'Carne' | 'Lacteo' | 'Cereal' | 'Especia' | 'Elaboracion' | 'Otro';
 
 export interface Ingredient {

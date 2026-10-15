@@ -53,7 +53,7 @@ export class BaseFormComponent implements OnInit {
     }),
   );
   readonly mealTypes: MealType[] = ['Desayuno', 'Entrante', 'Plato', 'Postre'];
-  readonly cuisineTypes: CuisineType[] = ['Española', 'Mexicana', 'Italiana', 'Japonesa', 'China', 'India', 'Tailandesa', 'Francesa', 'Mediterránea', 'Peruana', 'Americana', 'Otra'];
+  readonly cuisineTypes: CuisineType[] = ['Española', 'Italiana', 'Mexicana', 'Japonesa', 'China', 'India', 'Francesa', 'Peruana', 'Árabe', 'Otra'];
   readonly difficulties: RecipeDifficulty[] = ['F\u00e1cil', 'Media', 'Dif\u00edcil'];
   readonly categories: IngredientCategory[] = ['Verdura', 'Fruta', 'Legumbre', 'Pescado', 'Carne', 'Lacteo', 'Cereal', 'Especia', 'Elaboracion', 'Otro'];
   readonly quickCategories = this.categories.filter((category) => category !== 'Elaboracion');
@@ -284,11 +284,13 @@ export class BaseFormComponent implements OnInit {
     const selected = this.recipeForm.controls.mealTypes.value;
     this.recipeForm.controls.mealTypes.setValue(selected.includes(type) ? selected.filter((value) => value !== type) : [...selected, type]);
   }
-  addQuickIngredient(): void {
+  async addQuickIngredient(): Promise<void> {
     const name = this.newIngredientName.value.trim();
     const category = this.newIngredientCategory.value;
     if (!name || !category) { this.notifications.error('Escribe el nombre y elige una categoría.'); return; }
-    const ingredient = this.ingredientService.add(name, category);
+    let ingredient: Ingredient;
+    try { ingredient = await this.ingredientService.add(name, category); }
+    catch (error) { this.notifications.error(error instanceof Error ? error.message : 'No se pudo guardar el ingrediente.'); return; }
     this.toggleIngredient(ingredient.id);
     this.newIngredientName.setValue('');
     this.newIngredientCategory.setValue('');
@@ -308,7 +310,7 @@ export class BaseFormComponent implements OnInit {
     if (hasIncompleteAmount) { this.notifications.error('Indica una cantidad mayor que cero o elige otra opción.'); return; }
     this.recipeSaved.emit({ ...value, steps: value.steps.split('\n').map((step) => step.trim()).filter(Boolean) });
   }
-  saveIngredient(): void {
+  async saveIngredient(): Promise<void> {
     if (this.ingredientForm.invalid) return;
     const value = this.ingredientForm.getRawValue();
     const derivedFromIds = value.category === 'Elaboracion' ? value.derivedFromIds : [];
@@ -326,17 +328,18 @@ export class BaseFormComponent implements OnInit {
       return;
     }
     if (this.ingredientToEdit) {
-      this.ingredientService.update(this.ingredientToEdit.id, {
+      try { await this.ingredientService.update(this.ingredientToEdit.id, {
         name: value.name,
         category: value.category as IngredientCategory,
         derivedFromIds,
         derivedFromAmounts,
-      });
+      }); } catch (error) { this.notifications.error(error instanceof Error ? error.message : 'No se pudo actualizar el ingrediente.'); return; }
       this.notifications.success(`${value.name} actualizado.`);
       this.cancel.emit();
       return;
     }
-    this.ingredientService.add(value.name, value.category as IngredientCategory, derivedFromIds, derivedFromAmounts);
+    try { await this.ingredientService.add(value.name, value.category as IngredientCategory, derivedFromIds, derivedFromAmounts); }
+    catch (error) { this.notifications.error(error instanceof Error ? error.message : 'No se pudo guardar el ingrediente.'); return; }
     this.notifications.success(`${value.name} añadido a tus ingredientes.`);
     this.cancel.emit();
   }

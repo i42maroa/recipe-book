@@ -7,10 +7,10 @@ La aplicación será un recetario personal para guardar recetas que ya he prepar
 ## Tecnologías previstas
 
 - **Frontend:** Angular 22.
-- **Base de datos:** Firebase.
-- **Backend:** servicios de Firebase.
+- **Base de datos:** PostgreSQL en Supabase.
+- **Backend:** Supabase Database y su API PostgREST.
 
-El producto o servicio concreto de Firebase que se usará para persistencia y las decisiones de autenticación quedan pendientes de definir durante el desarrollo.
+La persistencia se implementa con Supabase. El MVP no incluye autenticación; las implicaciones de seguridad se documentan en `SUPABASE.md`.
 
 ## Diseño y arquitectura de frontend
 
@@ -25,15 +25,15 @@ El producto o servicio concreto de Firebase que se usará para persistencia y la
 - **Formularios reactivos:** los formularios usarán formularios reactivos de Angular y observables para gestionar los datos y los cambios de estado de forma reactiva.
 - **Formulario base reutilizable:** habrá un componente reutilizable para presentar formularios. Este componente seleccionará mediante un `switch` entre distintas plantillas de formulario, según el tipo de formulario que se necesite.
 - **Notificaciones:** habrá un servicio de notificaciones que centralice los mensajes de la aplicación y un componente que los muestre en la interfaz.
-- **Acceso a Firebase:** durante la segunda evolución se añadirá un servicio de conexión con Firebase, que centralizará el acceso a los servicios de Firebase usados por la aplicación.
+- **Acceso a Supabase:** el servicio `SupabaseService` centraliza el cliente; recetas e ingredientes se consultan mediante sus servicios de dominio.
 - **Lint:** se configurará lint para aplicar y verificar convenciones de código y controlar la coherencia de los estilos. Las reglas concretas se definirán al configurar el proyecto Angular.
 
-Estas pautas orientan la estructura del frontend desde el primer evolutivo. La conexión efectiva con Firebase corresponde al segundo evolutivo.
+Estas pautas orientan la estructura del frontend y la integración con Supabase.
 
 ## Plan de evolución
 
 1. **MVP del frontend:** desarrollar la interfaz y los flujos principales con datos de ejemplo o estado local. El MVP se detalla en este documento.
-2. **Integración con Firebase:** conectar la aplicación con Firebase e implementar la lógica de backend necesaria para el MVP.
+2. **Integración con Supabase:** conectar la aplicación con Supabase e implementar la lógica de backend necesaria para el MVP.
 3. **Despliegue:** publicar la aplicación para que se pueda usar desde la web.
 
 ## Alcance del MVP
@@ -106,7 +106,7 @@ Este documento recoge el contexto inicial. Antes o durante la implementación se
 
 - edición de recetas e ingredientes, además de los flujos de creación y eliminación descritos;
 - detalles de presentación y combinación de los criterios de búsqueda;
-- servicios concretos de Firebase y reglas de seguridad;
+- autenticación y reglas de seguridad por usuario para privatizar los datos;
 - alojamiento y configuración del despliegue.
 
 Las funcionalidades no descritas en el alcance del MVP no se consideran comprometidas para la primera evolución.

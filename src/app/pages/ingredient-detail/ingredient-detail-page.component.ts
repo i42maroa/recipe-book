@@ -52,9 +52,9 @@ export class IngredientDetailPageComponent {
     void this.router.navigate(['/ingredients']);
   }
 
-  deleteIngredient(ingredient: Ingredient): void {
+  async deleteIngredient(ingredient: Ingredient): Promise<void> {
     if (!window.confirm(`¿Quieres eliminar el ingrediente «${ingredient.name}»?`)) return;
-    if (this.ingredientService.remove(ingredient.id)) this.backToIngredients();
+    if (await this.ingredientService.remove(ingredient.id)) this.backToIngredients();
   }
 
   recipeCountLabel(recipes: Recipe[]): string {

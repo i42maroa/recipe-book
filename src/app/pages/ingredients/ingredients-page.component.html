@@ -1,22 +1,34 @@
-    <section class="ingredients-page">
-      <div class="ingredients-heading">
-        <h1>Ingredientes</h1>
-        <app-button customClass="add-ingredient" (clicked)="forms.openForm('ingredient')">Añadir ingrediente</app-button>
+<section class="ingredients-page">
+  <div class="ingredients-heading">
+    <h1>Ingredientes</h1>
+    <app-button customClass="add-ingredient" (clicked)="forms.openForm('ingredient')">Añadir ingrediente</app-button>
+  </div>
+  <app-filter-container class="pantry-tools" gap="10px">
+    <app-search-filter placeholder="Busca un ingrediente…" ariaLabel="Buscar ingredientes" [formControl]="search"></app-search-filter>
+    <app-select-filter label="Categoría" filterType="ingredient-category" [options]="categoryOptions" [formControl]="category"></app-select-filter>
+    <span class="ingredient-total">{{ (filteredIngredients$ | async)?.length ?? 0 }} ingredientes</span>
+  </app-filter-container>
+
+  @if (ingredientGroups$ | async; as groups) {
+    @for (group of groups; track group.category) {
+      <section class="ingredient-category-group" [attr.aria-label]="'Categoría ' + categoryLabel(group.category)">
+        <div class="category-heading">
+          <h2>{{ categoryLabel(group.category) }}</h2>
+          <span>{{ group.items.length }}</span>
+        </div>
+        <div class="pantry-grid">
+          @for (ingredient of group.items; track ingredient.id) {
+            <app-ingredient-card [ingredient]="ingredient" (selected)="openIngredient($event)" />
+          }
+        </div>
+      </section>
+    } @empty {
+      <div class="empty-state">
+        <h3>Ingrediente no encontrado</h3>
+        <p>Prueba con otra búsqueda o añade uno nuevo.</p>
       </div>
-      <app-filter-container class="pantry-tools" gap="10px">
-        <app-search-filter placeholder="Busca un ingrediente…" ariaLabel="Buscar ingredientes" [formControl]="search"></app-search-filter>
-        <app-select-filter label="Categoría" filterType="ingredient-category" [options]="categoryOptions" [formControl]="category"></app-select-filter>
-        <span class="ingredient-total">{{ (filteredIngredients$ | async)?.length ?? 0 }} ingredientes</span>
-      </app-filter-container>
-      <div class="pantry-grid">
-        @for (ingredient of (filteredIngredients$ | async) ?? []; track ingredient.id) {
-          <app-ingredient-card [ingredient]="ingredient" (selected)="openIngredient($event)"/>
-        } @empty { 
-          <div class="empty-state">
-            <h3>Ingrediente no encontrado</h3>
-            <p>Prueba con otra busqueda o añade uno nuevo.</p></div> }
-          </div>
-      <aside class="pantry-tip"><p>Los ingredientes que forman parte de una receta estan protegidos y no se pueden eliminar.</p></aside>
-    </section>
+    }
+  }
 
-
+  <aside class="pantry-tip"><p>Los ingredientes que forman parte de una receta están protegidos y no se pueden eliminar.</p></aside>
+</section>

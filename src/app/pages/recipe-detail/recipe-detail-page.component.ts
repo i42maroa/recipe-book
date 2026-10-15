@@ -40,14 +40,14 @@ export class RecipeDetailPageComponent {
     void this.router.navigate(['/recipes']);
   }
 
-  saveRating(recipe: Recipe): void {
-    this.recipeService.update(recipe.id, { ...recipe, rating: this.ratingControl.value });
+  async saveRating(recipe: Recipe): Promise<void> {
+    await this.recipeService.update(recipe.id, { ...recipe, rating: this.ratingControl.value });
     this.isRating = false;
     this.notifications.success('Valoración guardada.');
   }
-  deleteRecipe(recipe: Recipe): void {
+  async deleteRecipe(recipe: Recipe): Promise<void> {
     if (!window.confirm(`¿Quieres eliminar la receta «${recipe.name}»?`)) return;
-    this.recipeService.remove(recipe.id);
+    await this.recipeService.remove(recipe.id);
     this.notifications.success('Receta eliminada.');
     this.backToRecipes();
   }

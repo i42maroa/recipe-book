@@ -33,17 +33,21 @@ export class FormService {
     this.dialogSubject.next(null);
   }
 
-  saveRecipe(value: RecipeFormValue): void {
+  async saveRecipe(value: RecipeFormValue): Promise<void> {
     const state = this.dialogSubject.value;
     const recipe = { ...value, pending: value.pending === 'yes' };
+    try {
     if (state?.recipeToEdit) {
-      this.recipes.update(state.recipeToEdit.id, recipe);
+      await this.recipes.update(state.recipeToEdit.id, recipe);
       this.notifications.success('Receta actualizada.');
     } else {
-      this.recipes.create(recipe);
+      await this.recipes.create(recipe);
       this.notifications.success('Tu receta ya está guardada. ¡Que aproveche!');
     }
     this.close();
+    } catch (error) {
+      this.notifications.error(error instanceof Error ? error.message : 'No se pudo guardar la receta.');
+    }
   }
 }
 

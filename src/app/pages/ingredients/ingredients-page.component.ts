@@ -13,6 +13,7 @@ import { SearchFilterComponent } from '../../components/shared/filters/search-fi
 import { SelectFilterOption } from '../../components/shared/filters/select-filter-options';
 import { IngredientCardComponent } from '../../components/ingredient-card/ingredient-card.component';
 
+
 @Component({
   selector: 'app-ingredients-page', standalone: true, imports: [AsyncPipe, ReactiveFormsModule, ButtonComponent, FilterContainerComponent, SelectFilterComponent, SearchFilterComponent, IngredientCardComponent],
   templateUrl: './ingredients-page.component.html',
@@ -39,6 +40,16 @@ export class IngredientsPageComponent {
       .filter((item) => item.name.toLowerCase().includes(query.toLowerCase().trim()) && (!category || item.category === category))
       .sort((a, b) => a.name.localeCompare(b.name)))
   );
+
+  readonly ingredientGroups$ = this.filteredIngredients$.pipe(map((items) => this.categories
+    .map((category) => ({ category, items: items.filter((ingredient) => ingredient.category === category) }))
+    .filter((group) => group.items.length > 0)));
+
+  categoryLabel(category: IngredientCategory): string {
+    if (category === 'Lacteo') return 'Lácteo';
+    if (category === 'Elaboracion') return 'Elaboración';
+    return category;
+  }
 
   openIngredient(ingredient: Ingredient): void {
     void this.router.navigate(['/ingredients', ingredient.id]);
