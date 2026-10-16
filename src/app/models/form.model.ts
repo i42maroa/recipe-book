@@ -7,6 +7,7 @@ export interface RecipeFormValue {
   ingredientIds: string[];
   ingredientAmounts: Record<string, RecipeIngredientAmount>;
   minutes: number | null;
+  servings: number | null;
   steps: string[];
   pending: string;
   mealTypes: MealType[];

@@ -23,6 +23,7 @@ export interface Recipe {
   ingredientIds: string[];
   ingredientAmounts?: Record<string, RecipeIngredientAmount>;
   minutes: number | null;
+  servings: number | null;
   steps: string[];
   pending: boolean;
   mealTypes: MealType[];

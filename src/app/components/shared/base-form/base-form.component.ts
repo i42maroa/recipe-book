@@ -2,7 +2,7 @@ import { AsyncPipe } from '@angular/common';
 import { Component, DestroyRef, EventEmitter, Input, OnInit, Output, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { combineLatest, map, startWith } from 'rxjs';
+import { BehaviorSubject, combineLatest, map, startWith } from 'rxjs';
 import { ButtonComponent } from '../button/button.component';
 import { FilterContainerComponent } from '../filters/filter-container/filter-container.component';
 import { SelectFilterComponent } from '../filters/select-filter/select-filter.component';
@@ -34,6 +34,7 @@ export class BaseFormComponent implements OnInit {
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
   readonly ingredients$ = this.ingredientService.ingredients$;
+  private readonly selectedIngredientIdsSubject = new BehaviorSubject<string[]>([]);
   readonly ingredientSearch = this.fb.nonNullable.control('');
   readonly ingredientCategoryFilter = this.fb.nonNullable.control<IngredientCategory | ''>('');
   readonly compositionSearch = this.fb.nonNullable.control('');
@@ -53,7 +54,15 @@ export class BaseFormComponent implements OnInit {
     }),
   );
   readonly mealTypes: MealType[] = ['Desayuno', 'Entrante', 'Plato', 'Postre'];
+  readonly ratingOptions = Array.from({ length: 10 }, (_, index) => index + 1);
   readonly cuisineTypes: CuisineType[] = ['Española', 'Italiana', 'Mexicana', 'Japonesa', 'China', 'India', 'Francesa', 'Peruana', 'Árabe', 'Otra'];
+  cuisineFlag(cuisine: CuisineType): string {
+    const flags: Record<CuisineType, string> = {
+      Espa\u00f1ola: '🇪🇸', Italiana: '🇮🇹', Mexicana: '🇲🇽', Japonesa: '🇯🇵', China: '🇨🇳',
+      India: '🇮🇳', Francesa: '🇫🇷', Peruana: '🇵🇪', \u00c1rabe: '🇸🇦', Otra: '🌐',
+    };
+    return flags[cuisine];
+  }
   readonly difficulties: RecipeDifficulty[] = ['F\u00e1cil', 'Media', 'Dif\u00edcil'];
   readonly categories: IngredientCategory[] = ['Verdura', 'Fruta', 'Legumbre', 'Pescado', 'Carne', 'Lacteo', 'Cereal', 'Especia', 'Elaboracion', 'Otro'];
   readonly quickCategories = this.categories.filter((category) => category !== 'Elaboracion');
@@ -86,17 +95,18 @@ export class BaseFormComponent implements OnInit {
   );
   readonly recipeForm = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.pattern(/\S/)]], ingredientIds: this.fb.nonNullable.control<string[]>([]),
-    ingredientAmounts: this.fb.nonNullable.control<Record<string, RecipeIngredientAmount>>({}), minutes: this.fb.control<number | null>(null),
+    ingredientAmounts: this.fb.nonNullable.control<Record<string, RecipeIngredientAmount>>({}), minutes: this.fb.control<number | null>(null), servings: this.fb.control<number | null>(null, [Validators.min(1)]),
     steps: [''], pending: ['yes', Validators.required], mealTypes: this.fb.nonNullable.control<MealType[]>([]), cuisineTypes: this.fb.nonNullable.control<CuisineType[]>([]),
     rating: this.fb.control<number | null>(null, [Validators.min(1), Validators.max(10)]), sourceUrl: [''], annotations: [''], fitness: [false], difficulty: this.fb.nonNullable.control<RecipeDifficulty>('Media')
   });
   readonly selectedIngredients$ = combineLatest([
     this.ingredients$,
-    this.recipeForm.controls.ingredientIds.valueChanges.pipe(startWith(this.recipeForm.controls.ingredientIds.value)),
+    this.selectedIngredientIdsSubject,
   ]).pipe(
-    map(([ingredients, selectedIds]) => this.groupIngredients(selectedIds
+    map(([ingredients, selectedIds]) => selectedIds
       .map((id) => ingredients.find((ingredient) => ingredient.id === id))
-      .filter((ingredient): ingredient is Ingredient => ingredient !== undefined))),
+      .filter((ingredient): ingredient is Ingredient => ingredient !== undefined)
+      .sort((a, b) => a.category.localeCompare(b.category, 'es') || a.name.localeCompare(b.name, 'es'))),
   );
   readonly ingredientForm = this.fb.nonNullable.group({
     name: ['', Validators.required],
@@ -117,16 +127,25 @@ export class BaseFormComponent implements OnInit {
 
   constructor() {
     this.ingredients$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((ingredients) => {
-      const ids = this.recipeForm.controls.ingredientIds.value.filter((id) => ingredients.some((item) => item.id === id));
-      this.recipeForm.controls.ingredientIds.setValue(ids, { emitEvent: false });
+      // The service starts with an empty list while Supabase loads. Do not erase
+      // selected IDs from an edit form during that initial empty emission.
+      if (ingredients.length === 0) return;
+      const validIds = new Set(ingredients.map((item) => item.id));
+      const ids = this.recipeForm.controls.ingredientIds.value.filter((id) => validIds.has(id));
+      this.recipeForm.controls.ingredientIds.setValue(ids);
+      this.selectedIngredientIdsSubject.next(ids);
       const amounts = this.recipeForm.controls.ingredientAmounts.value;
-      const validAmounts = Object.fromEntries(Object.entries(amounts).filter(([id]) => ids.includes(id)));
-      this.recipeForm.controls.ingredientAmounts.setValue(validAmounts, { emitEvent: false });
-      const componentIds = this.ingredientForm.controls.derivedFromIds.value.filter((id) => ingredients.some((item) => item.id === id));
-      this.ingredientForm.controls.derivedFromIds.setValue(componentIds, { emitEvent: false });
+      this.recipeForm.controls.ingredientAmounts.setValue(
+        Object.fromEntries(Object.entries(amounts).filter(([id]) => ids.includes(id))),
+        { emitEvent: false },
+      );
+      const componentIds = this.ingredientForm.controls.derivedFromIds.value.filter((id) => validIds.has(id));
+      this.ingredientForm.controls.derivedFromIds.setValue(componentIds);
       const componentAmounts = this.ingredientForm.controls.derivedFromAmounts.value;
-      const validComponentAmounts = Object.fromEntries(Object.entries(componentAmounts).filter(([id]) => componentIds.includes(id)));
-      this.ingredientForm.controls.derivedFromAmounts.setValue(validComponentAmounts, { emitEvent: false });
+      this.ingredientForm.controls.derivedFromAmounts.setValue(
+        Object.fromEntries(Object.entries(componentAmounts).filter(([id]) => componentIds.includes(id))),
+        { emitEvent: false },
+      );
     });
   }
 
@@ -142,6 +161,7 @@ export class BaseFormComponent implements OnInit {
         annotations: this.recipeToEdit.annotations ?? '',
         fitness: this.recipeToEdit.fitness ?? false,
       });
+      this.selectedIngredientIdsSubject.next(this.recipeForm.controls.ingredientIds.value);
     }
     if (this.ingredientToEdit) {
       this.ingredientForm.patchValue({
@@ -153,6 +173,8 @@ export class BaseFormComponent implements OnInit {
   }
 
   isSelected(id: string): boolean { return this.recipeForm.controls.ingredientIds.value.includes(id); }
+  setRating(value: number): void { this.recipeForm.controls.rating.setValue(value); }
+  clearRating(): void { this.recipeForm.controls.rating.setValue(null); }
   isCompositionSelected(id: string): boolean {
     return this.ingredientForm.controls.derivedFromIds.value.includes(id);
   }
@@ -209,6 +231,7 @@ export class BaseFormComponent implements OnInit {
     const selected = this.recipeForm.controls.ingredientIds.value;
     const wasSelected = selected.includes(id);
     this.recipeForm.controls.ingredientIds.setValue(wasSelected ? selected.filter((value) => value !== id) : [...selected, id]);
+    this.selectedIngredientIdsSubject.next(this.recipeForm.controls.ingredientIds.value);
     if (wasSelected) this.setIngredientAmount(id, null);
     this.recipeForm.controls.ingredientIds.markAsTouched();
   }
@@ -303,6 +326,7 @@ export class BaseFormComponent implements OnInit {
     const value = this.recipeForm.getRawValue();
     if (value.rating !== null && (!Number.isInteger(value.rating) || value.rating < 1 || value.rating > 10)) { this.notifications.error('La valoración debe ser un número entero del 1 al 10.'); return; }
     if (value.minutes !== null && value.minutes < 1) { this.notifications.error('El tiempo debe ser mayor que cero minutos.'); return; }
+    if (value.servings !== null && (!Number.isInteger(value.servings) || value.servings < 1)) { this.notifications.error('Indica un número entero de comensales mayor que cero.'); return; }
     const hasIncompleteAmount = value.ingredientIds.some((id) => {
       const amount = value.ingredientAmounts[id];
       return amount?.kind === 'specific' && (amount.value === null || amount.value <= 0);

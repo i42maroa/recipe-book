@@ -23,7 +23,7 @@ export class RecipeService {
     const { data, error } = await this.supabase.requireClient().from('recipes').select('*, recipe_ingredients(ingredient_id,amount_kind,amount_value,amount_unit), recipe_steps(position,description), recipe_cuisine_types(cuisine_types(name))').order('name');
     if (error) throw error;
     this.recipesSubject.next((data ?? []).map((row: any) => ({
-      id: row.id, name: row.name, minutes: row.minutes, pending: row.pending, mealTypes: row.meal_types ?? [],
+      id: row.id, name: row.name, minutes: row.minutes, servings: row.servings, pending: row.pending, mealTypes: row.meal_types ?? [],
       rating: row.rating, sourceUrl: row.source_url ?? '', annotations: row.annotations ?? '', fitness: row.fitness,
       difficulty: row.difficulty, steps: (row.recipe_steps ?? []).sort((a: any,b: any) => a.position-b.position).map((s: any) => s.description),
       ingredientIds: (row.recipe_ingredients ?? []).map((i: any) => i.ingredient_id),

@@ -1,21 +1,22 @@
 import { AsyncPipe } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder } from '@angular/forms';
+import { FormBuilder } from '@angular/forms';
 import { Component, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { combineLatest, map } from 'rxjs';
 import { ButtonComponent } from '../../components/shared/button/button.component';
-import { Ingredient, Recipe } from '../../models/recipe.model';
+import { CuisineType, Ingredient, Recipe } from '../../models/recipe.model';
 import { IngredientService } from '../../services/ingredient.service';
 import { RecipeService } from '../../services/recipe.service';
 import { NotificationService } from '../../services/notification.service';
 import { FormService } from '../../services/form.service';
 import { MealIconComponent } from '../../components/shared/meal-icon/meal-icon.component';
 import { IconComponent } from '../../components/shared/icon/icon.component';
+import { DifficultyTonePipe } from '../../pipes/difficulty-tone.pipe';
 
 @Component({
   selector: 'app-recipe-detail-page',
   standalone: true,
-  imports: [AsyncPipe, RouterLink, ButtonComponent, ReactiveFormsModule, MealIconComponent, IconComponent],
+  imports: [AsyncPipe, RouterLink, ButtonComponent, MealIconComponent, IconComponent, DifficultyTonePipe],
   templateUrl: './recipe-detail-page.component.html',
   styleUrl: './recipe-detail-page.component.css',
 })
@@ -28,7 +29,7 @@ export class RecipeDetailPageComponent {
   readonly forms = inject(FormService);
   isRating = false;
   private readonly fb = inject(FormBuilder);
-  readonly ratingControl = this.fb.nonNullable.control(5);
+  readonly ratingControl = this.fb.nonNullable.control(0);
   readonly ratingOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
   readonly ingredients$ = this.ingredientService.ingredients$;
@@ -40,8 +41,20 @@ export class RecipeDetailPageComponent {
     void this.router.navigate(['/recipes']);
   }
 
+  openRating(recipe: Recipe): void {
+    this.ratingControl.setValue(recipe.rating ?? 0);
+    this.isRating = true;
+  }
+
+  setRating(value: number): void { this.ratingControl.setValue(value); }
+
   async saveRating(recipe: Recipe): Promise<void> {
-    await this.recipeService.update(recipe.id, { ...recipe, rating: this.ratingControl.value });
+    const rating = this.ratingControl.value;
+    if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
+      this.notifications.error('Selecciona de una a diez estrellas.');
+      return;
+    }
+    await this.recipeService.update(recipe.id, { ...recipe, pending: false, rating });
     this.isRating = false;
     this.notifications.success('Valoración guardada.');
   }
@@ -88,6 +101,15 @@ export class RecipeDetailPageComponent {
     };
     return photoByMealType[recipe.mealTypes[0]] ?? 'photo-neutral';
   }
+
+  cuisineFlag(cuisine: CuisineType): string {
+    const flags: Record<CuisineType, string> = {
+      Española: '🇪🇸', Italiana: '🇮🇹', Mexicana: '🇲🇽', Japonesa: '🇯🇵', China: '🇨🇳',
+      India: '🇮🇳', Francesa: '🇫🇷', Peruana: '🇵🇪', Árabe: '🇸🇦', Otra: '🌐',
+    };
+    return flags[cuisine];
+  }
+
 
 }
 

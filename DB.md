@@ -29,6 +29,7 @@ Referencias oficiales:
 - Uno o varios ingredientes obligatorios.
 - Estado pendiente o elaborada obligatorio.
 - Tiempo aproximado en minutos.
+- Número opcional de comensales (entero mayor que cero).
 - Pasos de preparación ordenados.
 - Tipo o tipos de comida: desayuno, entrante, plato o postre. Una receta puede pertenecer a más de uno.
 - Valoración opcional de 1 a 10.
@@ -84,6 +85,7 @@ create table public.recipes (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   minutes integer check (minutes is null or minutes >= 0),
+  servings integer check (servings is null or servings >= 1),
   pending boolean not null,
   meal_types text[] not null default '{}',
   rating smallint check (rating is null or rating between 1 and 10),
