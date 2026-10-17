@@ -47,6 +47,11 @@
 .lightbox-arrow.next { right: 14px; }
 .lightbox-counter { position: absolute; right: 50%; bottom: 12px; padding: 5px 10px; border-radius: 12px; background: rgb(28 31 28 / 68%); color: white; font-size: 11px; transform: translateX(50%); }
 .lightbox-close:focus-visible, .lightbox-arrow:focus-visible { outline: 2px solid white; outline-offset: 3px; }
+@media (max-width: 1024px) {
+  .lightbox-backdrop { align-items: center; padding: 24px; }
+  .lightbox-dialog { height: calc(100dvh - 48px); align-items: center; }
+  .lightbox-dialog img { object-position: center; }
+}
 @media (max-width: 520px) {
   .lightbox-backdrop { padding: 12px; }
   .lightbox-dialog { height: calc(100dvh - 24px); }

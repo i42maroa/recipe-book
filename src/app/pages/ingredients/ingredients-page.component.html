@@ -3,6 +3,7 @@
     <h1>Ingredientes</h1>
     <app-button customClass="add-ingredient" (clicked)="forms.openForm('ingredient')">Añadir ingrediente</app-button>
   </div>
+  <button class="floating-add-button" type="button" aria-label="Añadir ingrediente" title="Añadir ingrediente" (click)="forms.openForm('ingredient')"><app-icon name="plus" /></button>
   <app-filter-container class="pantry-tools" gap="10px">
     <app-search-filter placeholder="Busca un ingrediente…" ariaLabel="Buscar ingredientes" [formControl]="search"></app-search-filter>
     <app-select-filter label="Categoría" filterType="ingredient-category" [options]="categoryOptions" [formControl]="category"></app-select-filter>

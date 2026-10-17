@@ -6,6 +6,7 @@ import { BreadcrumbComponent } from './components/shared/breadcrumb/breadcrumb.c
 import { NavbarComponent } from './components/shared/navbar/navbar.component';
 import { NotificationCenterComponent } from './components/shared/notification-center/notification-center.component';
 import { FormService } from './services/form.service';
+import { LoadingService } from './services/loading.service';
 
 @Component({
   selector: 'app-root',
@@ -15,6 +16,7 @@ import { FormService } from './services/form.service';
   styleUrl: './app.component.css',
 })
 export class AppComponent {
+  readonly loading = inject(LoadingService);
   readonly forms = inject(FormService);
   readonly todayLabel = new Intl.DateTimeFormat('es-ES', {
     weekday: 'long', day: 'numeric', month: 'long',

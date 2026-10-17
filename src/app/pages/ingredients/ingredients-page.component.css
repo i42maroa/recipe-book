@@ -22,6 +22,7 @@
 .ingredients-page {
   padding-top: 47px;
 }
+.floating-add-button { display: none; }
 .ingredients-heading {
   align-items: center;
 }
@@ -79,6 +80,12 @@
     padding-left: 4%;
   }
 }
+@media (min-width: 761px) and (max-width: 1024px) {
+  .pantry-tools { gap: 9px; }
+  .pantry-tools app-search-filter { flex: 1 1 100%; }
+  .pantry-tools app-select-filter { flex: 0 1 230px; }
+  .ingredient-total { margin-left: auto; }
+}
 @media (max-width: 760px) {
   .ingredients-page {
     padding: 30px 17px 25px;
@@ -86,11 +93,35 @@
   .pantry-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .pantry-tools { gap: 8px; }
+  .pantry-tools app-search-filter { flex: 1 1 100%; }
+  .pantry-tools app-select-filter { flex: 1 1 65%; min-width: 0; }
+  .ingredient-total { margin-left: auto; }
+}
+@media (max-width: 1024px) {
+  .ingredients-heading > app-button { display: none; }
+  .floating-add-button {
+    position: fixed;
+    z-index: 4;
+    right: max(20px, env(safe-area-inset-right));
+    bottom: max(20px, env(safe-area-inset-bottom));
+    display: grid;
+    width: 56px;
+    height: 56px;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #fff;
+    box-shadow: 0 5px 18px var(--shadow-dialog);
+    cursor: pointer;
+  }
+  .floating-add-button app-icon { width: 25px; height: 25px; filter: brightness(0) invert(1); }
+  .floating-add-button:focus-visible { outline: 3px solid var(--color-secondary); outline-offset: 3px; }
+  .ingredients-page { padding-bottom: 90px; }
 }
 @media (max-width: 460px) {
-  .pantry-grid {
-    grid-template-columns: 1fr;
-  }
+  .pantry-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
   .ingredients-heading {
     align-items: flex-end;
   }
@@ -103,8 +134,9 @@
 }
 
 @media (max-width: 460px) {
-  .pantry-tools app-search-filter,
-  .pantry-tools app-select-filter { max-width: none; flex: 1 1 100%; }
+  .pantry-tools app-search-filter { max-width: none; flex: 1 1 100%; }
+  .pantry-tools app-select-filter { max-width: none; flex: 1 1 65%; min-width: 0; }
+  .ingredient-total { flex: 1 1 auto; text-align: right; }
 }
 
 

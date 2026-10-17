@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+﻿import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { Ingredient, IngredientCategory } from '../models/recipe.model';
 import { NotificationService } from './notification.service';
@@ -41,7 +41,7 @@ export class IngredientService {
     await this.refresh();
   }
   private components(ingredient: Ingredient): object[] { return (ingredient.derivedFromIds ?? []).map((componentId) => ({ ingredient_id: componentId, ...(ingredient.derivedFromAmounts?.[componentId] ?? { kind: 'none' }) })); }
-  isUsed(id: string): boolean { return this.recipes.usesIngredient(id) || this.ingredientsSubject.value.some((item) => item.derivedFromIds?.includes(id)); }
+  async isUsed(id: string): Promise<boolean> { return this.ingredientsSubject.value.some((item) => item.derivedFromIds?.includes(id)) || await this.recipes.usesIngredient(id); }
   async remove(id: string): Promise<boolean> {
     try {
       const { error } = await this.supabase.requireClient().from('ingredients').delete().eq('id', id);

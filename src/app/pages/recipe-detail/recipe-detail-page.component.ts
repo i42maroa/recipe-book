@@ -2,7 +2,7 @@ import { AsyncPipe } from '@angular/common';
 import { FormBuilder } from '@angular/forms';
 import { Component, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { combineLatest, map } from 'rxjs';
+import { catchError, combineLatest, distinctUntilChanged, from, map, of, switchMap } from 'rxjs';
 import { ButtonComponent } from '../../components/shared/button/button.component';
 import { CuisineType, Ingredient, Recipe, RecipePhoto } from '../../models/recipe.model';
 import { IngredientService } from '../../services/ingredient.service';
@@ -36,8 +36,19 @@ export class RecipeDetailPageComponent {
   readonly ratingOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
   readonly ingredients$ = this.ingredientService.ingredients$;
-  readonly recipe$ = combineLatest([this.route.paramMap, this.recipeService.recipes$]).pipe(
-    map(([params, recipes]) => recipes.find((recipe) => recipe.id === params.get('id')) ?? null),
+  private readonly loadedRecipeId$ = this.route.paramMap.pipe(
+    map((params) => params.get('id')),
+    distinctUntilChanged(),
+    switchMap((id) => id ? from(this.recipeService.loadRecipe(id)).pipe(
+      map(() => id),
+      catchError(() => {
+        this.notifications.error('No se pudo cargar la receta.');
+        return of(null);
+      }),
+    ) : of(null)),
+  );
+  readonly recipe$ = combineLatest([this.loadedRecipeId$, this.recipeService.recipes$]).pipe(
+    map(([id, recipes]) => recipes.find((recipe) => recipe.id === id) ?? null),
   );
 
   backToRecipes(): void {

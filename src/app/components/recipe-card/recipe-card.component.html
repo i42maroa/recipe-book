@@ -23,11 +23,11 @@
       @if (recipe().difficulty) { <span [class]="'difficulty-badge difficulty-' + (recipe().difficulty | difficultyTone)">{{ recipe().difficulty }}</span> }
     </span>
     <span class="recipe-title">{{ recipe().name }}</span>
+    <span class="recipe-ingredient-count">{{ recipe().ingredientIds.length }} {{ recipe().ingredientIds.length === 1 ? 'ingrediente' : 'ingredientes' }}</span>
     <span class="recipe-card-bottom-row">
       <span class="recipe-card-meta">
         @if (recipe().minutes) { <span><app-icon class="meta-icon" name="clock" />{{ recipe().minutes }} min</span> }
         @if (recipe().servings) { <span><app-icon class="meta-icon" name="person" />{{ recipe().servings }}</span> }
-        <span>{{ recipe().ingredientIds.length }} ingredientes</span>
       </span>
       @if (recipe().rating) { <span class="rating"><app-icon class="rating-icon" name="star" /> {{ recipe().rating }}</span> }
     </span>

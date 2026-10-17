@@ -12,10 +12,12 @@ import { SelectFilterComponent } from '../../components/shared/filters/select-fi
 import { SearchFilterComponent } from '../../components/shared/filters/search-filter/search-filter.component';
 import { SelectFilterOption } from '../../components/shared/filters/select-filter-options';
 import { IngredientCardComponent } from '../../components/ingredient-card/ingredient-card.component';
+import { IconComponent } from '../../components/shared/icon/icon.component';
+import { searchTerms } from '../../utils/search.utils';
 
 
 @Component({
-  selector: 'app-ingredients-page', standalone: true, imports: [AsyncPipe, ReactiveFormsModule, ButtonComponent, FilterContainerComponent, SelectFilterComponent, SearchFilterComponent, IngredientCardComponent],
+  selector: 'app-ingredients-page', standalone: true, imports: [AsyncPipe, ReactiveFormsModule, ButtonComponent, FilterContainerComponent, SelectFilterComponent, SearchFilterComponent, IngredientCardComponent, IconComponent],
   templateUrl: './ingredients-page.component.html',
   styleUrl: './ingredients-page.component.css'
 })
@@ -33,7 +35,7 @@ export class IngredientsPageComponent {
   ];
   readonly filteredIngredients$ = combineLatest([
     this.ingredientService.ingredients$,
-    this.search.valueChanges.pipe(startWith('')),
+    this.search.valueChanges.pipe(searchTerms(), startWith('')),
     this.category.valueChanges.pipe(startWith('')),
   ]).pipe(
     map(([items, query, category]) => [...items]

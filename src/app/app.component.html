@@ -1,9 +1,8 @@
-<div class="app-shell">
+<div class="app-shell" [attr.aria-busy]="loading.isLoading()">
   <app-navbar></app-navbar>
   <main class="main-area">
     <header class="topbar">
       <app-breadcrumb></app-breadcrumb>
-      <div class="topbar-actions"><span class="today-label">{{ todayLabel }}</span><span class="topbar-avatar">A</span></div>
     </header>
     <router-outlet></router-outlet>
   </main>
@@ -17,4 +16,12 @@
     (cancel)="forms.close()"
     (recipeSaved)="forms.saveRecipe($event)">
   </app-base-form>
+}
+@if (loading.isLoading()) {
+  <div class="loading-overlay" role="status" aria-live="polite" aria-label="Cargando, espera un momento">
+    <div class="loading-indicator">
+      <span class="loading-spinner" aria-hidden="true"></span>
+      <span>Cargando…</span>
+    </div>
+  </div>
 }
