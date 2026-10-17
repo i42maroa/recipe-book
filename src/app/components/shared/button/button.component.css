@@ -22,10 +22,6 @@
 .button-primary:hover {
   background: var(--color-primary-dark);
 }
-.button-primary span {
-  font-size: 16px;
-  font-weight: 400;
-}
 .button-outline {
   border-color: var(--color-surface-soft);
   background: var(--color-surface);
@@ -40,41 +36,7 @@
   background: var(--color-border);
   color: var(--color-secondary);
 }
-.button-small {
-  min-height: 34px;
-  padding: 0 11px;
-}
-.form-submit span {
-  font-size: 12px;
-}
 .add-recipe {
   min-width: 137px;
   margin-bottom: 3px;
-}
-@media (max-width: 760px) {
-  .add-recipe {
-    min-width: 42px;
-    padding: 0 11px;
-    font-size: 0;
-  }
-  .add-recipe span {
-    font-size: 19px;
-  }
-  .collection-add {
-    min-height: 34px;
-    padding: 0 9px;
-    font-size: 9px;
-  }
-}
-@media (max-width: 460px) {
-  .collection-add {
-    min-height: 34px;
-    padding: 0 9px;
-    font-size: 9px;
-  }
-  .add-ingredient {
-    min-height: 36px;
-    padding: 0 10px;
-    font-size: 9px;
-  }
 }

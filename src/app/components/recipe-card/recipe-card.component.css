@@ -138,7 +138,6 @@
 .difficulty-medium { background: var(--color-warning-soft); color: #8a6a1d; }
 .difficulty-hard { background: var(--color-danger-soft); color: var(--color-danger); }
 .recipe-title {
-  display: block;
   min-height: 40px;
   margin: 0;
   overflow: hidden;
@@ -166,9 +165,6 @@
   white-space: nowrap;
 }
 .recipe-card-meta > span { display: inline-flex; align-items: center; gap: 3px; }
-.meta-separator {
-  color: var(--color-border-strong, var(--color-text-muted));
-}
 .recipe-card-bottom-row {
   display: flex;
   min-width: 0;

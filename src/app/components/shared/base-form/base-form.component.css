@@ -18,6 +18,25 @@
   background: var(--color-surface);
   box-shadow: 0 20px 70px var(--shadow-dialog);
 }
+.form-modal.recipe-modal {
+  display: flex;
+  height: min(720px, calc(100dvh - 40px));
+  flex-direction: column;
+  overflow: hidden;
+}
+.recipe-modal .form-modal-header { flex-shrink: 0; }
+.recipe-modal .recipe-wizard {
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+.recipe-modal .recipe-tab-panel {
+  min-height: 0;
+  padding: 6px 2px 12px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
 .form-modal-header {
   position: sticky;
   z-index: 1;
@@ -148,10 +167,13 @@
 }
 .field-label {
   display: grid;
-  gap: 9px;
   color: var(--color-secondary);
   font-size: 10px;
-  font-weight: 600;
+  position: relative;
+  min-width: 0;
+  gap: 0;
+  margin-top: 6px;
+  font-weight: 400;
 }
 .field-label b {
   color: var(--color-danger);
@@ -159,94 +181,22 @@
 .field-set b {
   color: var(--color-danger);
 }
-.field-label > span:not(.field-label-title):not(.field-label-main) {
-  display: inline;
-  color: var(--color-text-muted);
-  font-weight: 400;
-}
-.field-label-main { color: var(--color-secondary); font-weight: 600; }
-.field-label input {
-  width: 100%;
-  max-width: 420px;
-  min-height: 39px;
-  padding: 0 11px;
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
-  outline: 0;
-  background: var(--color-surface);
-  color: var(--color-secondary);
-  font-size: 11px;
-}
-.field-label select {
-  width: 100%;
-  max-width: 420px;
-  min-height: 39px;
-  padding: 0 11px;
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
-  outline: 0;
-  background: var(--color-surface);
-  color: var(--color-secondary);
-  font-size: 11px;
-}
+.field-label input,
+.field-label select,
 .field-label textarea {
   width: 100%;
-  min-height: 39px;
+  min-height: 40px;
   padding: 0 11px;
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
+  border: 1px solid var(--color-secondary);
+  border-radius: 6px;
   outline: 0;
   background: var(--color-surface);
-  color: var(--color-secondary);
-  font-size: 11px;
+  color: var(--color-text);
+  font: 12px var(--font-sans);
+  transition: border-color .15s, box-shadow .15s;
 }
-.quick-add-row input {
-  width: 100%;
-  min-height: 39px;
-  padding: 0 11px;
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
-  outline: 0;
-  background: var(--color-surface);
-  color: var(--color-secondary);
-  font-size: 11px;
-}
-.quick-add-row select {
-  width: 100%;
-  min-height: 39px;
-  padding: 0 11px;
-  border: 1px solid var(--color-border);
-  border-radius: 5px;
-  outline: 0;
-  background: var(--color-surface);
-  color: var(--color-secondary);
-  font-size: 11px;
-}
-.field-label textarea {
-  min-height: 80px;
-  padding-top: 10px;
-  resize: vertical;
-}
-.field-label input:focus {
-  border-color: var(--color-secondary);
-  box-shadow: 0 0 0 3px var(--color-border);
-}
-.field-label select:focus {
-  border-color: var(--color-secondary);
-  box-shadow: 0 0 0 3px var(--color-border);
-}
-.field-label textarea:focus {
-  border-color: var(--color-secondary);
-  box-shadow: 0 0 0 3px var(--color-border);
-}
-.quick-add-row input:focus {
-  border-color: var(--color-secondary);
-  box-shadow: 0 0 0 3px var(--color-border);
-}
-.quick-add-row select:focus {
-  border-color: var(--color-secondary);
-  box-shadow: 0 0 0 3px var(--color-border);
-}
+.field-label input, .field-label select { max-width: 420px; }
+.field-label textarea { min-height: 80px; padding: 12px; resize: vertical; }
 .field-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -262,6 +212,20 @@
 .recipe-number-row .field-label input,
 .recipe-number-row .field-label select { max-width: 175px; }
 .recipe-name-state-row .field-label input { max-width: 440px; }
+.duration-field { width: 100%; max-width: 175px; }
+.field-label.duration-field input { padding-right: 42px; }
+.input-suffix {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+input[type='number'] { appearance: textfield; -moz-appearance: textfield; text-align: right; }
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button { margin: 0; -webkit-appearance: none; }
 .field-label-title { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; }
 .field-label-title small { color: var(--color-text-muted); font-size: 9px; font-weight: 400; }
 .recipe-state-field .state-options { gap: 5px; }
@@ -291,6 +255,10 @@
 .rating-clear { margin-left: 5px; padding: 4px 7px; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-surface); color: var(--color-secondary); font: 10px var(--font-sans); cursor: pointer; }
 .check-chip input {
   accent-color: var(--color-primary);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
 }
 .ingredient-option input {
   accent-color: var(--color-primary);
@@ -310,12 +278,6 @@
   border-color: var(--color-surface-soft);
   background: var(--color-border);
   color: var(--color-secondary);
-}
-.check-chip input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
 }
 .state-options .check-chip > span {
   min-height: 35px;
@@ -343,6 +305,15 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 2px 12px;
 }
+.new-recipe-ingredient {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(135px, .8fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 2px 4px;
+}
+.new-recipe-ingredient .field-label { margin-top: 0; }
+.ingredient-picker:has(.new-recipe-ingredient) { overflow: visible; max-height: none; }
 .ingredient-search-result {
   display: flex;
   min-width: 0;
@@ -398,21 +369,17 @@
   margin-bottom: 5px;
 }
 .ingredient-search {
-  min-height: 37px;
   padding: 0 10px;
   border: 1px solid var(--color-border);
-  border-radius: 5px;
   background: var(--color-surface);
   color: var(--color-secondary);
-}
-.ingredient-search {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-.ingredient-search:focus-within {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--color-success-soft);
+  position: relative;
+  min-height: 40px;
+  border-color: var(--color-secondary);
+  border-radius: 6px;
 }
 .ingredient-search app-icon {
   font-size: 19px;
@@ -425,7 +392,7 @@
   outline: 0;
   background: transparent;
   color: var(--color-text);
-  font: 11px var(--font-sans);
+  font: 11px var(--font-sans); min-height: 38px; font-size: 12px;
 }
 .ingredient-search input::placeholder {
   color: var(--color-text-muted);
@@ -444,13 +411,6 @@
   padding: 4px 2px;
   color: var(--color-secondary);
   font-size: 10px;
-}
-.ingredient-option-select {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 7px;
-  cursor: pointer;
 }
 .selected-ingredient-list {
   display: grid;
@@ -503,21 +463,10 @@
   border-radius: 6px;
   background: var(--color-border);
 }
-.ingredient-option-select span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ingredient-option-select small {
-  margin-left: auto;
-  flex: 0 0 auto;
-  color: var(--color-text-muted);
-  font-size: 8px;
-}
 .ingredient-amount-controls {
   display: flex;
   gap: 5px;
-  padding-left: 19px;
+  padding-left: 19px; align-items: center;
 }
 .ingredient-amount-controls select,
 .ingredient-amount-controls input {
@@ -533,9 +482,6 @@
 .ingredient-amount-controls select:first-child {
   flex: 1 1 auto;
 }
-.ingredient-amount-controls input {
-  width: 84px;
-}
 .ingredient-amount-controls select:last-child {
   width: 58px;
 }
@@ -545,44 +491,11 @@
   color: var(--color-danger);
   font-size: 9px;
 }
-.quick-add {
-  margin-top: 7px;
-  padding: 10px;
-  border-radius: 5px;
-  background: var(--color-border);
-}
-.quick-add-title {
-  display: block;
-  margin-bottom: 7px;
-  color: var(--color-secondary);
-  font-size: 9px;
-}
-.quick-add-row {
-  display: flex;
-  gap: 6px;
-}
-.quick-add-row input {
-  min-height: 34px;
-}
-.quick-add-row select {
-  width: 120px;
-  min-height: 34px;
-}
-.quick-add-row app-button {
-  flex: 0 0 auto;
-}
 .form-actions {
   display: flex;
   justify-content: center;
   gap: 8px;
   padding-top: 4px;
-}
-.field-label {
-  position: relative;
-  min-width: 0;
-  gap: 0;
-  margin-top: 6px;
-  font-weight: 400;
 }
 .field-label > .field-label-title,
 .input-floating-label {
@@ -599,28 +512,22 @@
   font-weight: 400;
   line-height: 1.2;
 }
-.field-label input,
-.field-label select,
-.field-label textarea,
-.quick-add-row select,
 .ingredient-amount-controls input {
-  min-height: 40px;
+  width: 84px;
+  min-height: 32px;
   border-color: var(--color-secondary);
   border-radius: 6px;
   color: var(--color-text);
   font: 12px var(--font-sans);
   transition: border-color .15s, box-shadow .15s;
 }
-.field-label textarea { min-height: 80px; padding: 12px; }
 .field-label input:hover:not(:disabled),
 .field-label select:hover:not(:disabled),
 .field-label textarea:hover:not(:disabled),
-.quick-add-row select:hover:not(:disabled),
 .ingredient-amount-controls input:hover:not(:disabled) { border-color: var(--color-text); }
 .field-label input:focus,
 .field-label select:focus,
 .field-label textarea:focus,
-.quick-add-row select:focus,
 .ingredient-amount-controls input:focus {
   border-color: var(--color-primary);
   outline: 0;
@@ -631,29 +538,19 @@
 .field-label input:disabled,
 .field-label textarea:disabled { opacity: .6; }
 .field-label input.ng-invalid.ng-touched { border-color: var(--color-danger); }
-.ingredient-search {
-  position: relative;
-  min-height: 40px;
-  border-color: var(--color-secondary);
-  border-radius: 6px;
-}
 .ingredient-search:hover { border-color: var(--color-text); }
 .ingredient-search:focus-within {
   border-color: var(--color-primary);
   box-shadow: inset 0 0 0 1px var(--color-primary);
 }
-.ingredient-search input { min-height: 38px; font-size: 12px; }
-.quick-add-row { align-items: center; gap: 8px; }
-.quick-add-name { flex: 1 1 130px; margin-top: 0; }
-.quick-add-row .quick-add-name input { min-height: 40px; }
-.ingredient-amount-controls { align-items: center; }
-.ingredient-amount-controls input { min-height: 32px; }
 @media (max-width: 760px) {
   .selected-ingredient-category {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 460px) {
+  .new-recipe-ingredient { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .new-recipe-ingredient app-button { justify-self: center; }
   .form-tabs { gap: 2px; }
   .form-tabs button { gap: 4px; font-size: 9px; }
   .recipe-photo-previews { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -686,15 +583,6 @@
   }
   .ingredient-filters {
     display: block;
-  }
-  .quick-add-row {
-    flex-wrap: wrap;
-  }
-  .quick-add-row input {
-    flex: 1 1 130px;
-  }
-  .quick-add-row select {
-    flex: 1 1 100px;
   }
 }
 

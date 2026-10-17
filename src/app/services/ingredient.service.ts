@@ -2,14 +2,15 @@
 import { BehaviorSubject } from 'rxjs';
 import { Ingredient, IngredientCategory } from '../models/recipe.model';
 import { NotificationService } from './notification.service';
-import { RecipeService } from './recipe.service';
+import { IngredientRow } from '../models/database.model';
+import { mapIngredientAmounts } from '../utils/ingredient-amount.utils';
 import { SupabaseService } from './supabase.service';
 
 @Injectable({ providedIn: 'root' })
 export class IngredientService {
   private readonly ingredientsSubject = new BehaviorSubject<Ingredient[]>([]);
   readonly ingredients$ = this.ingredientsSubject.asObservable();
-  constructor(private readonly supabase: SupabaseService, private readonly recipes: RecipeService, private readonly notifications: NotificationService) {
+  constructor(private readonly supabase: SupabaseService, private readonly notifications: NotificationService) {
     if (supabase.configured) void this.refresh().catch((error: unknown) => {
       console.error('Error al cargar ingredientes desde Supabase:', error);
       const detail = error instanceof Error ? error.message : 'Error desconocido';
@@ -18,12 +19,12 @@ export class IngredientService {
   }
 
   async refresh(): Promise<void> {
-    const { data, error } = await this.supabase.requireClient().from('ingredients').select('*, ingredient_components!ingredient_components_parent_ingredient_id_fkey(component_ingredient_id,amount_kind,amount_value,amount_unit)').order('name');
+    const { data, error } = await this.supabase.requireClient().from('ingredients').select('*, ingredient_components!ingredient_components_parent_ingredient_id_fkey(component_ingredient_id,amount_kind,amount_value,amount_unit)').order('name').returns<IngredientRow[]>();
     if (error) throw error;
-    this.ingredientsSubject.next((data ?? []).map((row: any) => {
+    this.ingredientsSubject.next((data ?? []).map((row) => {
       const components = row.ingredient_components ?? [];
-      return { id: row.id, name: row.name, category: row.category, derivedFromIds: components.map((c: any) => c.component_ingredient_id),
-        derivedFromAmounts: Object.fromEntries(components.filter((c: any) => c.amount_kind !== 'none').map((c: any) => [c.component_ingredient_id, c.amount_kind === 'specific' ? { kind: 'specific', value: Number(c.amount_value), unit: c.amount_unit } : { kind: c.amount_kind }])) } as Ingredient;
+      return { id: row.id, name: row.name, category: row.category, derivedFromIds: components.map((component) => component.component_ingredient_id),
+        derivedFromAmounts: mapIngredientAmounts(components, (component) => component.component_ingredient_id) };
     }));
   }
   async add(name: string, category: IngredientCategory, derivedFromIds: string[] = [], derivedFromAmounts: Ingredient['derivedFromAmounts'] = {}): Promise<Ingredient> {
@@ -41,14 +42,13 @@ export class IngredientService {
     await this.refresh();
   }
   private components(ingredient: Ingredient): object[] { return (ingredient.derivedFromIds ?? []).map((componentId) => ({ ingredient_id: componentId, ...(ingredient.derivedFromAmounts?.[componentId] ?? { kind: 'none' }) })); }
-  async isUsed(id: string): Promise<boolean> { return this.ingredientsSubject.value.some((item) => item.derivedFromIds?.includes(id)) || await this.recipes.usesIngredient(id); }
   async remove(id: string): Promise<boolean> {
     try {
       const { error } = await this.supabase.requireClient().from('ingredients').delete().eq('id', id);
       if (error) throw error;
       this.ingredientsSubject.next(this.ingredientsSubject.value.filter((item) => item.id !== id));
       this.notifications.success('Ingrediente eliminado.'); return true;
-    } catch (error) {
+    } catch {
       this.notifications.error('No se pudo eliminar: puede estar asociado a una receta o elaboración.'); return false;
     }
   }

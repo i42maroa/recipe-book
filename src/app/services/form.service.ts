@@ -39,7 +39,8 @@ export class FormService {
     const state = this.dialogSubject.value;
     const wasEditing = !!state?.recipeToEdit;
     const { photos, photoFiles, ...recipeValue } = value;
-    const recipe = { ...recipeValue, pending: value.pending === 'yes' };
+    const pending = value.pending === 'yes';
+    const recipe = { ...recipeValue, pending, rating: pending ? null : value.rating };
     let recipeId: string | null = null;
     try {
     if (state?.recipeToEdit) {
@@ -48,7 +49,7 @@ export class FormService {
       recipeId = await this.recipes.create(recipe);
     }
     await this.recipePhotos.sync(recipeId, photos, photoFiles);
-    await this.recipes.refresh();
+    await this.recipes.refreshRecipe(recipeId);
     this.notifications.success(wasEditing ? 'Receta actualizada.' : 'Tu receta ya está guardada. ¡Que aproveche!');
     this.close();
     } catch (error) {

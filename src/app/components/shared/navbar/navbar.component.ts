@@ -1,5 +1,4 @@
-﻿import { AsyncPipe } from '@angular/common';
-import { Component } from '@angular/core';
+﻿import { Component } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { IconComponent } from '../icon/icon.component';
 

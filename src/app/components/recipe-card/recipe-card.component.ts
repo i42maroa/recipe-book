@@ -1,4 +1,5 @@
-﻿import { Component, input, output } from '@angular/core';
+﻿import { cuisineFlag, mealPhotoClass } from '../../utils/recipe-display.utils';
+import { Component, input, output } from '@angular/core';
 import { CuisineType, Recipe, RecipePhoto } from '../../models/recipe.model';
 import { MealIconComponent } from '../shared/meal-icon/meal-icon.component';
 import { IconComponent } from '../shared/icon/icon.component';
@@ -30,19 +31,7 @@ export class RecipeCardComponent {
     }
     this.selected.emit(this.recipe());
   }
-  cuisineFlag(cuisine: CuisineType): string {
-    const flags: Record<CuisineType, string> = {
-      ['Española']: '🇪🇸', Italiana: '🇮🇹', Mexicana: '🇲🇽', Japonesa: '🇯🇵', China: '🇨🇳',
-      India: '🇮🇳', Francesa: '🇫🇷', Peruana: '🇵🇪', ['Árabe']: '🇸🇦', Otra: '🌐',
-    };
-    return flags[cuisine];
-  }
-  photoClass(): string {
-    const mealType = this.recipe().mealTypes[0];
-    const photoByMealType: Record<string, string> = {
-      Desayuno: 'photo-breakfast', Entrante: 'photo-starter', Plato: 'photo-main', Postre: 'photo-dessert',
-    };
-    return photoByMealType[mealType] ?? 'photo-neutral';
-  }
+  cuisineFlag(cuisine: CuisineType): string { return cuisineFlag(cuisine); }
+  photoClass(): string { return mealPhotoClass(this.recipe().mealTypes[0]); }
 }
 

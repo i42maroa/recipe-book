@@ -23,7 +23,7 @@ export class RecipePhotoService {
     if (readError) throw readError;
     const current = currentRows ?? [];
     const retainedPaths = new Set(retainedPhotos.map((photo) => photo.storagePath));
-    const removedPaths = current.map((row: any) => row.storage_path).filter((path: string) => !retainedPaths.has(path));
+    const removedPaths = current.map((row) => row.storage_path).filter((path) => !retainedPaths.has(path));
     const appendOnly = removedPaths.length === 0 && current.length === retainedPhotos.length;
     if (appendOnly && files.length === 0) return;
     const newlyUploaded: string[] = [];
@@ -57,7 +57,7 @@ export class RecipePhotoService {
       if (clearError) throw clearError;
       const { error: insertError } = await client.from('recipe_photos').insert([...retainedRows, ...addedRows]);
       if (insertError) {
-        if (current.length) await client.from('recipe_photos').insert(current.map((row: any) => ({ ...row, recipe_id: recipeId })));
+        if (current.length) await client.from('recipe_photos').insert(current.map((row) => ({ ...row, recipe_id: recipeId })));
         throw insertError;
       }
 

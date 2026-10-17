@@ -11,6 +11,7 @@ body {
 }
 button {
   font: inherit;
+  color: inherit;
 }
 input {
   font: inherit;
@@ -20,9 +21,6 @@ textarea {
 }
 select {
   font: inherit;
-}
-button {
-  color: inherit;
 }
 .delete-action {
   color: var(--color-danger) !important;
@@ -44,41 +42,6 @@ h3 {
 }
 p {
   margin-top: 0;
-}
-.search-box {
-  display: flex;
-  height: 39px;
-  flex: 1;
-  align-items: center;
-  gap: 8px;
-  padding: 0 11px;
-  border: 1px solid var(--color-border);
-  border-radius: 6px;
-  background: var(--color-surface);
-  color: var(--color-secondary);
-}
-.search-box > span {
-  font-size: 22px;
-  line-height: 1;
-}
-.search-box input {
-  width: 100%;
-  min-width: 60px;
-  border: 0;
-  outline: 0;
-  color: var(--color-text);
-  font-size: 10px;
-}
-.search-box input::placeholder {
-  color: var(--color-text-muted);
-}
-.search-box kbd {
-  padding: 3px 5px;
-  border: 1px solid var(--color-border);
-  border-radius: 3px;
-  color: var(--color-text-muted);
-  font: 9px var(--font-sans);
-  white-space: nowrap;
 }
 .meal-label {
   color: var(--color-secondary);
@@ -137,4 +100,25 @@ p {
 .empty-state p {
   margin-bottom: 18px;
   font-size: 11px;
+}
+.floating-add-button { display: none; }
+@media (max-width: 1024px) {
+  .floating-add-button {
+    position: fixed;
+    z-index: 4;
+    right: max(20px, env(safe-area-inset-right));
+    bottom: max(20px, env(safe-area-inset-bottom));
+    display: grid;
+    width: 56px;
+    height: 56px;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: #fff;;
+    box-shadow: 0 5px 18px var(--shadow-dialog);
+    cursor: pointer;
+  }
+  .floating-add-button app-icon { width: 25px; height: 25px; filter: brightness(0) invert(1); }
+  .floating-add-button:focus-visible { outline: 3px solid var(--color-secondary); outline-offset: 3px; }
 }

@@ -1,5 +1,5 @@
 ﻿    <div class="modal-scrim" (click)="cancel.emit()">
-      <section class="form-modal" (click)="$event.stopPropagation()" aria-modal="true" role="dialog" [attr.aria-label]="formType === 'recipe' ? (recipeToEdit ? 'Modificar receta' : 'Nueva receta') : (ingredientToEdit ? 'Modificar ingrediente' : 'Nuevo ingrediente')">
+      <section class="form-modal" [class.recipe-modal]="formType === 'recipe'" (click)="$event.stopPropagation()" aria-modal="true" role="dialog" [attr.aria-label]="formType === 'recipe' ? (recipeToEdit ? 'Modificar receta' : 'Nueva receta') : (ingredientToEdit ? 'Modificar ingrediente' : 'Nuevo ingrediente')">
         <header class="form-modal-header"><div><span class="eyebrow">{{ formType === 'recipe' ? (recipeToEdit ? 'EDITAR RECETA' : 'AÑADIR AL RECETARIO') : (ingredientToEdit ? 'EDITAR INGREDIENTE' : 'TU DESPENSA') }}</span><h2>{{ formType === 'recipe' ? (recipeToEdit ? 'Modificar receta' : 'Nueva receta') : (ingredientToEdit ? 'Modificar ingrediente' : 'Nuevo ingrediente') }}</h2></div><button class="icon-button" type="button" aria-label="Cerrar" (click)="cancel.emit()"><app-icon name="close" /></button></header>
         @switch (formType) {
           @case ('recipe') {
@@ -26,10 +26,11 @@
   <fieldset class="field-set cuisine-style-field"><legend>Estilo de cocina <span>(puedes elegir varios)</span></legend><div class="chip-options cuisine-options">@for (type of cuisineTypes; track type) { <label class="check-chip"><input type="checkbox" [checked]="hasCuisineType(type)" (change)="toggleCuisineType(type)"><span><i class="cuisine-chip-flag" aria-hidden="true">{{ cuisineFlag(type) }}</i>{{ type }}</span></label> }</div></fieldset>
   <div class="field-row recipe-number-row">
     <label class="field-label"><span class="field-label-title">Dificultad</span><select formControlName="difficulty">@for (difficulty of difficulties; track difficulty) { <option [value]="difficulty">{{ difficulty }}</option> }</select></label>
-    <label class="field-label"><span class="field-label-title">Tiempo de elaboración <small>(minutos)</small></span><input type="number" min="1" formControlName="minutes"></label>
+    <label class="field-label duration-field"><span class="field-label-title">Elaboración</span><input type="number" min="1" formControlName="minutes" aria-label="Elaboración en minutos"><span class="input-suffix" aria-hidden="true">min</span></label>
     <label class="field-label"><span class="field-label-title">Comensales</span><input type="number" min="1" step="1" formControlName="servings"></label>
   </div>
   @if (recipeForm.controls.servings.touched && recipeForm.controls.servings.invalid) { <small class="error-text">Indica al menos un comensal.</small> }
+  @if (recipeForm.controls.pending.value === 'no') {
   <fieldset class="field-set rating-field">
     <legend>Valoración</legend>
     <div class="rating-picker" role="group" aria-label="Valoración de una a diez estrellas">
@@ -42,6 +43,7 @@
       }
     </div>
   </fieldset>
+  }
   <label class="field-label"><span class="field-label-title">Enlace de origen</span><input type="url" formControlName="sourceUrl" placeholder="https://"></label>
 </section>
   }
@@ -64,7 +66,14 @@
             }
           </div>
         </section>
-      } @empty { <p class="ingredient-empty">No hay ingredientes disponibles que coincidan con la búsqueda y la categoría.</p> }
+      } @empty {
+        <p class="ingredient-empty">No hay ingredientes disponibles que coincidan con la búsqueda y la categoría.</p>
+        <div class="new-recipe-ingredient" role="group" aria-label="Añadir un ingrediente nuevo">
+          <label class="field-label"><span class="field-label-title">Nombre del ingrediente</span><input [formControl]="newIngredientName" (keydown.enter)="$event.preventDefault(); createRecipeIngredient()"></label>
+          <app-select-filter label="Categoría" placeholder="Elige una categoría" ariaLabel="Categoría del nuevo ingrediente" [options]="newIngredientCategoryOptions" [formControl]="newIngredientCategory"></app-select-filter>
+          <app-button type="button" [disabled]="addingIngredient() || newIngredientName.invalid || newIngredientCategory.invalid" (clicked)="createRecipeIngredient()">{{ addingIngredient() ? 'Añadiendo…' : 'Añadir' }}</app-button>
+        </div>
+      }
     </div>
     } @else {
       <p class="ingredient-empty">Escribe al menos 2 caracteres o selecciona una categoría para encontrar y añadir ingredientes.</p>
@@ -130,7 +139,7 @@
 
   <footer class="form-actions recipe-form-actions">
     <app-button variant="ghost" type="button" (clicked)="cancel.emit()">Cancelar</app-button>
-    <app-button customClass="form-submit" type="submit">Guardar receta <app-icon name="arrow-right" /></app-button>
+    <app-button customClass="form-submit" type="submit">Guardar receta</app-button>
   </footer>
 </form>
           }

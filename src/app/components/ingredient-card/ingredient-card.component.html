@@ -1,6 +1,6 @@
 <article class="pantry-card">
   <button type="button" class="pantry-card-main" (click)="selected.emit(ingredient())">
-    <span [class]="'pantry-icon ' + categoryClass()"><app-ingredient-icon [category]="ingredient().category" /></span>
+    <span class="pantry-icon"><app-ingredient-icon [category]="ingredient().category" /></span>
     <span class="pantry-copy"><strong>{{ ingredient().name }}</strong><small>{{ ingredient().category }}</small></span>
   </button>
 </article>

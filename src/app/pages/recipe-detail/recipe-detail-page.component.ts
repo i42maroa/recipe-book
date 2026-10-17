@@ -1,3 +1,4 @@
+﻿import { cuisineFlag, mealPhotoClass } from '../../utils/recipe-display.utils';
 import { AsyncPipe } from '@angular/common';
 import { FormBuilder } from '@angular/forms';
 import { Component, inject } from '@angular/core';
@@ -13,6 +14,7 @@ import { MealIconComponent } from '../../components/shared/meal-icon/meal-icon.c
 import { IconComponent } from '../../components/shared/icon/icon.component';
 import { DifficultyTonePipe } from '../../pipes/difficulty-tone.pipe';
 import { PhotoLightboxComponent } from '../../components/shared/photo-lightbox/photo-lightbox.component';
+import { groupIngredients } from '../../utils/ingredients.utils';
 
 @Component({
   selector: 'app-recipe-detail-page',
@@ -80,17 +82,14 @@ export class RecipeDetailPageComponent {
   }
 
   ingredientsFor(recipe: Recipe, ingredients: Ingredient[] | null): Ingredient[] {
+    const selectedIds = new Set(recipe.ingredientIds);
     return (ingredients ?? [])
-      .filter((ingredient) => recipe.ingredientIds.includes(ingredient.id))
+      .filter((ingredient) => selectedIds.has(ingredient.id))
       .sort((a, b) => a.category.localeCompare(b.category, 'es') || a.name.localeCompare(b.name, 'es'));
   }
 
   ingredientGroupsFor(ingredients: Ingredient[]): Array<{ category: string; ingredients: Ingredient[] }> {
-    const categories = [...new Set(ingredients.map((ingredient) => ingredient.category))];
-    return categories.map((category) => ({
-      category,
-      ingredients: ingredients.filter((ingredient) => ingredient.category === category),
-    }));
+    return groupIngredients(ingredients);
   }
 
   amountLabel(recipe: Recipe, ingredientId: string): string | null {
@@ -109,12 +108,7 @@ export class RecipeDetailPageComponent {
     return remainingMinutes === 0 ? `${hours} h` : `${hours} h ${remainingMinutes} min`;
   }
 
-  photoClass(recipe: Recipe): string {
-    const photoByMealType: Record<string, string> = {
-      Desayuno: 'photo-breakfast', Entrante: 'photo-starter', Plato: 'photo-main', Postre: 'photo-dessert',
-    };
-    return photoByMealType[recipe.mealTypes[0]] ?? 'photo-neutral';
-  }
+  photoClass(recipe: Recipe): string { return mealPhotoClass(recipe.mealTypes[0]); }
 
   currentPhoto(recipe: Recipe): RecipePhoto | undefined {
     const photos = recipe.photos ?? [];
@@ -134,13 +128,7 @@ export class RecipeDetailPageComponent {
     this.lightboxOpen = true;
   }
 
-  cuisineFlag(cuisine: CuisineType): string {
-    const flags: Record<CuisineType, string> = {
-      Española: '🇪🇸', Italiana: '🇮🇹', Mexicana: '🇲🇽', Japonesa: '🇯🇵', China: '🇨🇳',
-      India: '🇮🇳', Francesa: '🇫🇷', Peruana: '🇵🇪', Árabe: '🇸🇦', Otra: '🌐',
-    };
-    return flags[cuisine];
-  }
+  cuisineFlag(cuisine: CuisineType): string { return cuisineFlag(cuisine); }
 
 
 }

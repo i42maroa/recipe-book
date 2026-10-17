@@ -13,7 +13,4 @@ export class IngredientCardComponent {
   readonly ingredient = input.required<Ingredient>();
   readonly selected = output<Ingredient>();
 
-  categoryClass(): string {
-    return `category-${this.ingredient().category.toLowerCase()}`;
-  }
 }

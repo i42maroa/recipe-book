@@ -1,8 +1,9 @@
-﻿import { AsyncPipe } from '@angular/common';
-import { Component, DestroyRef, EventEmitter, Input, OnInit, Output, inject } from '@angular/core';
+﻿import { cuisineFlag, ingredientCategoryLabel } from '../../../utils/recipe-display.utils';
+import { AsyncPipe } from '@angular/common';
+import { Component, DestroyRef, EventEmitter, Input, OnInit, Output, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { BehaviorSubject, combineLatest, defer, map, startWith } from 'rxjs';
+import { BehaviorSubject, combineLatest, defer, firstValueFrom, map, startWith } from 'rxjs';
 import { ButtonComponent } from '../button/button.component';
 import { FilterContainerComponent } from '../filters/filter-container/filter-container.component';
 import { SelectFilterComponent } from '../filters/select-filter/select-filter.component';
@@ -13,6 +14,7 @@ import { NotificationService } from '../../../services/notification.service';
 import { SelectFilterOption } from '../filters/select-filter-options';
 import { IconComponent } from '../icon/icon.component';
 import { MIN_SEARCH_LENGTH, searchTerms } from '../../../utils/search.utils';
+import { groupIngredients, selectedIngredients } from '../../../utils/ingredients.utils';
 
 interface IngredientGroup { category: IngredientCategory; ingredients: Ingredient[] }
 
@@ -42,6 +44,9 @@ export class BaseFormComponent implements OnInit {
   private readonly selectedIngredientIdsSubject = new BehaviorSubject<string[]>([]);
   readonly ingredientSearch = this.fb.nonNullable.control('');
   readonly ingredientCategoryFilter = this.fb.nonNullable.control<IngredientCategory | ''>('');
+  readonly newIngredientName = this.fb.nonNullable.control('', [Validators.required, Validators.pattern(/\S/)]);
+  readonly newIngredientCategory = this.fb.nonNullable.control<IngredientCategory | ''>('', Validators.required);
+  readonly addingIngredient = signal(false);
   readonly compositionSearch = this.fb.nonNullable.control('');
   readonly compositionCategoryFilter = this.fb.nonNullable.control<IngredientCategory | ''>('');
   readonly filteredIngredients$ = combineLatest([
@@ -68,13 +73,7 @@ export class BaseFormComponent implements OnInit {
   readonly mealTypes: MealType[] = ['Desayuno', 'Entrante', 'Plato', 'Postre'];
   readonly ratingOptions = Array.from({ length: 10 }, (_, index) => index + 1);
   readonly cuisineTypes: CuisineType[] = ['Española', 'Italiana', 'Mexicana', 'Japonesa', 'China', 'India', 'Francesa', 'Peruana', 'Árabe', 'Otra'];
-  cuisineFlag(cuisine: CuisineType): string {
-    const flags: Record<CuisineType, string> = {
-      Espa\u00f1ola: '🇪🇸', Italiana: '🇮🇹', Mexicana: '🇲🇽', Japonesa: '🇯🇵', China: '🇨🇳',
-      India: '🇮🇳', Francesa: '🇫🇷', Peruana: '🇵🇪', \u00c1rabe: '🇸🇦', Otra: '🌐',
-    };
-    return flags[cuisine];
-  }
+  cuisineFlag(cuisine: CuisineType): string { return cuisineFlag(cuisine); }
   readonly difficulties: RecipeDifficulty[] = ['F\u00e1cil', 'Media', 'Dif\u00edcil'];
   readonly categories: IngredientCategory[] = ['Verdura', 'Fruta', 'Legumbre', 'Pescado', 'Carne', 'Lacteo', 'Cereal', 'Especia', 'Elaboracion', 'Otro'];
   readonly quickCategories = this.categories.filter((category) => category !== 'Elaboracion');
@@ -86,6 +85,8 @@ export class BaseFormComponent implements OnInit {
     { value: '', label: 'Todas las categorías' },
     ...this.quickCategories.map((category) => ({ value: category, label: this.categoryLabel(category) })),
   ];
+  readonly newIngredientCategoryOptions: SelectFilterOption[] = this.quickCategories
+    .map((category) => ({ value: category, label: this.categoryLabel(category) }));
   readonly compositionIngredients$ = this.ingredients$.pipe(
     map((ingredients) => ingredients.filter((ingredient) =>
       ingredient.category !== 'Elaboracion' && ingredient.id !== this.ingredientToEdit?.id,
@@ -115,9 +116,7 @@ export class BaseFormComponent implements OnInit {
     this.ingredients$,
     this.selectedIngredientIdsSubject,
   ]).pipe(
-    map(([ingredients, selectedIds]) => selectedIds
-      .map((id) => ingredients.find((ingredient) => ingredient.id === id))
-      .filter((ingredient): ingredient is Ingredient => ingredient !== undefined)
+    map(([ingredients, selectedIds]) => selectedIngredients(ingredients, selectedIds)
       .sort((a, b) => a.category.localeCompare(b.category, 'es') || a.name.localeCompare(b.name, 'es'))),
   );
   readonly ingredientForm = this.fb.nonNullable.group({
@@ -128,14 +127,18 @@ export class BaseFormComponent implements OnInit {
   });
   readonly selectedCompositionIngredients$ = combineLatest([
     this.ingredients$,
-    this.ingredientForm.controls.derivedFromIds.valueChanges.pipe(startWith(this.ingredientForm.controls.derivedFromIds.value)),
+    defer(() => this.ingredientForm.controls.derivedFromIds.valueChanges.pipe(startWith(this.ingredientForm.controls.derivedFromIds.value))),
   ]).pipe(
-    map(([ingredients, selectedIds]) => this.groupIngredients(selectedIds
-      .map((id) => ingredients.find((ingredient) => ingredient.id === id))
-      .filter((ingredient): ingredient is Ingredient => ingredient !== undefined))),
+    map(([ingredients, selectedIds]) => this.groupIngredients(selectedIngredients(ingredients, selectedIds))),
   );
 
   constructor() {
+    this.ingredientSearch.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((query) => {
+      this.newIngredientName.setValue(query.trim());
+    });
+    this.ingredientCategoryFilter.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((category) => {
+      this.newIngredientCategory.setValue(category === 'Elaboracion' ? '' : category);
+    });
     this.destroyRef.onDestroy(() => this.newRecipePhotos.forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl)));
     this.ingredients$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((ingredients) => {
       // The service starts with an empty list while Supabase loads. Do not erase
@@ -266,15 +269,9 @@ export class BaseFormComponent implements OnInit {
     return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es').trim();
   }
   private groupIngredients(ingredients: Ingredient[]): IngredientGroup[] {
-    return this.categories
-      .map((category) => ({ category, ingredients: ingredients.filter((ingredient) => ingredient.category === category) }))
-      .filter((group) => group.ingredients.length > 0);
+    return groupIngredients(ingredients, this.categories);
   }
-  categoryLabel(category: IngredientCategory): string {
-    if (category === 'Lacteo') return 'Lácteo';
-    if (category === 'Elaboracion') return 'Elaboración';
-    return category;
-  }
+  categoryLabel(category: IngredientCategory): string { return ingredientCategoryLabel(category); }
   hasMealType(type: MealType): boolean { return this.recipeForm.controls.mealTypes.value.includes(type); }
   hasCuisineType(type: CuisineType): boolean { return this.recipeForm.controls.cuisineTypes.value.includes(type); }
   toggleCuisineType(type: CuisineType): void {
@@ -283,6 +280,28 @@ export class BaseFormComponent implements OnInit {
   }
   addRecipeIngredient(id: string): void {
     if (!this.isSelected(id)) this.toggleIngredient(id);
+  }
+  async createRecipeIngredient(): Promise<void> {
+    if (this.addingIngredient()) return;
+    this.newIngredientName.markAsTouched();
+    this.newIngredientCategory.markAsTouched();
+    const name = this.newIngredientName.value.trim();
+    const category = this.newIngredientCategory.value;
+    if (!name || !category) return;
+
+    this.addingIngredient.set(true);
+    try {
+      const ingredients = await firstValueFrom(this.ingredients$);
+      const existing = ingredients.find((ingredient) => this.normalizeSearch(ingredient.name) === this.normalizeSearch(name));
+      const ingredient = existing ?? await this.ingredientService.add(name, category);
+      this.addRecipeIngredient(ingredient.id);
+      this.ingredientSearch.setValue('');
+      this.notifications.success(existing ? `${ingredient.name} ya existe y se ha seleccionado.` : `${ingredient.name} añadido y seleccionado.`);
+    } catch (error) {
+      this.notifications.error(error instanceof Error ? error.message : 'No se pudo guardar el ingrediente.');
+    } finally {
+      this.addingIngredient.set(false);
+    }
   }
   removeRecipeIngredient(id: string): void {
     if (this.isSelected(id)) this.toggleIngredient(id);

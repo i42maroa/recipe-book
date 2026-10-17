@@ -1,4 +1,4 @@
-﻿import { Component, ElementRef, HostListener, forwardRef, inject, Input } from '@angular/core';
+﻿import { Component, ElementRef, HostListener, forwardRef, inject, Input, OnChanges } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { SelectFilterOption, SelectFilterType } from '../select-filter-options';
 import { IconComponent } from '../../icon/icon.component';
@@ -13,7 +13,7 @@ let nextSelectId = 0;
   styleUrl: './select-filter.component.css',
   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => SelectFilterComponent), multi: true }],
 })
-export class SelectFilterComponent implements ControlValueAccessor {
+export class SelectFilterComponent implements ControlValueAccessor, OnChanges {
   @Input() label = '';
   @Input() filterType: SelectFilterType = 'ingredient-category';
   @Input() options: SelectFilterOption[] = [];
@@ -29,8 +29,10 @@ export class SelectFilterComponent implements ControlValueAccessor {
   private onChange: (value: string) => void = () => undefined;
   private onTouched: () => void = () => undefined;
 
-  get displayOptions(): SelectFilterOption[] {
-    return this.placeholder ? [{ value: '', label: this.placeholder }, ...this.options] : this.options;
+  displayOptions: SelectFilterOption[] = [];
+  ngOnChanges(): void {
+    this.displayOptions = this.placeholder ? [{ value: '', label: this.placeholder }, ...this.options] : this.options;
+    this.activeIndex = Math.min(this.activeIndex, Math.max(0, this.displayOptions.length - 1));
   }
   get selectedLabel(): string {
     return this.displayOptions.find((option) => option.value === this.value)?.label ?? '';
@@ -95,11 +97,13 @@ export class SelectFilterComponent implements ControlValueAccessor {
     }
   }
   private scrollActiveOption(): void {
-    requestAnimationFrame(() => this.element.nativeElement.querySelector(`#${this.selectId}-option-${this.activeIndex}`)?.scrollIntoView({ block: 'nearest' }));
+    requestAnimationFrame(() => {
+      if (this.opened) this.element.nativeElement.querySelector(`#${this.selectId}-option-${this.activeIndex}`)?.scrollIntoView({ block: 'nearest' });
+    });
   }
   @HostListener('document:click', ['$event'])
   onOutsideClick(event: MouseEvent): void {
-    if (!this.element.nativeElement.contains(event.target as Node)) this.opened = false;
+    if (this.opened && !this.element.nativeElement.contains(event.target as Node)) this.opened = false;
   }
   onBlur(): void {
     this.opened = false;

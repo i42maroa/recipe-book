@@ -1,4 +1,5 @@
-﻿import { AsyncPipe } from '@angular/common';
+﻿import { ingredientCategoryLabel } from '../../utils/recipe-display.utils';
+import { AsyncPipe } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -14,6 +15,7 @@ import { SelectFilterOption } from '../../components/shared/filters/select-filte
 import { IngredientCardComponent } from '../../components/ingredient-card/ingredient-card.component';
 import { IconComponent } from '../../components/shared/icon/icon.component';
 import { searchTerms } from '../../utils/search.utils';
+import { groupIngredients } from '../../utils/ingredients.utils';
 
 
 @Component({
@@ -43,15 +45,10 @@ export class IngredientsPageComponent {
       .sort((a, b) => a.name.localeCompare(b.name)))
   );
 
-  readonly ingredientGroups$ = this.filteredIngredients$.pipe(map((items) => this.categories
-    .map((category) => ({ category, items: items.filter((ingredient) => ingredient.category === category) }))
-    .filter((group) => group.items.length > 0)));
+  readonly ingredientGroups$ = this.filteredIngredients$.pipe(map((items) => groupIngredients(items, this.categories)
+    .map((group) => ({ category: group.category, items: group.ingredients }))));
 
-  categoryLabel(category: IngredientCategory): string {
-    if (category === 'Lacteo') return 'Lácteo';
-    if (category === 'Elaboracion') return 'Elaboración';
-    return category;
-  }
+  categoryLabel(category: IngredientCategory): string { return ingredientCategoryLabel(category); }
 
   openIngredient(ingredient: Ingredient): void {
     void this.router.navigate(['/ingredients', ingredient.id]);

@@ -18,8 +18,5 @@ import { LoadingService } from './services/loading.service';
 export class AppComponent {
   readonly loading = inject(LoadingService);
   readonly forms = inject(FormService);
-  readonly todayLabel = new Intl.DateTimeFormat('es-ES', {
-    weekday: 'long', day: 'numeric', month: 'long',
-  }).format(new Date());
 }
 

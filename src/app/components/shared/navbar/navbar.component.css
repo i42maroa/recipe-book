@@ -39,15 +39,6 @@
   font: 600 8px var(--font-sans);
   letter-spacing: 2px;
 }
-.sidebar-label {
-  color: var(--color-text-muted);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 1.65px;
-}
-.sidebar-label {
-  margin: 0 0 14px 10px;
-}
 .main-nav {
   display: grid;
   gap: 5px;
@@ -77,72 +68,6 @@
   font-size: 19px;
   text-align: center;
 }
-.nav-count {
-  margin-left: auto;
-  color: var(--color-secondary);
-  font-size: 11px;
-}
-.sidebar-note {
-  position: relative;
-  margin: auto 3px 22px;
-  padding: 20px 18px 18px;
-  overflow: hidden;
-  border-radius: 8px;
-  background: var(--color-border);
-}
-.note-spark {
-  color: var(--color-secondary);
-  font-size: 19px;
-}
-.sidebar-note p {
-  margin: 11px 0 17px;
-  color: var(--color-secondary);
-  font: 17px/1.5 var(--font-serif);
-}
-.note-line {
-  display: block;
-  width: 30px;
-  height: 1px;
-  margin-bottom: 11px;
-  background: var(--color-surface-soft);
-}
-.sidebar-note small {
-  color: var(--color-secondary);
-  font-size: 8px;
-  letter-spacing: 1px;
-}
-.sidebar-bottom {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 15px 3px 2px;
-  border-top: 1px solid var(--color-border);
-  font-size: 12px;
-  font-weight: 600;
-}
-.sidebar-bottom small {
-  display: block;
-  margin-top: 4px;
-  color: var(--color-text-muted);
-  font-size: 10px;
-  font-weight: 400;
-}
-.avatar {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--color-border);
-  color: var(--color-secondary);
-  font: 600 13px var(--font-serif);
-}
-.more-dots {
-  margin-left: auto;
-  color: var(--color-text-muted);
-  font-size: 20px;
-  letter-spacing: 2px;
-}
 @media (max-width: 1120px) {
   .sidebar {
     width: 215px;
@@ -170,15 +95,6 @@
   .brand-name {
     font-size: 21px;
   }
-  .sidebar-label {
-    display: none;
-  }
-  .sidebar-note {
-    display: none;
-  }
-  .sidebar-bottom {
-    display: none;
-  }
   .main-nav {
     display: flex;
     gap: 5px;
@@ -191,9 +107,6 @@
   }
   .nav-icon {
     font-size: 16px;
-  }
-  .nav-count {
-    margin-left: 0;
   }
 }
 :host {

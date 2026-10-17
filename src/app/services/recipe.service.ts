@@ -5,6 +5,8 @@ import { NotificationService } from './notification.service';
 import { SupabaseService } from './supabase.service';
 import { RecipePhotoService } from './recipe-photo.service';
 import { MIN_SEARCH_LENGTH } from '../utils/search.utils';
+import { RecipeRow } from '../models/database.model';
+import { mapIngredientAmounts } from '../utils/ingredient-amount.utils';
 
 const RECIPE_SELECT = '*, recipe_ingredients(ingredient_id,amount_kind,amount_value,amount_unit), recipe_steps(position,description), recipe_cuisine_types(cuisine_types(name)), recipe_photos(id,storage_path,position,alt_text)';
 export interface RecipeFilters {
@@ -52,9 +54,14 @@ export class RecipeService {
     this.statsSubject.next({ total: total.count ?? 0, pending: pending.count ?? 0 });
   }
 
-  async refresh(): Promise<void> {
-    if (this.detailId) await this.fetchRecipe(this.detailId);
+  private async refresh(recipeId: string | null = this.detailId): Promise<void> {
+    if (recipeId) await this.fetchRecipe(recipeId);
     await this.refreshStats();
+    this.changesSubject.next(this.changesSubject.value + 1);
+  }
+
+  async refreshRecipe(id: string): Promise<void> {
+    await this.fetchRecipe(id);
     this.changesSubject.next(this.changesSubject.value + 1);
   }
 
@@ -91,7 +98,7 @@ export class RecipeService {
       case 'time': query = query.order('minutes', { ascending: true, nullsFirst: false }); break;
       default: query = query.order('created_at', { ascending: false });
     }
-    const { data, count, error } = await query.order('id').range(from, from + batchSize - 1);
+    const { data, count, error } = await query.order('id').range(from, from + batchSize - 1).returns<RecipeRow[]>();
     if (error) {
       // Recipes may have been deleted since the previous batch was loaded.
       if (from > 0 && error.code === 'PGRST103') {
@@ -113,7 +120,7 @@ export class RecipeService {
   }
 
   private async fetchRecipe(id: string): Promise<Recipe | null> {
-    const { data, error } = await this.supabase.requireClient().from('recipes').select(RECIPE_SELECT).eq('id', id).maybeSingle();
+    const { data, error } = await this.supabase.requireClient().from('recipes').select(RECIPE_SELECT).eq('id', id).returns<RecipeRow[]>().maybeSingle();
     if (error) throw error;
     const recipe = data ? this.mapRows([data])[0] : null;
     if (recipe) this.cache([recipe]);
@@ -139,18 +146,18 @@ export class RecipeService {
     this.recipesSubject.next([...cache.values()]);
   }
 
-  private mapRows(rows: any[]): Recipe[] {
-    return rows.map((row: any) => ({
+  private mapRows(rows: RecipeRow[]): Recipe[] {
+    return rows.map((row) => ({
       id: row.id, name: row.name, minutes: row.minutes, servings: row.servings, pending: row.pending, mealTypes: row.meal_types ?? [],
       rating: row.rating, sourceUrl: row.source_url ?? '', annotations: row.annotations ?? '', fitness: row.fitness,
-      difficulty: row.difficulty, steps: (row.recipe_steps ?? []).sort((a: any,b: any) => a.position-b.position).map((s: any) => s.description),
-      ingredientIds: (row.recipe_ingredients ?? []).map((i: any) => i.ingredient_id),
-      ingredientAmounts: Object.fromEntries((row.recipe_ingredients ?? []).filter((i: any) => i.amount_kind !== 'none').map((i: any) => [i.ingredient_id, i.amount_kind === 'specific' ? { kind: 'specific', value: Number(i.amount_value), unit: i.amount_unit } : { kind: i.amount_kind }])),
-      cuisineTypes: (row.recipe_cuisine_types ?? []).map((c: any) => c.cuisine_types?.name).filter(Boolean),
-      photos: (row.recipe_photos ?? []).sort((a: any, b: any) => a.position - b.position).map((photo: any) => ({
+      difficulty: row.difficulty ?? undefined, steps: [...(row.recipe_steps ?? [])].sort((a, b) => a.position - b.position).map((step) => step.description),
+      ingredientIds: (row.recipe_ingredients ?? []).map((item) => item.ingredient_id),
+      ingredientAmounts: mapIngredientAmounts(row.recipe_ingredients ?? [], (item) => item.ingredient_id),
+      cuisineTypes: (row.recipe_cuisine_types ?? []).map((item) => item.cuisine_types?.name).filter((name): name is NonNullable<typeof name> => name !== undefined),
+      photos: [...(row.recipe_photos ?? [])].sort((a, b) => a.position - b.position).map((photo) => ({
         id: photo.id, storagePath: photo.storage_path, url: this.photoService.publicUrl(photo.storage_path), position: photo.position, altText: photo.alt_text,
       })),
-    } as Recipe));
+    }));
   }
 
 
@@ -161,8 +168,7 @@ export class RecipeService {
     const { data, error } = await this.supabase.requireClient().rpc('save_recipe', { p_id: id, p_recipe: recipe });
     if (error) throw error;
     const savedId = id ?? String(data);
-    await this.fetchRecipe(savedId);
-    await this.refresh();
+    await this.refresh(savedId);
     return savedId;
   }
   async remove(id: string): Promise<void> {
@@ -174,10 +180,4 @@ export class RecipeService {
     await this.refresh();
   }
   getById(id: string): Recipe | undefined { return this.recipesSubject.value.find((recipe) => recipe.id === id); }
-  async usesIngredient(id: string): Promise<boolean> {
-    const { count, error } = await this.supabase.requireClient().from('recipe_ingredients')
-      .select('recipe_id', { count: 'exact', head: true }).eq('ingredient_id', id);
-    if (error) throw error;
-    return (count ?? 0) > 0;
-  }
 }
