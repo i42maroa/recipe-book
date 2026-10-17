@@ -52,7 +52,7 @@
 }
 .form-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 7px;
   padding-bottom: 4px;
 }
@@ -96,6 +96,47 @@
   align-content: start;
   gap: 19px;
 }
+.recipe-photos-panel { min-height: 310px; }
+.photo-upload-help { margin: 0 0 12px; color: var(--color-text-muted); font-size: 10px; }
+.photo-dropzone {
+  display: flex;
+  min-height: 155px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px;
+  border: 2px dashed var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-soft);
+  color: var(--color-text-muted);
+  text-align: center;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+.photo-dropzone > app-icon { color: var(--color-primary); font-size: 25px; }
+.photo-dropzone > strong { color: var(--color-secondary); font-size: 12px; }
+.photo-dropzone > span, .photo-dropzone > small { font-size: 10px; }
+.photo-dropzone.drag-active { border-color: var(--color-primary); background: var(--color-success-soft); }
+.photo-dropzone-full { border-color: var(--color-border); }
+.photo-upload-button {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid var(--color-primary);
+  border-radius: 5px;
+  background: var(--color-surface);
+  color: var(--color-primary-dark);
+  font-size: 10px;
+  cursor: pointer;
+}
+.photo-upload-button input { display: none; }
+.recipe-photo-previews { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.recipe-photo-preview { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 6px; background: var(--color-border); }
+.recipe-photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+.recipe-photo-preview button { position: absolute; top: 5px; right: 5px; display: grid; width: 25px; height: 25px; place-items: center; border: 0; border-radius: 50%; background: var(--color-surface); color: var(--color-danger); cursor: pointer; }
+.recipe-photo-preview app-icon { width: 15px; height: 15px; }
 .recipe-form-actions {
   justify-content: center;
 }
@@ -504,6 +545,9 @@
   }
 }
 @media (max-width: 460px) {
+  .form-tabs { gap: 2px; }
+  .form-tabs button { gap: 4px; font-size: 9px; }
+  .recipe-photo-previews { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .recipe-name-state-row { grid-template-columns: 1fr; }
   .recipe-number-row { grid-template-columns: 1fr; }
   .field-row {

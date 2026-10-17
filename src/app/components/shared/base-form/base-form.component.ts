@@ -6,7 +6,7 @@ import { BehaviorSubject, combineLatest, map, startWith } from 'rxjs';
 import { ButtonComponent } from '../button/button.component';
 import { FilterContainerComponent } from '../filters/filter-container/filter-container.component';
 import { SelectFilterComponent } from '../filters/select-filter/select-filter.component';
-import { CuisineType, Ingredient, IngredientCategory, MealType, Recipe, RecipeDifficulty, RecipeIngredientAmount } from '../../../models/recipe.model';
+import { CuisineType, Ingredient, IngredientCategory, MealType, Recipe, RecipeDifficulty, RecipeIngredientAmount, RecipePhoto } from '../../../models/recipe.model';
 import { BaseFormType, RecipeFormValue } from '../../../models/form.model';
 import { IngredientService } from '../../../services/ingredient.service';
 import { NotificationService } from '../../../services/notification.service';
@@ -27,7 +27,10 @@ export class BaseFormComponent implements OnInit {
   @Output() cancel = new EventEmitter<void>();
   @Output() recipeSaved = new EventEmitter<RecipeFormValue>();
   activeRecipeTab = 0;
-  readonly recipeTabLabels = ['Datos', 'Ingredientes', 'Preparación'];
+  readonly recipeTabLabels = ['Datos', 'Ingredientes', 'Preparación', 'Fotos'];
+  retainedRecipePhotos: RecipePhoto[] = [];
+  readonly newRecipePhotos: { file: File; previewUrl: string }[] = [];
+  photoDropActive = false;
 
   private readonly fb = inject(FormBuilder);
   private readonly ingredientService = inject(IngredientService);
@@ -126,6 +129,7 @@ export class BaseFormComponent implements OnInit {
   readonly newIngredientCategory = this.fb.nonNullable.control<IngredientCategory | ''>('');
 
   constructor() {
+    this.destroyRef.onDestroy(() => this.newRecipePhotos.forEach(({ previewUrl }) => URL.revokeObjectURL(previewUrl)));
     this.ingredients$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((ingredients) => {
       // The service starts with an empty list while Supabase loads. Do not erase
       // selected IDs from an edit form during that initial empty emission.
@@ -152,6 +156,7 @@ export class BaseFormComponent implements OnInit {
   ngOnInit(): void {
     this.activeRecipeTab = 0;
     if (this.recipeToEdit) {
+      this.retainedRecipePhotos = [...(this.recipeToEdit.photos ?? [])].sort((a, b) => a.position - b.position);
       this.recipeForm.patchValue({
         ...this.recipeToEdit,
         ingredientAmounts: this.recipeToEdit.ingredientAmounts ?? {},
@@ -175,6 +180,43 @@ export class BaseFormComponent implements OnInit {
   isSelected(id: string): boolean { return this.recipeForm.controls.ingredientIds.value.includes(id); }
   setRating(value: number): void { this.recipeForm.controls.rating.setValue(value); }
   clearRating(): void { this.recipeForm.controls.rating.setValue(null); }
+  get recipePhotoCount(): number { return this.retainedRecipePhotos.length + this.newRecipePhotos.length; }
+  addRecipePhotos(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.acceptRecipePhotos(input.files ?? []);
+    input.value = '';
+  }
+  onPhotoDragOver(event: DragEvent): void {
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    this.photoDropActive = true;
+  }
+  onPhotoDragLeave(event: DragEvent): void {
+    const zone = event.currentTarget as HTMLElement;
+    if (event.relatedTarget instanceof Node && zone.contains(event.relatedTarget)) return;
+    this.photoDropActive = false;
+  }
+  onPhotoDrop(event: DragEvent): void {
+    event.preventDefault();
+    this.photoDropActive = false;
+    this.acceptRecipePhotos(event.dataTransfer?.files ?? []);
+  }
+  private acceptRecipePhotos(fileList: FileList | File[]): void {
+    const files = Array.from(fileList);
+    const remaining = Math.max(0, 3 - this.recipePhotoCount);
+    if (files.length > remaining) this.notifications.error('Puedes añadir hasta 3 fotos por receta.');
+    const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
+    for (const file of files.slice(0, remaining)) {
+      if (!allowedTypes.has(file.type)) { this.notifications.error(`${file.name} no es un formato compatible. Usa JPG, PNG, WebP, GIF o AVIF.`); continue; }
+      if (file.size > 5 * 1024 * 1024) { this.notifications.error(`${file.name} supera el límite de 5 MB.`); continue; }
+      this.newRecipePhotos.push({ file, previewUrl: URL.createObjectURL(file) });
+    }
+  }
+  removeRecipePhoto(photoId: string): void { this.retainedRecipePhotos = this.retainedRecipePhotos.filter((photo) => photo.id !== photoId); }
+  removeNewRecipePhoto(index: number): void {
+    const [removed] = this.newRecipePhotos.splice(index, 1);
+    if (removed) URL.revokeObjectURL(removed.previewUrl);
+  }
   isCompositionSelected(id: string): boolean {
     return this.ingredientForm.controls.derivedFromIds.value.includes(id);
   }
@@ -320,19 +362,25 @@ export class BaseFormComponent implements OnInit {
     this.notifications.success(`${name} añadido a tus ingredientes.`);
   }
   saveRecipe(): void {
-    if (this.activeRecipeTab !== this.recipeTabLabels.length - 1) return;
+    if (!this.validateRecipeDetails()) { this.activeRecipeTab = 0; return; }
     this.recipeForm.controls.ingredientIds.markAsTouched();
-    if (this.recipeForm.invalid || this.recipeForm.controls.ingredientIds.value.length === 0) return;
+    if (this.recipeForm.controls.ingredientIds.value.length === 0) { this.activeRecipeTab = 1; return; }
+    if (this.recipeForm.invalid) { this.recipeForm.markAllAsTouched(); this.activeRecipeTab = 0; return; }
     const value = this.recipeForm.getRawValue();
-    if (value.rating !== null && (!Number.isInteger(value.rating) || value.rating < 1 || value.rating > 10)) { this.notifications.error('La valoración debe ser un número entero del 1 al 10.'); return; }
-    if (value.minutes !== null && value.minutes < 1) { this.notifications.error('El tiempo debe ser mayor que cero minutos.'); return; }
-    if (value.servings !== null && (!Number.isInteger(value.servings) || value.servings < 1)) { this.notifications.error('Indica un número entero de comensales mayor que cero.'); return; }
+    if (value.rating !== null && (!Number.isInteger(value.rating) || value.rating < 1 || value.rating > 10)) { this.activeRecipeTab = 0; this.notifications.error('La valoración debe ser un número entero del 1 al 10.'); return; }
+    if (value.minutes !== null && value.minutes < 1) { this.activeRecipeTab = 0; this.notifications.error('El tiempo debe ser mayor que cero minutos.'); return; }
+    if (value.servings !== null && (!Number.isInteger(value.servings) || value.servings < 1)) { this.activeRecipeTab = 0; this.notifications.error('Indica un número entero de comensales mayor que cero.'); return; }
     const hasIncompleteAmount = value.ingredientIds.some((id) => {
       const amount = value.ingredientAmounts[id];
       return amount?.kind === 'specific' && (amount.value === null || amount.value <= 0);
     });
-    if (hasIncompleteAmount) { this.notifications.error('Indica una cantidad mayor que cero o elige otra opción.'); return; }
-    this.recipeSaved.emit({ ...value, steps: value.steps.split('\n').map((step) => step.trim()).filter(Boolean) });
+    if (hasIncompleteAmount) { this.activeRecipeTab = 1; this.notifications.error('Indica una cantidad mayor que cero o elige otra opción.'); return; }
+    this.recipeSaved.emit({
+      ...value,
+      steps: value.steps.split('\n').map((step) => step.trim()).filter(Boolean),
+      photos: this.retainedRecipePhotos,
+      photoFiles: this.newRecipePhotos.map(({ file }) => file),
+    });
   }
   async saveIngredient(): Promise<void> {
     if (this.ingredientForm.invalid) return;

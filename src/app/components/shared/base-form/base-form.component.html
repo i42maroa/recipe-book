@@ -96,11 +96,37 @@
 </section>
   }
 
+  @if (activeRecipeTab === 3) {
+    <section class="recipe-tab-panel recipe-photos-panel" role="tabpanel" aria-label="Fotos de la receta">
+      <fieldset class="field-set">
+        <legend>Fotos de la receta <span>({{ recipePhotoCount }} de 3)</span></legend>
+        <p class="photo-upload-help">Añade hasta 3 imágenes. La primera será la imagen principal.</p>
+        <div class="photo-dropzone" [class.drag-active]="photoDropActive" [class.photo-dropzone-full]="recipePhotoCount >= 3" (dragover)="onPhotoDragOver($event)" (dragleave)="onPhotoDragLeave($event)" (drop)="onPhotoDrop($event)" role="region" aria-label="Zona para añadir fotos">
+          <app-icon name="plus" />
+          <strong>Arrastra tus fotos aquí</strong>
+          @if (recipePhotoCount < 3) {
+            <span>o selecciónalas desde tu dispositivo</span>
+            <label class="photo-upload-button">Elegir fotos<input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" multiple (change)="addRecipePhotos($event)"></label>
+          } @else {
+            <span>Has alcanzado el límite de 3 fotos.</span>
+          }
+          <small>JPG, PNG, WebP, GIF o AVIF · máximo 5 MB por imagen</small>
+        </div>        <div class="recipe-photo-previews">
+          @for (photo of retainedRecipePhotos; track photo.id) {
+            <div class="recipe-photo-preview"><img [src]="photo.url" [alt]="photo.altText || 'Foto de la receta'"><button type="button" aria-label="Quitar foto" (click)="removeRecipePhoto(photo.id)"><app-icon name="close" /></button></div>
+          }
+          @for (photo of newRecipePhotos; track photo.previewUrl; let index = $index) {
+            <div class="recipe-photo-preview"><img [src]="photo.previewUrl" [alt]="photo.file.name"><button type="button" aria-label="Quitar foto" (click)="removeNewRecipePhoto(index)"><app-icon name="close" /></button></div>
+          }
+        </div>
+      </fieldset>
+    </section>
+  }
+
   <footer class="form-actions recipe-form-actions">
     <app-button variant="ghost" type="button" (clicked)="cancel.emit()">Cancelar</app-button>
     @if (activeRecipeTab > 0) { <app-button variant="outline" type="button" (clicked)="previousRecipeTab()">Anterior</app-button> }
-    @if (activeRecipeTab < 2) { <app-button customClass="form-submit" type="button" (clicked)="nextRecipeTab()">Siguiente <app-icon name="arrow-right" /></app-button> }
-    @else { <app-button customClass="form-submit" type="submit">Guardar receta <app-icon name="arrow-right" /></app-button> }
+    <app-button customClass="form-submit" type="submit">Guardar receta <app-icon name="arrow-right" /></app-button>
   </footer>
 </form>
           }

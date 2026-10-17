@@ -14,7 +14,7 @@
   </div>
 
 <app-filter-container class="recipe-controls" gap="10px">
-  <app-search-filter placeholder="Busca por receta o ingrediente…" ariaLabel="Buscar recetas por nombre o ingrediente" shortcut="K" [formControl]="search"></app-search-filter>
+  <app-search-filter placeholder="Busca por receta o ingrediente…" ariaLabel="Buscar recetas por nombre o ingrediente"  [formControl]="search"></app-search-filter>
   <app-select-filter label="Estado" filterType="status" [options]="statusOptions" [formControl]="pendingFilter"></app-select-filter>
   <app-select-filter label="Orden" filterType="order" [options]="sortOptions" [formControl]="sortFilter"></app-select-filter>
   <app-select-filter label="Tipo de plato" filterType="meal-type" [options]="mealTypeOptions" [formControl]="mealTypeFilter"></app-select-filter>

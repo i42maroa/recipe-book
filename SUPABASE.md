@@ -7,6 +7,8 @@
 
 ## Aplicar esquema
 
+Para habilitar las fotos, ejecuta despuÃ©s del esquema inicial `supabase/migrations/20261016000100_recipe_photos.sql` en el SQL Editor. Esta consulta crea `recipe_photos`, el bucket pÃºblico y sus polÃ­ticas. Pasos detallados en [SUPABASE_FOTOS.md](SUPABASE_FOTOS.md).
+
 Con Supabase CLI, vincular el proyecto y ejecutar `supabase db push`. También se puede ejecutar el contenido de `supabase/migrations/20261015000100_initial_schema.sql` en el SQL Editor del proyecto. La migración crea las tablas MVP, relaciones, restricciones RLS y funciones transaccionales para guardar recetas y elaboraciones.
 
 ## Configurar Angular

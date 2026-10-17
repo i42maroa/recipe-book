@@ -4,7 +4,7 @@ import { Component, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { combineLatest, map } from 'rxjs';
 import { ButtonComponent } from '../../components/shared/button/button.component';
-import { CuisineType, Ingredient, Recipe } from '../../models/recipe.model';
+import { CuisineType, Ingredient, Recipe, RecipePhoto } from '../../models/recipe.model';
 import { IngredientService } from '../../services/ingredient.service';
 import { RecipeService } from '../../services/recipe.service';
 import { NotificationService } from '../../services/notification.service';
@@ -12,15 +12,18 @@ import { FormService } from '../../services/form.service';
 import { MealIconComponent } from '../../components/shared/meal-icon/meal-icon.component';
 import { IconComponent } from '../../components/shared/icon/icon.component';
 import { DifficultyTonePipe } from '../../pipes/difficulty-tone.pipe';
+import { PhotoLightboxComponent } from '../../components/shared/photo-lightbox/photo-lightbox.component';
 
 @Component({
   selector: 'app-recipe-detail-page',
   standalone: true,
-  imports: [AsyncPipe, RouterLink, ButtonComponent, MealIconComponent, IconComponent, DifficultyTonePipe],
+  imports: [AsyncPipe, RouterLink, ButtonComponent, MealIconComponent, IconComponent, DifficultyTonePipe, PhotoLightboxComponent],
   templateUrl: './recipe-detail-page.component.html',
   styleUrl: './recipe-detail-page.component.css',
 })
 export class RecipeDetailPageComponent {
+  activePhotoIndex = 0;
+  lightboxOpen = false;
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly recipeService = inject(RecipeService);
@@ -100,6 +103,24 @@ export class RecipeDetailPageComponent {
       Desayuno: 'photo-breakfast', Entrante: 'photo-starter', Plato: 'photo-main', Postre: 'photo-dessert',
     };
     return photoByMealType[recipe.mealTypes[0]] ?? 'photo-neutral';
+  }
+
+  currentPhoto(recipe: Recipe): RecipePhoto | undefined {
+    const photos = recipe.photos ?? [];
+    return photos.length ? photos[this.activePhotoIndex % photos.length] : undefined;
+  }
+
+  changePhoto(recipe: Recipe, direction: number, event: Event): void {
+    event.stopPropagation();
+    if (event instanceof KeyboardEvent) event.preventDefault();
+    const count = recipe.photos?.length ?? 0;
+    if (count) this.activePhotoIndex = (this.activePhotoIndex + direction + count) % count;
+  }
+
+  openLightbox(event: Event): void {
+    event.stopPropagation();
+    if (event instanceof KeyboardEvent) event.preventDefault();
+    this.lightboxOpen = true;
   }
 
   cuisineFlag(cuisine: CuisineType): string {

@@ -33,5 +33,14 @@ export interface Recipe {
   annotations?: string;
   fitness?: boolean;
   difficulty?: RecipeDifficulty;
+  photos?: RecipePhoto[];
+}
+
+export interface RecipePhoto {
+  id: string;
+  storagePath: string;
+  url: string;
+  position: number;
+  altText: string | null;
 }
 

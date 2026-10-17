@@ -17,6 +17,8 @@ export interface RecipeFormValue {
   annotations: string;
   fitness: boolean;
   difficulty: RecipeDifficulty;
+  photos: import('./recipe.model').RecipePhoto[];
+  photoFiles: File[];
 }
 
 export interface IngredientFormValue {

@@ -17,6 +17,7 @@
   transform: translateY(-3px);
   box-shadow: 0 9px 25px var(--shadow-card);
 }
+.recipe-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
 .recipe-photo {
   position: relative;
   display: flex;
@@ -27,12 +28,34 @@
   overflow: hidden;
   background: linear-gradient(135deg, #e8e3d5, #c6b99d);
 }
+.recipe-photo.has-photo { height: 178px; flex-basis: 178px; }
 .recipe-photo::after {
   position: absolute;
   inset: 0;
   background: linear-gradient(0deg, var(--overlay), transparent 55%);
+  pointer-events: none;
   content: '';
 }
+.recipe-photo-image { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; object-fit: cover; cursor: pointer; }
+.photo-carousel-button {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  display: grid;
+  width: 28px;
+  height: 36px;
+  place-items: center;
+  border-radius: 5px;
+  background: rgb(24 28 22 / 55%);
+  color: white;
+  font-size: 25px;
+  line-height: 1;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+.photo-carousel-button.previous { left: 7px; }
+.photo-carousel-button.next { right: 7px; }
+.photo-carousel-button:focus-visible { outline: 2px solid white; outline-offset: 2px; }
 .photo-breakfast {
   background: radial-gradient(ellipse at 55% 45%, #f4cf77, #d59544 52%, #8f5b35);
 }
@@ -57,11 +80,18 @@
 }
 .recipe-card-content {
   display: flex;
+  width: 100%;
   min-height: 0;
   flex: 0 0 auto;
   flex-direction: column;
+  align-items: stretch;
   gap: 9px;
   padding: 13px 14px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
 }
 .recipe-card-classification {
   display: flex;
@@ -148,12 +178,14 @@
     height: 132px;
     flex-basis: 132px;
   }
+  .recipe-photo.has-photo { height: 168px; flex-basis: 168px; }
 }
 @media (max-width: 460px) {
   .recipe-photo {
     height: 138px;
     flex-basis: 138px;
   }
+  .recipe-photo.has-photo { height: 178px; flex-basis: 178px; }
   .recipe-card-content { padding: 13px 15px; }
   .recipe-title {
     font-size: 18px;

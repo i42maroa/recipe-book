@@ -3,12 +3,13 @@ import { BehaviorSubject } from 'rxjs';
 import { Recipe } from '../models/recipe.model';
 import { NotificationService } from './notification.service';
 import { SupabaseService } from './supabase.service';
+import { RecipePhotoService } from './recipe-photo.service';
 
 @Injectable({ providedIn: 'root' })
 export class RecipeService {
   private readonly recipesSubject = new BehaviorSubject<Recipe[]>([]);
   readonly recipes$ = this.recipesSubject.asObservable();
-  constructor(private readonly supabase: SupabaseService, private readonly notifications: NotificationService) {
+  constructor(private readonly supabase: SupabaseService, private readonly notifications: NotificationService, private readonly photoService: RecipePhotoService) {
     if (supabase.configured) void this.refresh().catch((error: unknown) => this.reportLoadError(error));
     else this.notifications.error('Falta configurar la conexión con Supabase.');
   }
@@ -20,7 +21,7 @@ export class RecipeService {
   }
 
   async refresh(): Promise<void> {
-    const { data, error } = await this.supabase.requireClient().from('recipes').select('*, recipe_ingredients(ingredient_id,amount_kind,amount_value,amount_unit), recipe_steps(position,description), recipe_cuisine_types(cuisine_types(name))').order('name');
+    const { data, error } = await this.supabase.requireClient().from('recipes').select('*, recipe_ingredients(ingredient_id,amount_kind,amount_value,amount_unit), recipe_steps(position,description), recipe_cuisine_types(cuisine_types(name)), recipe_photos(id,storage_path,position,alt_text)').order('name');
     if (error) throw error;
     this.recipesSubject.next((data ?? []).map((row: any) => ({
       id: row.id, name: row.name, minutes: row.minutes, servings: row.servings, pending: row.pending, mealTypes: row.meal_types ?? [],
@@ -29,17 +30,22 @@ export class RecipeService {
       ingredientIds: (row.recipe_ingredients ?? []).map((i: any) => i.ingredient_id),
       ingredientAmounts: Object.fromEntries((row.recipe_ingredients ?? []).filter((i: any) => i.amount_kind !== 'none').map((i: any) => [i.ingredient_id, i.amount_kind === 'specific' ? { kind: 'specific', value: Number(i.amount_value), unit: i.amount_unit } : { kind: i.amount_kind }])),
       cuisineTypes: (row.recipe_cuisine_types ?? []).map((c: any) => c.cuisine_types?.name).filter(Boolean),
+      photos: (row.recipe_photos ?? []).sort((a: any, b: any) => a.position - b.position).map((photo: any) => ({
+        id: photo.id, storagePath: photo.storage_path, url: this.photoService.publicUrl(photo.storage_path), position: photo.position, altText: photo.alt_text,
+      })),
     } as Recipe)));
   }
 
-  async create(recipe: Omit<Recipe, 'id'>): Promise<void> { await this.save(null, recipe); }
-  async update(id: string, recipe: Omit<Recipe, 'id'>): Promise<void> { await this.save(id, recipe); }
-  private async save(id: string | null, recipe: Omit<Recipe, 'id'>): Promise<void> {
-    const { error } = await this.supabase.requireClient().rpc('save_recipe', { p_id: id, p_recipe: recipe });
+  async create(recipe: Omit<Recipe, 'id'>): Promise<string> { return this.save(null, recipe); }
+  async update(id: string, recipe: Omit<Recipe, 'id'>): Promise<string> { return this.save(id, recipe); }
+  private async save(id: string | null, recipe: Omit<Recipe, 'id'>): Promise<string> {
+    const { data, error } = await this.supabase.requireClient().rpc('save_recipe', { p_id: id, p_recipe: recipe });
     if (error) throw error;
     await this.refresh();
+    return id ?? String(data);
   }
   async remove(id: string): Promise<void> {
+    await this.photoService.deleteFilesForRecipe(id);
     const { error } = await this.supabase.requireClient().from('recipes').delete().eq('id', id);
     if (error) throw error;
     this.recipesSubject.next(this.recipesSubject.value.filter((recipe) => recipe.id !== id));

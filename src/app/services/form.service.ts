@@ -4,6 +4,7 @@ import { Ingredient, Recipe } from '../models/recipe.model';
 import { BaseFormType, RecipeFormValue } from '../models/form.model';
 import { NotificationService } from './notification.service';
 import { RecipeService } from './recipe.service';
+import { RecipePhotoService } from './recipe-photo.service';
 
 export interface FormDialogState {
   formType: BaseFormType;
@@ -19,6 +20,7 @@ export class FormService {
   constructor(
     private readonly recipes: RecipeService,
     private readonly notifications: NotificationService,
+    private readonly recipePhotos: RecipePhotoService,
   ) {}
 
   openForm(formType: BaseFormType, item?: Recipe | Ingredient): void {
@@ -35,17 +37,25 @@ export class FormService {
 
   async saveRecipe(value: RecipeFormValue): Promise<void> {
     const state = this.dialogSubject.value;
-    const recipe = { ...value, pending: value.pending === 'yes' };
+    const wasEditing = !!state?.recipeToEdit;
+    const { photos, photoFiles, ...recipeValue } = value;
+    const recipe = { ...recipeValue, pending: value.pending === 'yes' };
+    let recipeId: string | null = null;
     try {
     if (state?.recipeToEdit) {
-      await this.recipes.update(state.recipeToEdit.id, recipe);
-      this.notifications.success('Receta actualizada.');
+      recipeId = await this.recipes.update(state.recipeToEdit.id, recipe);
     } else {
-      await this.recipes.create(recipe);
-      this.notifications.success('Tu receta ya está guardada. ¡Que aproveche!');
+      recipeId = await this.recipes.create(recipe);
     }
+    await this.recipePhotos.sync(recipeId, photos, photoFiles);
+    await this.recipes.refresh();
+    this.notifications.success(wasEditing ? 'Receta actualizada.' : 'Tu receta ya está guardada. ¡Que aproveche!');
     this.close();
     } catch (error) {
+      if (!wasEditing && recipeId) {
+        const savedRecipe = this.recipes.getById(recipeId);
+        if (savedRecipe) this.dialogSubject.next({ formType: 'recipe', recipeToEdit: savedRecipe, ingredientToEdit: null });
+      }
       this.notifications.error(error instanceof Error ? error.message : 'No se pudo guardar la receta.');
     }
   }

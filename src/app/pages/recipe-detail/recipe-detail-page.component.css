@@ -23,12 +23,35 @@
   border-radius: 10px;
   background: linear-gradient(135deg, #e8e3d5, #c6b99d);
 }
+.recipe-detail-hero.has-photo { min-height: 360px; }
 .recipe-detail-hero::after {
   position: absolute;
   inset: 0;
   background: linear-gradient(0deg, var(--overlay), transparent 60%);
+  pointer-events: none;
   content: '';
 }
+.recipe-detail-photo { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.detail-photo-nav {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  display: grid;
+  width: 42px;
+  height: 52px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: rgb(24 28 22 / 55%);
+  color: white;
+  font-size: 36px;
+  line-height: 1;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+.detail-photo-nav.previous { left: 16px; }
+.detail-photo-nav.next { right: 16px; }
+.detail-photo-nav:focus-visible { outline: 2px solid white; outline-offset: 2px; }
 .recipe-detail-hero.photo-breakfast {
   background: radial-gradient(ellipse at 55% 45%, #f4cf77, #d59544 52%, #8f5b35);
 }
@@ -279,6 +302,7 @@
   .recipe-detail-hero {
     min-height: 210px;
   }
+  .recipe-detail-hero.has-photo { min-height: 320px; }
   .recipe-detail-columns {
     gap: 20px;
   }
@@ -287,6 +311,7 @@
   .recipe-detail-hero {
     min-height: 175px;
   }
+  .recipe-detail-hero.has-photo { min-height: 260px; }
   .hero-emoji {
     font-size: 78px;
   }

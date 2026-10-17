@@ -328,8 +328,8 @@ Guardar los ficheros en **Supabase Storage** y no como datos binarios en `recipe
 create table public.recipe_photos (
   id uuid primary key default gen_random_uuid(),
   recipe_id uuid not null references public.recipes(id) on delete cascade,
-  storage_path text not null,
-  position integer not null default 1,
+  storage_path text not null unique,
+  position integer not null default 1 check (position between 1 and 3),
   alt_text text,
   created_at timestamptz not null default now(),
   unique (recipe_id, position)
