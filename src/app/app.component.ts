@@ -4,7 +4,6 @@ import { RouterOutlet } from '@angular/router';
 import { BaseFormComponent } from './components/shared/base-form/base-form.component';
 import { BreadcrumbComponent } from './components/shared/breadcrumb/breadcrumb.component';
 import { NavbarComponent } from './components/shared/navbar/navbar.component';
-import { UserSessionComponent } from './components/shared/user-session/user-session.component';
 import { NotificationCenterComponent } from './components/shared/notification-center/notification-center.component';
 import { FormService } from './services/form.service';
 import { LoadingService } from './services/loading.service';
@@ -12,7 +11,7 @@ import { LoadingService } from './services/loading.service';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [AsyncPipe, RouterOutlet, BaseFormComponent, NavbarComponent, BreadcrumbComponent, NotificationCenterComponent, UserSessionComponent],
+  imports: [AsyncPipe, RouterOutlet, BaseFormComponent, NavbarComponent, BreadcrumbComponent, NotificationCenterComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css',
 })

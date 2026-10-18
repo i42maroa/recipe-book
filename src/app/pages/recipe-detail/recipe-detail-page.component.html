@@ -120,9 +120,6 @@
       @if (recipe.sourceUrl) {
         <a class="source-link" [href]="recipe.sourceUrl" target="_blank" rel="noreferrer">Receta original</a>
       }
-      @if (auth.canEdit()) {
-        <div class="recipe-detail-actions recipe-bottom-actions"><div><app-button variant="ghost" (clicked)="forms.openForm('recipe', recipe)">Editar</app-button><app-button variant="ghost" customClass="delete-action" (clicked)="deleteRecipe(recipe)">Eliminar</app-button></div></div>
-      }
     </div>
   </article>
   @if (lightboxOpen) { <app-photo-lightbox [photos]="recipe.photos ?? []" [initialIndex]="activePhotoIndex" (closed)="lightboxOpen = false" /> }

@@ -9,6 +9,11 @@ body {
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
 }
+@media (max-width: 1120px) {
+  body:has(app-navbar .sidebar.is-expanded) {
+    overflow: hidden;
+  }
+}
 button {
   font: inherit;
   color: inherit;

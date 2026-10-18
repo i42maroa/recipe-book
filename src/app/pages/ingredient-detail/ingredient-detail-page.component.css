@@ -4,16 +4,6 @@
   margin: 0 auto;
   padding: 36px 5.2% 50px;
 }
-.ingredient-detail-actions {
-  display: flex;
-  margin: 12px auto;
-  justify-content: center;
-  gap: 12px;
-}
-.ingredient-detail-actions > div {
-  display: flex;
-  gap: 8px;
-}
 .ingredient-detail-card {
   display: grid;
   justify-items: center;
