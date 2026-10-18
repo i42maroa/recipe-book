@@ -1,16 +1,35 @@
-<aside class="sidebar">
-  <a class="brand" routerLink="/recipes">
-    <span class="brand-mark">l</span>
-    <span class="brand-name">laurel</span>
-  </a>
-  <nav class="main-nav" aria-label="Navegación principal">
-    <a class="nav-item" routerLink="/recipes" routerLinkActive="active">
-      <app-icon class="nav-icon" name="recipes" /> Recetas
+<aside #sidebar class="sidebar" [class.is-expanded]="menuOpen()" (keydown.escape)="closeMenu(true)" (keydown.tab)="containFocus($event)">
+  <div class="sidebar-header">
+    <a class="brand" routerLink="/recipes">
+      <span class="brand-mark">l</span>
+      <span class="brand-name">laurel</span>
     </a>
-    <a class="nav-item" routerLink="/ingredients" routerLinkActive="active">
-      <app-icon class="nav-icon" name="ingredients" /> Ingredientes
-    </a>
-  </nav>
+    <button #menuToggle class="menu-toggle" type="button" aria-controls="navbar-content" [attr.aria-expanded]="menuOpen()" [attr.aria-label]="menuOpen() ? 'Cerrar menú' : 'Abrir menú'" (click)="menuOpen.set(!menuOpen())">
+      @if (menuOpen()) { <app-icon name="close" /> } @else { <span class="menu-lines" aria-hidden="true"></span> }
+    </button>
+  </div>
+  <div id="navbar-content" class="navbar-content" [class.is-open]="menuOpen()">
+    <nav class="main-nav" aria-label="Navegación principal">
+      <a class="nav-item" routerLink="/recipes" routerLinkActive="active">
+        <app-icon class="nav-icon" name="recipes" /> Recetas
+      </a>
+      <a class="nav-item" routerLink="/ingredients" routerLinkActive="active">
+        <app-icon class="nav-icon" name="ingredients" /> Ingredientes
+      </a>
+    </nav>
+    @if (auth.canEdit()) {
+      @if (detail(); as current) {
+        <nav class="detail-nav" aria-label="Acciones del detalle">
+          <p class="detail-name" [title]="current.item.name">{{ current.item.name }}</p>
+          <button class="nav-item" type="button" [disabled]="deleting()" (click)="edit(current)"><app-icon class="nav-icon" name="edit" /> Editar</button>
+          <button class="nav-item delete-action" type="button" [disabled]="deleting()" (click)="remove(current)"><app-icon class="nav-icon" name="trash" /> {{ deleting() ? 'Eliminando…' : 'Eliminar' }}</button>
+        </nav>
+      }
+    }
+    @if (auth.user()) {
+      <div class="sidebar-account"><app-user-session /></div>
+    }
+  </div>
 </aside>
 
 

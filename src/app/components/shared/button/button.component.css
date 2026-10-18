@@ -44,9 +44,4 @@
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
-@media (max-width: 1120px) {
-  .session-signout { min-height: 44px; padding: 0 10px; gap: 6px; }
-}
-@media (max-width: 760px) {
-  .session-signout { width: 44px; padding: 0; }
-}
+.session-signout { min-height: 44px; padding: 0 8px; gap: 6px; }

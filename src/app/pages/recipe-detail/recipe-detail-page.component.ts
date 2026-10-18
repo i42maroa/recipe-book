@@ -3,14 +3,13 @@ import { AuthService } from '../../services/auth.service';
 import { AsyncPipe } from '@angular/common';
 import { FormBuilder } from '@angular/forms';
 import { Component, inject, signal } from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { catchError, combineLatest, distinctUntilChanged, from, map, of, switchMap } from 'rxjs';
 import { ButtonComponent } from '../../components/shared/button/button.component';
 import { CuisineType, Ingredient, Recipe, RecipePhoto } from '../../models/recipe.model';
 import { IngredientService } from '../../services/ingredient.service';
 import { RecipeService } from '../../services/recipe.service';
 import { NotificationService } from '../../services/notification.service';
-import { FormService } from '../../services/form.service';
 import { MealIconComponent } from '../../components/shared/meal-icon/meal-icon.component';
 import { IconComponent } from '../../components/shared/icon/icon.component';
 import { DifficultyTonePipe } from '../../pipes/difficulty-tone.pipe';
@@ -29,12 +28,10 @@ export class RecipeDetailPageComponent {
   lightboxOpen = false;
   readonly sharing = signal(false);
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly recipeService = inject(RecipeService);
   private readonly ingredientService = inject(IngredientService);
   private readonly notifications = inject(NotificationService);
   readonly auth = inject(AuthService);
-  readonly forms = inject(FormService);
   isRating = false;
   private readonly fb = inject(FormBuilder);
   readonly ratingControl = this.fb.nonNullable.control(0);
@@ -55,10 +52,6 @@ export class RecipeDetailPageComponent {
   readonly recipe$ = combineLatest([this.loadedRecipeId$, this.recipeService.recipes$]).pipe(
     map(([id, recipes]) => recipes.find((recipe) => recipe.id === id) ?? null),
   );
-
-  backToRecipes(): void {
-    void this.router.navigate(['/recipes']);
-  }
 
   async shareRecipe(recipe: Recipe): Promise<void> {
     if (this.sharing()) return;
@@ -107,17 +100,6 @@ export class RecipeDetailPageComponent {
       this.notifications.error(error instanceof Error ? error.message : 'No se pudo guardar la valoración.');
     }
   }
-  async deleteRecipe(recipe: Recipe): Promise<void> {
-    if (!window.confirm(`¿Quieres eliminar la receta «${recipe.name}»?`)) return;
-    try {
-      await this.recipeService.remove(recipe.id);
-      this.notifications.success('Receta eliminada.');
-      this.backToRecipes();
-    } catch (error) {
-      this.notifications.error(error instanceof Error ? error.message : 'No se pudo eliminar la receta.');
-    }
-  }
-
   ingredientsFor(recipe: Recipe, ingredients: Ingredient[] | null): Ingredient[] {
     const selectedIds = new Set(recipe.ingredientIds);
     return (ingredients ?? [])

@@ -1,13 +1,10 @@
-import { AuthService } from '../../services/auth.service';
 import { AsyncPipe } from '@angular/common';
 import { Component, inject } from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { catchError, combineLatest, distinctUntilChanged, from, map, of, switchMap } from 'rxjs';
-import { ButtonComponent } from '../../components/shared/button/button.component';
 import { Ingredient, Recipe } from '../../models/recipe.model';
 import { IngredientService } from '../../services/ingredient.service';
 import { RecipeService } from '../../services/recipe.service';
-import { FormService } from '../../services/form.service';
 import { IngredientIconComponent } from '../../components/shared/ingredient-icon/ingredient-icon.component';
 import { NotificationService } from '../../services/notification.service';
 import { groupIngredients, selectedIngredients } from '../../utils/ingredients.utils';
@@ -15,17 +12,14 @@ import { groupIngredients, selectedIngredients } from '../../utils/ingredients.u
 @Component({
   selector: 'app-ingredient-detail-page',
   standalone: true,
-  imports: [AsyncPipe, RouterLink, ButtonComponent, IngredientIconComponent],
+  imports: [AsyncPipe, RouterLink, IngredientIconComponent],
   templateUrl: './ingredient-detail-page.component.html',
   styleUrl: './ingredient-detail-page.component.css',
 })
 export class IngredientDetailPageComponent {
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly ingredientService = inject(IngredientService);
   private readonly recipeService = inject(RecipeService);
-  readonly auth = inject(AuthService);
-  readonly forms = inject(FormService);
   private readonly notifications = inject(NotificationService);
 
   private readonly ingredientId$ = this.route.paramMap.pipe(
@@ -51,15 +45,6 @@ export class IngredientDetailPageComponent {
       return { ingredient, usedIn, madeFrom };
     }),
   );
-
-  backToIngredients(): void {
-    void this.router.navigate(['/ingredients']);
-  }
-
-  async deleteIngredient(ingredient: Ingredient): Promise<void> {
-    if (!window.confirm(`¿Quieres eliminar el ingrediente «${ingredient.name}»?`)) return;
-    if (await this.ingredientService.remove(ingredient.id)) this.backToIngredients();
-  }
 
   recipeCountLabel(recipes: Pick<Recipe, 'id'>[]): string {
     return recipes.length === 1 ? '1 receta' : `${recipes.length} recetas`;

@@ -1,6 +1,6 @@
 import { Component, input } from '@angular/core';
 
-export type IconName = 'recipes' | 'ingredients' | 'search' | 'chevron-down' | 'clock' | 'person' | 'star' | 'check' | 'warning' | 'close' | 'pending' | 'arrow-right' | 'arrow-up-right' | 'command' | 'sparkle' | 'plus' | 'share' | 'logout';
+export type IconName = 'recipes' | 'ingredients' | 'search' | 'chevron-down' | 'clock' | 'person' | 'star' | 'check' | 'warning' | 'close' | 'pending' | 'arrow-right' | 'arrow-up-right' | 'command' | 'sparkle' | 'plus' | 'share' | 'logout' | 'edit' | 'trash';
 
 @Component({
   selector: 'app-icon',
