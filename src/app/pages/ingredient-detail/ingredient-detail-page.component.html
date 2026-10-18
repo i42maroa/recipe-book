@@ -36,7 +36,9 @@
         }
       </section>
       
-      <div class="ingredient-detail-actions"><div><app-button variant="ghost" (clicked)="forms.openForm('ingredient', ingredient)">Editar</app-button><app-button variant="ghost" customClass="delete-action" (clicked)="deleteIngredient(ingredient)">Eliminar</app-button></div></div>
+      @if (auth.canEdit()) {
+        <div class="ingredient-detail-actions"><div><app-button variant="ghost" (clicked)="forms.openForm('ingredient', ingredient)">Editar</app-button><app-button variant="ghost" customClass="delete-action" (clicked)="deleteIngredient(ingredient)">Eliminar</app-button></div></div>
+      }
     </article>
   } @else {
     <section class="ingredient-not-found">

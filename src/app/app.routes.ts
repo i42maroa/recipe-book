@@ -5,6 +5,7 @@ import { RecipeDetailPageComponent } from './pages/recipe-detail/recipe-detail-p
 import { RecipesPageComponent } from './pages/recipes/recipes-page.component';
 
 export const routes: Routes = [
+  { path: 'login', loadComponent: () => import('./pages/login/login-page.component').then((m) => m.LoginPageComponent) },
   { path: '', pathMatch: 'full', redirectTo: 'recipes' },
   { path: 'recipes/:id', component: RecipeDetailPageComponent },
   { path: 'ingredients/:id', component: IngredientDetailPageComponent },

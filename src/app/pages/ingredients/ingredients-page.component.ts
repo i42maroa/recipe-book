@@ -1,3 +1,4 @@
+import { AuthService } from '../../services/auth.service';
 ﻿import { ingredientCategoryLabel } from '../../utils/recipe-display.utils';
 import { AsyncPipe } from '@angular/common';
 import { Component, inject } from '@angular/core';
@@ -24,6 +25,7 @@ import { groupIngredients } from '../../utils/ingredients.utils';
   styleUrl: './ingredients-page.component.css'
 })
 export class IngredientsPageComponent {
+  readonly auth = inject(AuthService);
   readonly forms = inject(FormService);
   private readonly ingredientService = inject(IngredientService);
   private readonly router = inject(Router);

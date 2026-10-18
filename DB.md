@@ -362,15 +362,21 @@ create table public.ingredient_nutrients (
 
 Registrar la base de cálculo y la fuente de los valores. El resultado por receta dependerá de poder convertir las cantidades a unidades comparables; vasos y cucharadas necesitan una equivalencia por ingrediente o una estimación explícita. Conviene indicar cuándo el valor nutricional es aproximado.
 
-## Seguridad sin autenticación en el MVP
+## Seguridad: lectura pública y escritura autorizada
 
-La ausencia de autenticación no significa que la base de datos deba quedar abierta. La aplicación Angular es código público y sus claves del cliente se pueden inspeccionar.
+La migración vigente es [20261018000100_editor_access.sql](supabase/migrations/20261018000100_editor_access.sql). Se aplica después del esquema y las migraciones de fotos y comensales y sustituye la escritura anónima anterior. Los pasos completos, configuración de Google y queries para gestionar miembros están en [SUPABASE.md](SUPABASE.md).
 
-- Habilitar **Row Level Security (RLS)** en todas las tablas expuestas por la API.
-- Definir políticas y permisos mínimos para cada operación del MVP.
-- Si se permite acceso anónimo de lectura y escritura, asumir que cualquier visitante que conozca el proyecto puede intentar leer, modificar o borrar datos dentro de esos permisos. Para una aplicación personal con datos privados, el acceso sin autenticación no proporciona una identidad fiable que limite las filas a una persona.
+- Todas las tablas del recetario enumeradas en la migración permiten lectura pública a `anon` y `authenticated`, incluidas relaciones, pasos y metadatos de fotos.
+- Insertar, actualizar y borrar exige sesión y pertenencia a `private.recipe_editors`. No hay propietarios por receta: los editores comparten la gestión del catálogo.
+- Los miembros referencian `auth.users(id)` y se administran desde SQL Editor. La tabla privada no es accesible desde el navegador; ni siquiera un editor puede conceder permisos desde la API.
+- `public.is_recipe_editor()` es una función `SECURITY DEFINER` con `search_path` vacío. Solo devuelve si el usuario actual es miembro; no acepta IDs de terceros.
+- `save_recipe` y `save_ingredient` mantienen `SECURITY INVOKER` y permisos de ejecución solo para `authenticated`; sus escrituras están sujetas a RLS.
+- Se reemplazan todas las políticas de las tablas enumeradas y se revocan los privilegios anteriores, incluido `TRUNCATE`. Revisa la lista si has personalizado el esquema.
+- Las fotos siguen siendo públicas. Las escrituras del bucket requieren pertenecer al grupo; políticas restrictivas adicionales impiden que otras políticas permisivas de Storage habiliten escrituras no autorizadas en ese bucket.
+- Al retirar un miembro, la siguiente escritura queda bloqueada aunque su sesión siga siendo válida. El front comprueba permisos al restaurar/cambiar sesión y antes de escribir; `/login` permite comprobarlos manualmente.
+- Las tablas, vistas, RPC o buckets futuros necesitan sus propios permisos. Las tablas opcionales de este documento solo quedan cubiertas si existen al ejecutar la migración.
 - Nunca incluir una clave `secret` o `service_role` en Angular. Esas claves pueden eludir RLS y deben permanecer en un entorno controlado del servidor.
-- Revisar políticas de Storage además de las de las tablas.
+- Ocultar botones y no enlazar `/login` define la interfaz; RLS y los permisos de base de datos son la protección efectiva. Los administradores y servicios con privilegios elevados conservan su acceso de administración.
 
 Documentación oficial: [seguridad de datos en Supabase](https://supabase.com/docs/guides/database/secure-data) y [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security).
 

@@ -1,0 +1,32 @@
+<section class="login-panel" aria-labelledby="login-title">
+  <h1 id="login-title">Acceso al recetario</h1>
+  @if (auth.user(); as user) {
+    <p>Sesión iniciada como <strong>{{ user.email }}</strong>.</p>
+    @if (auth.canEdit()) {
+      <p role="status">Tienes permiso para crear, editar y eliminar recetas e ingredientes.</p>
+    } @else {
+      <p role="status">Esta cuenta no tiene permisos de edición. Puedes consultar todas las recetas.</p>
+      <app-button variant="outline" [disabled]="busy()" (clicked)="refreshPermission()">Comprobar permisos</app-button>
+    }
+    <app-button variant="ghost" [disabled]="busy()" (clicked)="signOut()">Cerrar sesión</app-button>
+  } @else {
+    <p>Inicia sesión con tu cuenta autorizada para gestionar el recetario.</p>
+    <app-button variant="outline" [disabled]="busy()" (clicked)="signInWithGoogle()">Continuar con Google</app-button>
+    <p class="login-separator">O accede con correo y contraseña</p>
+    <form [formGroup]="form" (ngSubmit)="signIn()">
+      <label for="login-email">Correo electrónico</label>
+      <input id="login-email" type="email" autocomplete="username" formControlName="email" required>
+      @if (form.controls.email.touched && form.controls.email.invalid) {
+        <small>Introduce un correo electrónico válido.</small>
+      }
+      <label for="login-password">Contraseña</label>
+      <input id="login-password" type="password" autocomplete="current-password" formControlName="password" required>
+      @if (form.controls.password.touched && form.controls.password.invalid) {
+        <small>Introduce tu contraseña.</small>
+      }
+      <app-button type="submit" [disabled]="busy()">{{ busy() ? 'Accediendo…' : 'Iniciar sesión' }}</app-button>
+    </form>
+  }
+  @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+  <a routerLink="/recipes">Ver recetas</a>
+</section>
