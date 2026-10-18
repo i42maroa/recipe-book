@@ -1,4 +1,5 @@
-﻿import { Injectable } from '@angular/core';
+import { AuthService } from './auth.service';
+﻿import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { MealType, Recipe, RecipeDifficulty } from '../models/recipe.model';
 import { NotificationService } from './notification.service';
@@ -25,6 +26,7 @@ export interface RecipeBatch {
 
 @Injectable({ providedIn: 'root' })
 export class RecipeService {
+  private readonly auth = inject(AuthService);
   readonly pageSize = 20;
   private readonly recipesSubject = new BehaviorSubject<Recipe[]>([]);
   readonly recipes$ = this.recipesSubject.asObservable();
@@ -165,6 +167,7 @@ export class RecipeService {
   async create(recipe: Omit<Recipe, 'id'>): Promise<string> { return this.save(null, recipe); }
   async update(id: string, recipe: Omit<Recipe, 'id'>): Promise<string> { return this.save(id, recipe); }
   private async save(id: string | null, recipe: Omit<Recipe, 'id'>): Promise<string> {
+    await this.auth.requireEditor();
     const { data, error } = await this.supabase.requireClient().rpc('save_recipe', { p_id: id, p_recipe: recipe });
     if (error) throw error;
     const savedId = id ?? String(data);
@@ -172,6 +175,7 @@ export class RecipeService {
     return savedId;
   }
   async remove(id: string): Promise<void> {
+    await this.auth.requireEditor();
     await this.photoService.deleteFilesForRecipe(id);
     const { error } = await this.supabase.requireClient().from('recipes').delete().eq('id', id);
     if (error) throw error;

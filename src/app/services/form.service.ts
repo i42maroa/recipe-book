@@ -1,4 +1,5 @@
-import { Injectable } from '@angular/core';
+import { AuthService } from './auth.service';
+import { Injectable, effect, inject } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { Ingredient, Recipe } from '../models/recipe.model';
 import { BaseFormType, RecipeFormValue } from '../models/form.model';
@@ -14,6 +15,7 @@ export interface FormDialogState {
 
 @Injectable({ providedIn: 'root' })
 export class FormService {
+  private readonly auth = inject(AuthService);
   private readonly dialogSubject = new BehaviorSubject<FormDialogState | null>(null);
   readonly dialog$ = this.dialogSubject.asObservable();
 
@@ -21,9 +23,12 @@ export class FormService {
     private readonly recipes: RecipeService,
     private readonly notifications: NotificationService,
     private readonly recipePhotos: RecipePhotoService,
-  ) {}
+  ) {
+    effect(() => { if (!this.auth.canEdit()) this.close(); });
+  }
 
   openForm(formType: BaseFormType, item?: Recipe | Ingredient): void {
+    if (!this.auth.canEdit()) return;
     this.dialogSubject.next({
       formType,
       recipeToEdit: formType === 'recipe' && item && 'ingredientIds' in item ? item : null,

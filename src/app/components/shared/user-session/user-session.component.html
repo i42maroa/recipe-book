@@ -1,0 +1,9 @@
+@if (auth.user(); as user) {
+  <div class="user-session" aria-label="Sesión actual">
+    <span class="user-email" [title]="user.email ?? user.id">{{ user.email ?? 'Usuario' }}</span>
+    <app-button variant="ghost" customClass="session-signout" title="Cerrar sesión" [disabled]="signingOut()" (clicked)="signOut()">
+      <app-icon name="logout" />
+      <span class="signout-label">{{ signingOut() ? 'Cerrando…' : 'Cerrar sesión' }}</span>
+    </app-button>
+  </div>
+}

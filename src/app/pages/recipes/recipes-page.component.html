@@ -1,9 +1,13 @@
 <section class="recipes-page">
   <div class="page-heading">
     <h1>Recetas para <em>disfrutar.</em></h1>    
-    <app-button customClass="add-recipe" (clicked)="forms.openForm('recipe')">Nueva receta</app-button>
+    @if (auth.canEdit()) {
+      <app-button customClass="add-recipe" (clicked)="forms.openForm('recipe')">Nueva receta</app-button>
+    }
   </div>
-  <button class="floating-add-button" type="button" aria-label="Añadir receta" title="Añadir receta" (click)="forms.openForm('recipe')"><app-icon name="plus" /></button>
+  @if (auth.canEdit()) {
+    <button class="floating-add-button" type="button" aria-label="Añadir receta" title="Añadir receta" (click)="forms.openForm('recipe')"><app-icon name="plus" /></button>
+  }
 
   <div class="recipe-stats">
     <article><span class="stat-icon stat-green"><app-icon name="recipes" /></span><div><strong>{{ recipeCount$ | async }}</strong><small>Recetas guardadas</small></div></article>
@@ -33,7 +37,7 @@
     @for (recipe of page.items; track recipe.id) {
       <app-recipe-card [recipe]="recipe" (selected)="showRecipe($event)"></app-recipe-card>
     } @empty {
-      <div class="empty-state"><app-icon class="empty-state-icon" name="sparkle" /><h3>Aún no hay recetas por aquí</h3><p>Guarda tu primera receta y empieza a llenar tu recetario.</p><app-button class="empty-add-recipe" (clicked)="forms.openForm('recipe')">Añadir receta</app-button></div>
+      <div class="empty-state"><app-icon class="empty-state-icon" name="sparkle" /><h3>Aún no hay recetas por aquí</h3><p>Guarda tu primera receta y empieza a llenar tu recetario.</p>@if (auth.canEdit()) { <app-button class="empty-add-recipe" (clicked)="forms.openForm('recipe')">Añadir receta</app-button> }</div>
     }
   </div>
   @if (page.items.length > 0) {

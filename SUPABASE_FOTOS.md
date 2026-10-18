@@ -6,8 +6,8 @@ La aplicación guarda los archivos en Supabase Storage y sus rutas y posiciones 
 
 En el panel de Supabase, abre **SQL Editor → New query**, pega y ejecuta el contenido de [`supabase/migrations/20261016000100_recipe_photos.sql`](supabase/migrations/20261016000100_recipe_photos.sql). La consulta crea la tabla, el bucket público `recipe-photos` y las políticas de acceso que necesita la aplicación.
 
-Después, recarga la aplicación. No hacen falta nuevas claves ni cambios de configuración de Angular.
+Después, aplica [20261018000100_editor_access.sql](supabase/migrations/20261018000100_editor_access.sql) para sustituir los permisos anónimos antiguos. El orden completo está en [SUPABASE.md](SUPABASE.md). No vuelvas a aplicar la migración antigua de fotos por separado después de la de seguridad.
 
 ## Acceso público
 
-El bucket sirve las imágenes públicamente. Como este proyecto no tiene autenticación y permite cambios anónimos, sus políticas también permiten a cualquier visitante con acceso a la aplicación subir y borrar archivos del bucket. Antes de usar fotos privadas o limitar quién puede modificar datos, configura autenticación y políticas por usuario.
+El bucket sirve las imágenes públicamente. Subir, sustituir o eliminar fotos requiere una sesión de Supabase Auth y pertenecer a `private.recipe_editors`. Los visitantes y las cuentas sin permiso pueden consultar todas las fotos y no ven los formularios de edición.

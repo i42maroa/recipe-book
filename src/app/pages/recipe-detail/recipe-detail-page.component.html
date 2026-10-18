@@ -24,6 +24,10 @@
             <span class="meal-label">{{ type }}</span>
           }
         </div>
+        <app-button class="recipe-share-button" variant="ghost" [disabled]="sharing()" (clicked)="shareRecipe(recipe)">
+          <app-icon name="share" />
+          {{ sharing() ? 'Compartiendo…' : 'Compartir' }}
+        </app-button>
       </div>
       @if (recipe.difficulty || recipe.minutes !== null || (recipe.cuisineTypes?.length ?? 0) > 0) {
         <div class="recipe-facts-row">
@@ -92,12 +96,14 @@
               @if (recipe.rating !== null) { <app-icon class="rating-icon" name="star" /> <strong>{{ recipe.rating }} / 10</strong> } @else { <small>Sin valorar</small> }
             </span>
           }
-          <app-button variant="soft" customClass="rate-button" (clicked)="openRating(recipe)">{{ recipe.pending ? 'Probar' : 'Puntuar' }}</app-button>
+          @if (auth.canEdit()) {
+            <app-button variant="soft" customClass="rate-button" (clicked)="openRating(recipe)">{{ recipe.pending ? 'Probar' : 'Puntuar' }}</app-button>
+          }
         </div>
 
 
       </div>
-      @if (isRating) {
+      @if (auth.canEdit() && isRating) {
         <div class="rating-form">
           <span class="rating-prompt">{{ recipe.pending ? '¿Qué te ha parecido?' : 'Tu puntuación' }}</span>
           <div class="rating-picker" role="group" aria-label="Selecciona de una a diez estrellas">
@@ -114,7 +120,9 @@
       @if (recipe.sourceUrl) {
         <a class="source-link" [href]="recipe.sourceUrl" target="_blank" rel="noreferrer">Receta original</a>
       }
-      <div class="recipe-detail-actions recipe-bottom-actions"><div><app-button variant="ghost" (clicked)="forms.openForm('recipe', recipe)">Editar</app-button><app-button variant="ghost" customClass="delete-action" (clicked)="deleteRecipe(recipe)">Eliminar</app-button></div></div>
+      @if (auth.canEdit()) {
+        <div class="recipe-detail-actions recipe-bottom-actions"><div><app-button variant="ghost" (clicked)="forms.openForm('recipe', recipe)">Editar</app-button><app-button variant="ghost" customClass="delete-action" (clicked)="deleteRecipe(recipe)">Eliminar</app-button></div></div>
+      }
     </div>
   </article>
   @if (lightboxOpen) { <app-photo-lightbox [photos]="recipe.photos ?? []" [initialIndex]="activePhotoIndex" (closed)="lightboxOpen = false" /> }

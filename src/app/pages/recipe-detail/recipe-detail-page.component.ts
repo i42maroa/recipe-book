@@ -1,7 +1,8 @@
+import { AuthService } from '../../services/auth.service';
 ﻿import { cuisineFlag, mealPhotoClass } from '../../utils/recipe-display.utils';
 import { AsyncPipe } from '@angular/common';
 import { FormBuilder } from '@angular/forms';
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, combineLatest, distinctUntilChanged, from, map, of, switchMap } from 'rxjs';
 import { ButtonComponent } from '../../components/shared/button/button.component';
@@ -26,11 +27,13 @@ import { groupIngredients } from '../../utils/ingredients.utils';
 export class RecipeDetailPageComponent {
   activePhotoIndex = 0;
   lightboxOpen = false;
+  readonly sharing = signal(false);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly recipeService = inject(RecipeService);
   private readonly ingredientService = inject(IngredientService);
   private readonly notifications = inject(NotificationService);
+  readonly auth = inject(AuthService);
   readonly forms = inject(FormService);
   isRating = false;
   private readonly fb = inject(FormBuilder);
@@ -57,6 +60,32 @@ export class RecipeDetailPageComponent {
     void this.router.navigate(['/recipes']);
   }
 
+  async shareRecipe(recipe: Recipe): Promise<void> {
+    if (this.sharing()) return;
+    this.sharing.set(true);
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.hash = '';
+    try {
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: recipe.name, url: url.href });
+          return;
+        } catch (error) {
+          if (error instanceof Error && error.name === 'AbortError') return;
+        }
+      }
+      try {
+        await navigator.clipboard.writeText(url.href);
+        this.notifications.success('Enlace de la receta copiado.');
+      } catch {
+        window.prompt('Copia este enlace para compartir la receta:', url.href);
+      }
+    } finally {
+      this.sharing.set(false);
+    }
+  }
+
   openRating(recipe: Recipe): void {
     this.ratingControl.setValue(recipe.rating ?? 0);
     this.isRating = true;
@@ -70,15 +99,23 @@ export class RecipeDetailPageComponent {
       this.notifications.error('Selecciona de una a diez estrellas.');
       return;
     }
-    await this.recipeService.update(recipe.id, { ...recipe, pending: false, rating });
-    this.isRating = false;
-    this.notifications.success('Valoración guardada.');
+    try {
+      await this.recipeService.update(recipe.id, { ...recipe, pending: false, rating });
+      this.isRating = false;
+      this.notifications.success('Valoración guardada.');
+    } catch (error) {
+      this.notifications.error(error instanceof Error ? error.message : 'No se pudo guardar la valoración.');
+    }
   }
   async deleteRecipe(recipe: Recipe): Promise<void> {
     if (!window.confirm(`¿Quieres eliminar la receta «${recipe.name}»?`)) return;
-    await this.recipeService.remove(recipe.id);
-    this.notifications.success('Receta eliminada.');
-    this.backToRecipes();
+    try {
+      await this.recipeService.remove(recipe.id);
+      this.notifications.success('Receta eliminada.');
+      this.backToRecipes();
+    } catch (error) {
+      this.notifications.error(error instanceof Error ? error.message : 'No se pudo eliminar la receta.');
+    }
   }
 
   ingredientsFor(recipe: Recipe, ingredients: Ingredient[] | null): Ingredient[] {

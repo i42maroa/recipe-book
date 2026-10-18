@@ -1,4 +1,5 @@
-import { Injectable } from '@angular/core';
+import { AuthService } from './auth.service';
+import { Injectable, inject } from '@angular/core';
 import { RecipePhoto } from '../models/recipe.model';
 import { SupabaseService } from './supabase.service';
 
@@ -7,6 +8,7 @@ const MAX_PHOTOS = 3;
 
 @Injectable({ providedIn: 'root' })
 export class RecipePhotoService {
+  private readonly auth = inject(AuthService);
   constructor(private readonly supabase: SupabaseService) {}
 
   publicUrl(storagePath: string): string {
@@ -14,6 +16,7 @@ export class RecipePhotoService {
   }
 
   async sync(recipeId: string, retainedPhotos: RecipePhoto[], files: File[]): Promise<void> {
+    await this.auth.requireEditor();
     if (retainedPhotos.length + files.length > MAX_PHOTOS) {
       throw new Error('Puedes guardar como máximo 3 fotos por receta.');
     }
@@ -72,6 +75,7 @@ export class RecipePhotoService {
   }
 
   async deleteFilesForRecipe(recipeId: string): Promise<void> {
+    await this.auth.requireEditor();
     const { data, error } = await this.supabase.requireClient()
       .from('recipe_photos').select('storage_path').eq('recipe_id', recipeId);
     if (error) throw error;

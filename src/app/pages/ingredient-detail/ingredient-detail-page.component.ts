@@ -1,3 +1,4 @@
+import { AuthService } from '../../services/auth.service';
 import { AsyncPipe } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -23,6 +24,7 @@ export class IngredientDetailPageComponent {
   private readonly router = inject(Router);
   private readonly ingredientService = inject(IngredientService);
   private readonly recipeService = inject(RecipeService);
+  readonly auth = inject(AuthService);
   readonly forms = inject(FormService);
   private readonly notifications = inject(NotificationService);
 

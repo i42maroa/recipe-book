@@ -37,6 +37,8 @@ export class BreadcrumbComponent {
     const route = this.router.parseUrl(url);
     const segments = (route.root.children['primary']?.segments ?? []).map((segment) => segment.path);
 
+    if (segments[0] === 'login') return [{ label: 'Acceso', url: null }];
+
     if (segments[0] === 'recipes' && segments[1]) {
       const recipe = this.recipeService.getById(segments[1]);
       return [

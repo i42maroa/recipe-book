@@ -10,7 +10,7 @@ La aplicación será un recetario personal para guardar recetas que ya he prepar
 - **Base de datos:** PostgreSQL en Supabase.
 - **Backend:** Supabase Database y su API PostgREST.
 
-La persistencia se implementa con Supabase. El MVP no incluye autenticación; las implicaciones de seguridad se documentan en `SUPABASE.md`.
+La persistencia se implementa con Supabase. La consulta es pública; crear, modificar o eliminar datos y fotos requiere una sesión de Supabase Auth y pertenecer al grupo de editores autorizados. La configuración se documenta en `SUPABASE.md`.
 
 ## Diseño y arquitectura de frontend
 
@@ -86,7 +86,9 @@ La receta relaciona varios ingredientes. Al crear una receta se podrán seleccio
 - La valoración, cuando se indique, es un número entero del 1 al 10.
 - Una receta puede pertenecer a más de un tipo de comida.
 - Un ingrediente asociado a una o más recetas no se puede eliminar.
-- El MVP no incluirá autenticación.
+- La lectura es pública, también para cuentas sin permiso de edición.
+- Las escrituras requieren autenticación y pertenencia a `private.recipe_editors`, comprobada mediante RLS.
+- El login por Google o correo y contraseña está en `/login`, sin enlaces ni botones que lleven a esa ruta.
 
 ## Funcionalidades futuras
 
@@ -106,7 +108,7 @@ Este documento recoge el contexto inicial. Antes o durante la implementación se
 
 - edición de recetas e ingredientes, además de los flujos de creación y eliminación descritos;
 - detalles de presentación y combinación de los criterios de búsqueda;
-- autenticación y reglas de seguridad por usuario para privatizar los datos;
+- ampliación de roles si se necesitan permisos diferentes al grupo único de editores;
 - alojamiento y configuración del despliegue.
 
 Las funcionalidades no descritas en el alcance del MVP no se consideran comprometidas para la primera evolución.

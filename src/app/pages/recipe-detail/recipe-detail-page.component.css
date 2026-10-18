@@ -4,6 +4,14 @@
   margin: 0 auto;
   padding: 28px 5.2% 50px;
 }
+.recipe-share-button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.recipe-share-button app-icon {
+  width: 18px;
+  height: 18px;
+}
 .recipe-detail-actions {
   display: flex;
   align-items: flex-start;
@@ -118,7 +126,7 @@
   gap: 18px;
   margin-bottom: 14px;
 }
-.recipe-meal-types { display: flex; max-width: 45%; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.recipe-meal-types { display: flex; max-width: 35%; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
 .recipe-facts-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 12px; }
 .recipe-facts-primary { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 10px; }
 .recipe-facts-row .difficulty-badge { padding: 7px 13px; font-size: 14px; font-weight: 600; }

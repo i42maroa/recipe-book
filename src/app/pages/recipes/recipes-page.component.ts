@@ -1,3 +1,4 @@
+import { AuthService } from '../../services/auth.service';
 ﻿import { AsyncPipe } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
@@ -28,6 +29,7 @@ export class RecipesPageComponent {
   private readonly ingredientService = inject(IngredientService);
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
+  readonly auth = inject(AuthService);
   readonly forms = inject(FormService);
   filtersExpanded = false;
   private readonly notifications = inject(NotificationService);
