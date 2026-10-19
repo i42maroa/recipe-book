@@ -1,4 +1,4 @@
-<div class="app-shell" [attr.aria-busy]="loading.isLoading()">
+<div class="app-shell">
   <app-navbar></app-navbar>
   <main class="main-area">
     <header class="topbar">
@@ -9,19 +9,18 @@
 </div>
 <app-notification-center></app-notification-center>
 @if (forms.dialog$ | async; as dialog) {
+  @defer (on immediate) {
   <app-base-form
     [formType]="dialog.formType"
+    [savingRecipe]="forms.saving()"
     [recipeToEdit]="dialog.recipeToEdit"
     [ingredientToEdit]="dialog.ingredientToEdit"
     (cancel)="forms.close()"
     (recipeSaved)="forms.saveRecipe($event)">
   </app-base-form>
-}
-@if (loading.isLoading()) {
-  <div class="loading-overlay" role="status" aria-live="polite" aria-label="Cargando, espera un momento">
-    <div class="loading-indicator">
-      <span class="loading-spinner" aria-hidden="true"></span>
-      <span>Cargando…</span>
-    </div>
-  </div>
+  } @loading {
+    <div class="form-loading" role="status">Cargando formulario…</div>
+  } @error {
+    <div class="form-loading" role="alert">No se pudo cargar el formulario. <button type="button" (click)="forms.close()">Cerrar</button></div>
+  }
 }

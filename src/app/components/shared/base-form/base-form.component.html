@@ -1,9 +1,16 @@
-﻿    <div class="modal-scrim" (click)="cancel.emit()">
+﻿    <div class="modal-scrim" (click)="requestCancel()">
       <section class="form-modal" [class.recipe-modal]="formType === 'recipe'" (click)="$event.stopPropagation()" aria-modal="true" role="dialog" [attr.aria-label]="formType === 'recipe' ? (recipeToEdit ? 'Modificar receta' : 'Nueva receta') : (ingredientToEdit ? 'Modificar ingrediente' : 'Nuevo ingrediente')">
-        <header class="form-modal-header"><div><span class="eyebrow">{{ formType === 'recipe' ? (recipeToEdit ? 'EDITAR RECETA' : 'AÑADIR AL RECETARIO') : (ingredientToEdit ? 'EDITAR INGREDIENTE' : 'TU DESPENSA') }}</span><h2>{{ formType === 'recipe' ? (recipeToEdit ? 'Modificar receta' : 'Nueva receta') : (ingredientToEdit ? 'Modificar ingrediente' : 'Nuevo ingrediente') }}</h2></div><button class="icon-button" type="button" aria-label="Cerrar" (click)="cancel.emit()"><app-icon name="close" /></button></header>
+        <header class="form-modal-header"><div><span class="eyebrow">{{ formType === 'recipe' ? (recipeToEdit ? 'EDITAR RECETA' : 'AÑADIR AL RECETARIO') : (ingredientToEdit ? 'EDITAR INGREDIENTE' : 'TU DESPENSA') }}</span><h2>{{ formType === 'recipe' ? (recipeToEdit ? 'Modificar receta' : 'Nueva receta') : (ingredientToEdit ? 'Modificar ingrediente' : 'Nuevo ingrediente') }}</h2></div><button class="icon-button" type="button" aria-label="Cerrar" [disabled]="busy()" (click)="requestCancel()"><app-icon name="close" /></button></header>
+        @if (ingredientService.loading.isLoading('ingredients')) {
+          <p class="form-status" role="status">Cargando ingredientes…</p>
+        } @else if (ingredientService.error()) {
+          <p class="form-status" role="alert">No se pudieron cargar los ingredientes. <button type="button" (click)="retryIngredients()">Reintentar</button></p>
+        }
+        @if (busy()) { <p class="form-status" role="status">Guardando cambios…</p> }
         @switch (formType) {
           @case ('recipe') {
             <form [formGroup]="recipeForm" (ngSubmit)="saveRecipe()" class="form-body recipe-wizard">
+<fieldset class="form-fields" [disabled]="busy() || !ingredientService.loaded() || ingredientService.error()" [attr.aria-busy]="busy()">
   <nav class="form-tabs" role="tablist" aria-label="Secciones de la receta">
     @for (tab of recipeTabLabels; track tab; let index = $index) {
       <button type="button" role="tab" [attr.aria-selected]="activeRecipeTab === index" [class.active]="activeRecipeTab === index" [class.completed]="activeRecipeTab > index" (click)="setRecipeTab(index)">
@@ -127,10 +134,10 @@
         </div>
         <div class="recipe-photo-previews">
           @for (photo of retainedRecipePhotos; track photo.id) {
-            <div class="recipe-photo-preview"><img [src]="photo.url" [alt]="photo.altText || 'Foto de la receta'"><button type="button" aria-label="Quitar foto" (click)="removeRecipePhoto(photo.id)"><app-icon name="close" /></button></div>
+            <div class="recipe-photo-preview"><img loading="lazy" decoding="async" width="320" height="200" [src]="photo.url" [alt]="photo.altText?.trim() || 'Foto de ' + (recipeForm.controls.name.value.trim() || 'la receta')"><button type="button" aria-label="Quitar foto" (click)="removeRecipePhoto(photo.id)"><app-icon name="close" /></button></div>
           }
           @for (photo of newRecipePhotos; track photo.previewUrl; let index = $index) {
-            <div class="recipe-photo-preview"><img [src]="photo.previewUrl" [alt]="photo.file.name"><button type="button" aria-label="Quitar foto" (click)="removeNewRecipePhoto(index)"><app-icon name="close" /></button></div>
+            <div class="recipe-photo-preview"><img loading="lazy" decoding="async" width="320" height="200" [src]="photo.previewUrl" [alt]="'Vista previa de ' + (recipeForm.controls.name.value.trim() || 'la receta') + ', foto ' + (index + 1)"><button type="button" aria-label="Quitar foto" (click)="removeNewRecipePhoto(index)"><app-icon name="close" /></button></div>
           }
         </div>
       </fieldset>
@@ -138,13 +145,15 @@
   }
 
   <footer class="form-actions recipe-form-actions">
-    <app-button variant="ghost" type="button" (clicked)="cancel.emit()">Cancelar</app-button>
-    <app-button customClass="form-submit" type="submit">Guardar receta</app-button>
+    <app-button variant="ghost" type="button" (clicked)="requestCancel()">Cancelar</app-button>
+    <app-button customClass="form-submit" type="submit">{{ savingRecipe ? 'Guardando…' : 'Guardar receta' }}</app-button>
   </footer>
+</fieldset>
 </form>
           }
           @case ('ingredient') {
             <form [formGroup]="ingredientForm" (ngSubmit)="saveIngredient()" class="form-body">
+<fieldset class="form-fields" [disabled]="busy() || !ingredientService.loaded() || ingredientService.error()" [attr.aria-busy]="busy()">
               <label class="field-label"><span class="field-label-title">Nombre del ingrediente <b>*</b></span><input formControlName="name" placeholder="Ej. Garbanzos"></label>
               <label class="field-label"><span class="field-label-title">Categoría <b>*</b></span><select formControlName="category"><option value="">Elige una categoría</option>@for (category of categories; track category) { <option [value]="category">{{ categoryLabel(category) }}</option> }</select></label>
               @if (ingredientForm.controls.category.value === 'Elaboracion') {
@@ -192,8 +201,9 @@
                   </div>
                 </fieldset>
               }
-              <footer class="form-actions"><app-button variant="ghost" (clicked)="cancel.emit()">Cancelar</app-button><app-button customClass="form-submit" type="submit">Añadir ingrediente <app-icon name="arrow-right" /></app-button></footer>
-            </form>
+              <footer class="form-actions"><app-button variant="ghost" (clicked)="requestCancel()">Cancelar</app-button><app-button customClass="form-submit" type="submit">{{ savingIngredient() ? 'Guardando…' : (ingredientToEdit ? 'Guardar ingrediente' : 'Añadir ingrediente') }} <app-icon name="arrow-right" /></app-button></footer>
+            </fieldset>
+</form>
           }
         }
       </section>

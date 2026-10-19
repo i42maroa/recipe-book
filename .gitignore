@@ -3,5 +3,6 @@
 /.angular
 /out-tsc
 /coverage
+/.npm-cache
 /.env
 /.env.*

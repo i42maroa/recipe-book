@@ -30,3 +30,9 @@ export interface RecipeRow {
   recipe_cuisine_types: { cuisine_types: { name: CuisineType } | null }[];
   recipe_photos: { id: string; storage_path: string; position: number; alt_text: string | null }[];
 }
+
+export interface RecipeCardRow extends Pick<RecipeRow,
+  'id' | 'name' | 'minutes' | 'servings' | 'pending' | 'meal_types' |
+  'rating' | 'fitness' | 'difficulty' | 'recipe_cuisine_types' | 'recipe_photos'> {
+  recipe_ingredients: { count: number }[];
+}

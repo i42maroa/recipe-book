@@ -5,7 +5,10 @@
   "scripts": {
     "start": "ng serve",
     "build": "ng build",
-    "lint": "ng lint"
+    "lint": "ng lint",
+    "test:assets": "node --test tests/site-assets.test.cjs",
+    "test:session": "node --test tests/cache.test.cjs tests/auth.test.cjs",
+    "test:optimization": "node --test tests/recipe-optimization.test.cjs tests/recipe-list.test.cjs tests/loading.test.cjs tests/photo-upload.test.cjs"
   },
   "dependencies": {
     "@angular/common": "^22.0.0",

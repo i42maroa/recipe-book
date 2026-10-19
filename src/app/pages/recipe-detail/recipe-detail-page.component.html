@@ -1,11 +1,16 @@
-﻿@if (recipe$ | async; as recipe) {
+﻿@if (view$ | async; as view) {
+@if (view.loading) {
+  <section class="section-status" role="status">Cargando receta…</section>
+} @else if (view.error) {
+  <section class="section-status" role="alert">No se pudo cargar la receta. <button type="button" (click)="retry()">Reintentar</button></section>
+} @else if (view.recipe; as recipe) {
   @let recipeIngredients = ingredientsFor(recipe, ingredients$ | async);
   @let ingredientGroups = ingredientGroupsFor(recipeIngredients);
   <article class="recipe-detail-page">
 
     <div [class]="'recipe-detail-hero ' + photoClass(recipe)" [class.has-photo]="!!currentPhoto(recipe)">
       @if (currentPhoto(recipe); as photo) {
-        <img class="recipe-detail-photo" [src]="photo.url" [alt]="photo.altText || recipe.name" role="button" tabindex="0" aria-label="Ampliar imagen" (click)="openLightbox($event)" (keydown.enter)="openLightbox($event)" (keydown.space)="openLightbox($event)">
+        <img loading="eager" fetchpriority="high" decoding="async" width="1280" height="720" class="recipe-detail-photo" [src]="photo.url" [alt]="photo.altText?.trim() || 'Foto de ' + recipe.name" role="button" tabindex="0" [attr.aria-label]="'Ampliar foto de ' + recipe.name" (click)="openLightbox($event)" (keydown.enter)="openLightbox($event)" (keydown.space)="openLightbox($event)">
         @if ((recipe.photos?.length ?? 0) > 1) {
           <button class="detail-photo-nav previous" type="button" aria-label="Ver foto anterior" (click)="changePhoto(recipe, -1, $event)">‹</button>
           <button class="detail-photo-nav next" type="button" aria-label="Ver foto siguiente" (click)="changePhoto(recipe, 1, $event)">›</button>
@@ -57,11 +62,16 @@
       <div class="recipe-detail-columns">
         <section>
           <div class="ingredients-heading">
-            <h2>Ingredientes <span>({{ recipeIngredients.length }})</span></h2>
+            <h2>Ingredientes <span>({{ recipe.ingredientIds.length }})</span></h2>
             @if (recipe.servings) {
               <span class="ingredient-servings" [attr.aria-label]="recipe.servings + ' comensales'"><app-icon name="person" /> {{ recipe.servings }}</span>
             }
           </div>
+          @if (ingredientService.loading.isLoading('ingredients')) {
+            <p role="status">Cargando ingredientes…</p>
+          } @else if (ingredientService.error()) {
+            <p role="alert">No se pudieron cargar los ingredientes. <button type="button" (click)="retryIngredients()">Reintentar</button></p>
+          } @else {
           <ul class="detail-ingredients">
             @for (group of ingredientGroups; track group.category) {
               <li class="ingredient-category-group"><strong>{{ group.category }}</strong><ul class="ingredient-group-items">
@@ -71,6 +81,7 @@
               </ul></li>
             }
           </ul>
+          }
         </section>
 
         <section>
@@ -112,8 +123,8 @@
             }
             <span class="rating-value">{{ ratingControl.value || 0 }}/10</span>
           </div>
-          <app-button type="button" (clicked)="saveRating(recipe)">Guardar</app-button>
-          <app-button variant="ghost" type="button" (clicked)="isRating = false">Cancelar</app-button>
+          <app-button type="button" [disabled]="savingRating()" (clicked)="saveRating(recipe)">{{ savingRating() ? 'Guardando…' : 'Guardar' }}</app-button>
+          <app-button variant="ghost" type="button" [disabled]="savingRating()" (clicked)="isRating = false">Cancelar</app-button>
         </div>
       }
 
@@ -122,13 +133,11 @@
       }
     </div>
   </article>
-  @if (lightboxOpen) { <app-photo-lightbox [photos]="recipe.photos ?? []" [initialIndex]="activePhotoIndex" (closed)="lightboxOpen = false" /> }
+  @defer (when lightboxOpen) { @if (lightboxOpen) { <app-photo-lightbox [photos]="recipe.photos ?? []" [recipeName]="recipe.name" [initialIndex]="activePhotoIndex" (closed)="lightboxOpen = false" /> } }
 } @else {
-  <section class="recipe-not-found">
-    <h1>No encontramos esa receta</h1>
-    <p>Puede que el enlace ya no sea válido o que la receta no esté guardada.</p>
-    
-  </section>
+  <app-not-found-page resource="recipe" />
 }
 
 
+
+}

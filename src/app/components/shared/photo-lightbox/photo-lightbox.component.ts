@@ -9,6 +9,7 @@ import { RecipePhoto } from '../../../models/recipe.model';
 })
 export class PhotoLightboxComponent implements OnChanges {
   @Input() photos: RecipePhoto[] = [];
+  @Input() recipeName = 'la receta';
   @Input() initialIndex = 0;
   @Output() closed = new EventEmitter<void>();
   activeIndex = 0;

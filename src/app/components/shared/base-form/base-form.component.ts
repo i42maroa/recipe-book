@@ -25,6 +25,8 @@ interface IngredientGroup { category: IngredientCategory; ingredients: Ingredien
 })
 export class BaseFormComponent implements OnInit {
   @Input() formType: BaseFormType = 'recipe';
+  @Input() savingRecipe = false;
+  readonly savingIngredient = signal(false);
   @Input() recipeToEdit: Recipe | null = null;
   @Input() ingredientToEdit: Ingredient | null = null;
   @Output() cancel = new EventEmitter<void>();
@@ -36,7 +38,7 @@ export class BaseFormComponent implements OnInit {
   photoDropActive = false;
 
   private readonly fb = inject(FormBuilder);
-  private readonly ingredientService = inject(IngredientService);
+  readonly ingredientService = inject(IngredientService);
   private readonly notifications = inject(NotificationService);
   private readonly destroyRef = inject(DestroyRef);
   readonly ingredients$ = this.ingredientService.ingredients$;
@@ -282,7 +284,7 @@ export class BaseFormComponent implements OnInit {
     if (!this.isSelected(id)) this.toggleIngredient(id);
   }
   async createRecipeIngredient(): Promise<void> {
-    if (this.addingIngredient()) return;
+    if (this.busy() || !this.ingredientService.loaded() || this.ingredientService.error()) return;
     this.newIngredientName.markAsTouched();
     this.newIngredientCategory.markAsTouched();
     const name = this.newIngredientName.value.trim();
@@ -380,7 +382,12 @@ export class BaseFormComponent implements OnInit {
     const selected = this.recipeForm.controls.mealTypes.value;
     this.recipeForm.controls.mealTypes.setValue(selected.includes(type) ? selected.filter((value) => value !== type) : [...selected, type]);
   }
+  busy(): boolean { return this.savingRecipe || this.savingIngredient() || this.addingIngredient(); }
+  requestCancel(): void { if (!this.busy()) this.cancel.emit(); }
+  retryIngredients(): void { void this.ingredientService.refresh().catch(() => undefined); }
+
   saveRecipe(): void {
+    if (this.busy() || !this.ingredientService.loaded() || this.ingredientService.error()) return;
     if (!this.validateRecipeDetails()) { this.activeRecipeTab = 0; return; }
     this.recipeForm.controls.ingredientIds.markAsTouched();
     if (this.recipeForm.controls.ingredientIds.value.length === 0) { this.activeRecipeTab = 1; return; }
@@ -402,6 +409,12 @@ export class BaseFormComponent implements OnInit {
     });
   }
   async saveIngredient(): Promise<void> {
+    if (this.busy() || !this.ingredientService.loaded() || this.ingredientService.error()) return;
+    this.savingIngredient.set(true);
+    try { await this.performSaveIngredient(); }
+    finally { this.savingIngredient.set(false); }
+  }
+  private async performSaveIngredient(): Promise<void> {
     if (this.ingredientForm.invalid) return;
     const value = this.ingredientForm.getRawValue();
     const derivedFromIds = value.category === 'Elaboracion' ? value.derivedFromIds : [];

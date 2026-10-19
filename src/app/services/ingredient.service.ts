@@ -1,5 +1,6 @@
+import { LoadingService } from './loading.service';
 import { AuthService } from './auth.service';
-﻿import { Injectable, inject } from '@angular/core';
+﻿import { Injectable, inject, signal } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { Ingredient, IngredientCategory } from '../models/recipe.model';
 import { NotificationService } from './notification.service';
@@ -9,6 +10,9 @@ import { SupabaseService } from './supabase.service';
 
 @Injectable({ providedIn: 'root' })
 export class IngredientService {
+  readonly loading = inject(LoadingService);
+  readonly error = signal(false);
+  readonly loaded = signal(false);
   private readonly auth = inject(AuthService);
   private readonly ingredientsSubject = new BehaviorSubject<Ingredient[]>([]);
   readonly ingredients$ = this.ingredientsSubject.asObservable();
@@ -21,6 +25,12 @@ export class IngredientService {
   }
 
   async refresh(): Promise<void> {
+    this.error.set(false);
+    try { await this.loading.run(() => this.fetchIngredients(), 'ingredients'); this.loaded.set(true); }
+    catch (error) { this.error.set(true); throw error; }
+  }
+
+  private async fetchIngredients(): Promise<void> {
     const { data, error } = await this.supabase.requireClient().from('ingredients').select('*, ingredient_components!ingredient_components_parent_ingredient_id_fkey(component_ingredient_id,amount_kind,amount_value,amount_unit)').order('name').returns<IngredientRow[]>();
     if (error) throw error;
     this.ingredientsSubject.next((data ?? []).map((row) => {

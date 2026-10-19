@@ -107,6 +107,11 @@ p {
   font-size: 11px;
 }
 .floating-add-button { display: none; }
+.section-status {
+  padding: 32px 20px;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
 @media (max-width: 1024px) {
   .floating-add-button {
     position: fixed;

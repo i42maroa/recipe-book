@@ -6,6 +6,12 @@ import { SupabaseService } from './supabase.service';
 const BUCKET = 'recipe-photos';
 const MAX_PHOTOS = 3;
 
+export interface RecipePhotoChanges {
+  originalPhotos: RecipePhoto[];
+  retainedPhotos: RecipePhoto[];
+  files: File[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class RecipePhotoService {
   private readonly auth = inject(AuthService);
@@ -15,11 +21,18 @@ export class RecipePhotoService {
     return this.supabase.requireClient().storage.from(BUCKET).getPublicUrl(storagePath).data.publicUrl;
   }
 
-  async sync(recipeId: string, retainedPhotos: RecipePhoto[], files: File[]): Promise<void> {
-    await this.auth.requireEditor();
+  async sync(recipeId: string, retainedPhotos: RecipePhoto[], files: File[], recipeName = 'la receta', originalPhotos?: RecipePhoto[]): Promise<void> {
     if (retainedPhotos.length + files.length > MAX_PHOTOS) {
       throw new Error('Puedes guardar como máximo 3 fotos por receta.');
     }
+    if (originalPhotos && files.length === 0) {
+      const original = [...originalPhotos].sort((a, b) => a.position - b.position);
+      if (original.length === retainedPhotos.length && original.every((photo, index) => {
+        const retained = retainedPhotos[index];
+        return photo.id === retained.id && photo.storagePath === retained.storagePath && photo.altText === retained.altText;
+      })) return;
+    }
+    await this.auth.requireEditor();
     const client = this.supabase.requireClient();
     const { data: currentRows, error: readError } = await client
       .from('recipe_photos').select('id,storage_path,position,alt_text').eq('recipe_id', recipeId).order('position');
@@ -27,18 +40,23 @@ export class RecipePhotoService {
     const current = currentRows ?? [];
     const retainedPaths = new Set(retainedPhotos.map((photo) => photo.storagePath));
     const removedPaths = current.map((row) => row.storage_path).filter((path) => !retainedPaths.has(path));
-    const appendOnly = removedPaths.length === 0 && current.length === retainedPhotos.length;
+    const appendOnly = removedPaths.length === 0 && current.length === retainedPhotos.length && current.every((row, index) => {
+      const retained = retainedPhotos[index];
+      return row.id === retained.id && row.storage_path === retained.storagePath && row.alt_text === retained.altText && row.position === index + 1;
+    });
     if (appendOnly && files.length === 0) return;
     const newlyUploaded: string[] = [];
     try {
       const addedRows: { recipe_id: string; storage_path: string; position: number; alt_text: string }[] = [];
-      for (const [index, file] of files.entries()) {
+      for (const [index, original] of files.entries()) {
+        const { optimizePhoto } = await import('../utils/photo-upload.utils');
+        const file = await optimizePhoto(original);
         const extension = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
         const path = `${recipeId}/${crypto.randomUUID()}.${extension}`;
-        const { error } = await client.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
+        const { error } = await client.storage.from(BUCKET).upload(path, file, { contentType: file.type, cacheControl: '31536000', upsert: false });
         if (error) throw error;
         newlyUploaded.push(path);
-        addedRows.push({ recipe_id: recipeId, storage_path: path, position: retainedPhotos.length + index + 1, alt_text: file.name });
+        addedRows.push({ recipe_id: recipeId, storage_path: path, position: retainedPhotos.length + index + 1, alt_text: `Foto de ${recipeName}` });
       }
 
       // For the common case of adding photos, preserve existing metadata rows and append only new rows.

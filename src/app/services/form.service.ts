@@ -1,11 +1,10 @@
 import { AuthService } from './auth.service';
-import { Injectable, effect, inject } from '@angular/core';
+import { Injectable, effect, inject, signal } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { Ingredient, Recipe } from '../models/recipe.model';
 import { BaseFormType, RecipeFormValue } from '../models/form.model';
 import { NotificationService } from './notification.service';
-import { RecipeService } from './recipe.service';
-import { RecipePhotoService } from './recipe-photo.service';
+import { RecipeSaveError, RecipeService } from './recipe.service';
 
 export interface FormDialogState {
   formType: BaseFormType;
@@ -15,6 +14,7 @@ export interface FormDialogState {
 
 @Injectable({ providedIn: 'root' })
 export class FormService {
+  readonly saving = signal(false);
   private readonly auth = inject(AuthService);
   private readonly dialogSubject = new BehaviorSubject<FormDialogState | null>(null);
   readonly dialog$ = this.dialogSubject.asObservable();
@@ -22,13 +22,12 @@ export class FormService {
   constructor(
     private readonly recipes: RecipeService,
     private readonly notifications: NotificationService,
-    private readonly recipePhotos: RecipePhotoService,
   ) {
-    effect(() => { if (!this.auth.canEdit()) this.close(); });
+    effect(() => { if (!this.auth.canEdit()) this.dialogSubject.next(null); });
   }
 
   openForm(formType: BaseFormType, item?: Recipe | Ingredient): void {
-    if (!this.auth.canEdit()) return;
+    if (!this.auth.canEdit() || this.saving()) return;
     this.dialogSubject.next({
       formType,
       recipeToEdit: formType === 'recipe' && item && 'ingredientIds' in item ? item : null,
@@ -37,33 +36,31 @@ export class FormService {
   }
 
   close(): void {
+    if (this.saving()) return;
     this.dialogSubject.next(null);
   }
 
   async saveRecipe(value: RecipeFormValue): Promise<void> {
     const state = this.dialogSubject.value;
+    if (!state || this.saving()) return;
+    this.saving.set(true);
     const wasEditing = !!state?.recipeToEdit;
     const { photos, photoFiles, ...recipeValue } = value;
     const pending = value.pending === 'yes';
     const recipe = { ...recipeValue, pending, rating: pending ? null : value.rating };
-    let recipeId: string | null = null;
+    const photoChanges = { originalPhotos: state?.recipeToEdit?.photos ?? [], retainedPhotos: photos, files: photoFiles };
     try {
-    if (state?.recipeToEdit) {
-      recipeId = await this.recipes.update(state.recipeToEdit.id, recipe);
-    } else {
-      recipeId = await this.recipes.create(recipe);
-    }
-    await this.recipePhotos.sync(recipeId, photos, photoFiles);
-    await this.recipes.refreshRecipe(recipeId);
-    this.notifications.success(wasEditing ? 'Receta actualizada.' : 'Tu receta ya está guardada. ¡Que aproveche!');
-    this.close();
+      if (state?.recipeToEdit) await this.recipes.update(state.recipeToEdit.id, recipe, photoChanges);
+      else await this.recipes.create(recipe, photoChanges);
+      this.notifications.success(wasEditing ? 'Receta actualizada.' : 'Tu receta ya está guardada. ¡Que aproveche!');
+      this.dialogSubject.next(null);
     } catch (error) {
-      if (!wasEditing && recipeId) {
-        const savedRecipe = this.recipes.getById(recipeId);
+      if (error instanceof RecipeSaveError) {
+        const savedRecipe = this.recipes.getById(error.recipeId);
         if (savedRecipe) this.dialogSubject.next({ formType: 'recipe', recipeToEdit: savedRecipe, ingredientToEdit: null });
       }
       this.notifications.error(error instanceof Error ? error.message : 'No se pudo guardar la receta.');
-    }
+    } finally { this.saving.set(false); }
   }
 }
 

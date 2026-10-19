@@ -2,26 +2,22 @@ import { Injectable, signal } from '@angular/core';
 
 @Injectable({ providedIn: 'root' })
 export class LoadingService {
-  private readonly loading = signal(false);
-  private pending = 0;
-  private queue: Promise<void> = Promise.resolve();
+  private readonly pending = signal<Record<string, number>>({});
 
-  isLoading(): boolean {
-    return this.loading();
+  isLoading(section?: string): boolean {
+    const pending = this.pending();
+    return section ? (pending[section] ?? 0) > 0 : Object.values(pending).some((count) => count > 0);
   }
 
-  /** Queue network calls so only one request can run at a time. */
-  run<T>(operation: () => Promise<T>): Promise<T> {
-    this.pending++;
-    this.loading.set(true);
-
-    const result = this.queue.then(operation).finally(() => {
-      this.pending--;
-      this.loading.set(this.pending > 0);
-    });
-
-    // A failed request must not prevent subsequent requests from running.
-    this.queue = result.then(() => undefined, () => undefined);
-    return result;
+  /** Track logical operations without serializing independent requests. */
+  async run<T>(operation: () => PromiseLike<T>, section = 'default'): Promise<T> {
+    this.pending.set({ ...this.pending(), [section]: (this.pending()[section] ?? 0) + 1 });
+    try { return await operation(); }
+    finally {
+      const next = { ...this.pending() };
+      if (next[section] > 1) next[section]--;
+      else delete next[section];
+      this.pending.set(next);
+    }
   }
 }

@@ -1,6 +1,7 @@
 ﻿import { cuisineFlag, mealPhotoClass } from '../../utils/recipe-display.utils';
 import { Component, input, output } from '@angular/core';
-import { CuisineType, Recipe, RecipePhoto } from '../../models/recipe.model';
+import { CuisineType, RecipePhoto } from '../../models/recipe.model';
+import { RecipeCard } from '../../models/recipe-card.model';
 import { MealIconComponent } from '../shared/meal-icon/meal-icon.component';
 import { IconComponent } from '../shared/icon/icon.component';
 import { DifficultyTonePipe } from '../../pipes/difficulty-tone.pipe';
@@ -11,8 +12,9 @@ import { DifficultyTonePipe } from '../../pipes/difficulty-tone.pipe';
   styleUrl: './recipe-card.component.css'
 })
 export class RecipeCardComponent {
-  readonly recipe = input.required<Recipe>();
-  readonly selected = output<Recipe>();
+  readonly recipe = input.required<RecipeCard>();
+  readonly selected = output<RecipeCard>();
+  readonly priority = input(false);
   activePhotoIndex = 0;
   currentPhoto(): RecipePhoto | undefined {
     const photos = this.recipe().photos ?? [];

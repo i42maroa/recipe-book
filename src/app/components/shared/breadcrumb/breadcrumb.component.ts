@@ -34,6 +34,7 @@ export class BreadcrumbComponent {
   );
 
   private itemsForUrl(url: string): BreadcrumbItem[] {
+    if (this.router.routerState.snapshot.root.firstChild?.routeConfig?.path === '**') return [{ label: 'Página no encontrada', url: null }];
     const route = this.router.parseUrl(url);
     const segments = (route.root.children['primary']?.segments ?? []).map((segment) => segment.path);
 

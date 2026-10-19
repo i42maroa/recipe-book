@@ -11,10 +11,14 @@
   <app-filter-container class="pantry-tools" gap="10px">
     <app-search-filter placeholder="Busca un ingrediente…" ariaLabel="Buscar ingredientes" [formControl]="search"></app-search-filter>
     <app-select-filter label="Categoría" filterType="ingredient-category" [options]="categoryOptions" [formControl]="category"></app-select-filter>
-    <span class="ingredient-total">{{ (filteredIngredients$ | async)?.length ?? 0 }} ingredientes</span>
+    <span class="ingredient-total">{{ ingredientService.loading.isLoading('ingredients') || ingredientService.error() ? '—' : ((filteredIngredients$ | async)?.length ?? 0) }} ingredientes</span>
   </app-filter-container>
 
-  @if (ingredientGroups$ | async; as groups) {
+  @if (ingredientService.loading.isLoading('ingredients')) {
+    <p class="section-status" role="status">Cargando ingredientes…</p>
+  } @else if (ingredientService.error()) {
+    <p class="section-status" role="alert">No se pudieron cargar los ingredientes. <button type="button" (click)="retry()">Reintentar</button></p>
+  } @else if (ingredientGroups$ | async; as groups) {
     @for (group of groups; track group.category) {
       <section class="ingredient-category-group" [attr.aria-label]="'Categoría ' + categoryLabel(group.category)">
         <div class="category-heading">
