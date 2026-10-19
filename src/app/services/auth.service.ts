@@ -1,26 +1,55 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { Session, User } from '@supabase/supabase-js';
 import { SupabaseService } from './supabase.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly supabase = inject(SupabaseService);
+  private readonly document = inject(DOCUMENT);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly currentUser = signal<User | null>(null);
   private readonly editor = signal(false);
   readonly user = this.currentUser.asReadonly();
   readonly canEdit = this.editor.asReadonly();
   private revision = 0;
+  private permissionTimer: ReturnType<typeof setTimeout> | undefined;
+  private refreshInFlight: Promise<boolean> | null = null;
 
   constructor() {
-    this.supabase.client?.auth.onAuthStateChange((_event, session) => {
+    const client = this.supabase.client;
+    if (!client) return;
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
       // Auth callbacks must finish before making another Supabase request.
       const revision = ++this.revision;
       if (this.currentUser()?.id !== session?.user.id || !session) this.editor.set(false);
       this.currentUser.set(session?.user ?? null);
-      setTimeout(() => {
-        if (revision === this.revision) void this.checkPermission(session, revision);
+      clearTimeout(this.permissionTimer);
+      this.permissionTimer = setTimeout(() => {
+        if (session && revision === this.revision) void this.refreshPermission().catch(() => undefined);
       }, 0);
     });
+
+    // Mobile browsers suspend background tabs. Re-read/refresh the SDK session
+    // and permissions when returning, without reloading or starting Google again.
+    const restore = (): void => {
+      if (this.document.visibilityState === 'hidden') return;
+      void this.refreshPermission().catch(() => undefined);
+    };
+    const view = this.document.defaultView;
+    this.document.addEventListener('visibilitychange', restore);
+    view?.addEventListener('pageshow', restore);
+    view?.addEventListener('focus', restore);
+    view?.addEventListener('online', restore);
+    this.destroyRef.onDestroy(() => {
+      subscription.unsubscribe();
+      clearTimeout(this.permissionTimer);
+      this.document.removeEventListener('visibilitychange', restore);
+      view?.removeEventListener('pageshow', restore);
+      view?.removeEventListener('focus', restore);
+      view?.removeEventListener('online', restore);
+    });
+    restore();
   }
 
   private async checkPermission(session: Session | null, revision: number): Promise<boolean> {
@@ -36,9 +65,18 @@ export class AuthService {
     }
   }
 
-  async refreshPermission(): Promise<boolean> {
+  refreshPermission(): Promise<boolean> {
+    if (!this.refreshInFlight) {
+      this.refreshInFlight = this.loadSessionAndPermission().finally(() => { this.refreshInFlight = null; });
+    }
+    return this.refreshInFlight;
+  }
+
+  private async loadSessionAndPermission(): Promise<boolean> {
+    const startingRevision = this.revision;
     const { data, error } = await this.supabase.requireClient().auth.getSession();
     if (error) { this.editor.set(false); throw error; }
+    if (startingRevision !== this.revision && data.session?.user.id !== this.currentUser()?.id) return false;
     const revision = ++this.revision;
     this.currentUser.set(data.session?.user ?? null);
     if (!data.session) this.editor.set(false);
