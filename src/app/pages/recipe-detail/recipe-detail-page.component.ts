@@ -1,4 +1,5 @@
 import { AuthService } from '../../services/auth.service';
+import { environment } from '../../../environments/environment';
 ﻿import { cuisineFlag, mealPhotoClass } from '../../utils/recipe-display.utils';
 import { AsyncPipe } from '@angular/common';
 import { FormBuilder } from '@angular/forms';
@@ -56,9 +57,7 @@ export class RecipeDetailPageComponent {
   async shareRecipe(recipe: Recipe): Promise<void> {
     if (this.sharing()) return;
     this.sharing.set(true);
-    const url = new URL(window.location.href);
-    url.search = '';
-    url.hash = '';
+    const url = new URL(`/recipes/${encodeURIComponent(recipe.id)}`, environment.publicSiteUrl);
     try {
       if (navigator.share) {
         try {
