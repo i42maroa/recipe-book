@@ -7,6 +7,7 @@ import { NavbarComponent } from './components/shared/navbar/navbar.component';
 import { NotificationCenterComponent } from './components/shared/notification-center/notification-center.component';
 import { FormService } from './services/form.service';
 import { LoadingService } from './services/loading.service';
+import { PageMetadataService } from './services/page-metadata.service';
 
 @Component({
   selector: 'app-root',
@@ -18,5 +19,7 @@ import { LoadingService } from './services/loading.service';
 export class AppComponent {
   readonly loading = inject(LoadingService);
   readonly forms = inject(FormService);
+
+  constructor() { inject(PageMetadataService); }
 }
 

@@ -1,11 +1,11 @@
 <div class="lightbox-backdrop" role="presentation" (click)="closed.emit()">
   @if (photos[activeIndex]; as photo) {
-    <section class="lightbox-dialog" role="dialog" aria-modal="true" [attr.aria-label]="photo.altText || 'Imagen de la receta'" (click)="$event.stopPropagation()">
+    <section class="lightbox-dialog" role="dialog" aria-modal="true" [attr.aria-label]="photo.altText?.trim() || 'Imagen de ' + recipeName" (click)="$event.stopPropagation()">
       <button class="lightbox-close" type="button" aria-label="Cerrar imagen" (click)="closed.emit()">×</button>
       @if (photos.length > 1) {
         <button class="lightbox-arrow previous" type="button" aria-label="Ver imagen anterior" (click)="changePhoto(-1)">‹</button>
       }
-      <img [src]="photo.url" [alt]="photo.altText || 'Foto de la receta'">
+      <img [src]="photo.url" [alt]="photo.altText?.trim() || 'Foto de ' + recipeName">
       @if (photos.length > 1) {
         <button class="lightbox-arrow next" type="button" aria-label="Ver imagen siguiente" (click)="changePhoto(1)">›</button>
         <span class="lightbox-counter">{{ activeIndex + 1 }} / {{ photos.length }}</span>

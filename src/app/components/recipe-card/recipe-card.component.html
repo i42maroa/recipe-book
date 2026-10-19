@@ -1,7 +1,7 @@
 <article class="recipe-card" role="button" tabindex="0" (click)="selectCard($event)" (keydown.enter)="selectCard($event)" (keydown.space)="selectCard($event)">
   <span [class]="'recipe-photo ' + photoClass()" [class.has-photo]="!!currentPhoto()">
     @if (currentPhoto(); as photo) {
-      <img class="recipe-photo-image" [src]="photo.url" [alt]="photo.altText || recipe().name">
+      <img class="recipe-photo-image" [src]="photo.url" [alt]="photo.altText?.trim() || 'Foto de ' + recipe().name">
       @if ((recipe().photos?.length ?? 0) > 1) {
         <span class="photo-carousel-button previous" role="button" tabindex="0" aria-label="Ver foto anterior" (click)="changePhoto(-1, $event)" (keydown.enter)="changePhoto(-1, $event)" (keydown.space)="changePhoto(-1, $event)">‹</span>
         <span class="photo-carousel-button next" role="button" tabindex="0" aria-label="Ver foto siguiente" (click)="changePhoto(1, $event)" (keydown.enter)="changePhoto(1, $event)" (keydown.space)="changePhoto(1, $event)">›</span>

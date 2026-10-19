@@ -53,7 +53,7 @@ export class FormService {
     } else {
       recipeId = await this.recipes.create(recipe);
     }
-    await this.recipePhotos.sync(recipeId, photos, photoFiles);
+    await this.recipePhotos.sync(recipeId, photos, photoFiles, recipe.name);
     await this.recipes.refreshRecipe(recipeId);
     this.notifications.success(wasEditing ? 'Receta actualizada.' : 'Tu receta ya está guardada. ¡Que aproveche!');
     this.close();

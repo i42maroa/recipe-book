@@ -15,7 +15,7 @@ export class RecipePhotoService {
     return this.supabase.requireClient().storage.from(BUCKET).getPublicUrl(storagePath).data.publicUrl;
   }
 
-  async sync(recipeId: string, retainedPhotos: RecipePhoto[], files: File[]): Promise<void> {
+  async sync(recipeId: string, retainedPhotos: RecipePhoto[], files: File[], recipeName = 'la receta'): Promise<void> {
     await this.auth.requireEditor();
     if (retainedPhotos.length + files.length > MAX_PHOTOS) {
       throw new Error('Puedes guardar como máximo 3 fotos por receta.');
@@ -38,7 +38,7 @@ export class RecipePhotoService {
         const { error } = await client.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
         if (error) throw error;
         newlyUploaded.push(path);
-        addedRows.push({ recipe_id: recipeId, storage_path: path, position: retainedPhotos.length + index + 1, alt_text: file.name });
+        addedRows.push({ recipe_id: recipeId, storage_path: path, position: retainedPhotos.length + index + 1, alt_text: `Foto de ${recipeName}` });
       }
 
       // For the common case of adding photos, preserve existing metadata rows and append only new rows.

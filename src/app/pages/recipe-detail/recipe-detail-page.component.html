@@ -5,7 +5,7 @@
 
     <div [class]="'recipe-detail-hero ' + photoClass(recipe)" [class.has-photo]="!!currentPhoto(recipe)">
       @if (currentPhoto(recipe); as photo) {
-        <img class="recipe-detail-photo" [src]="photo.url" [alt]="photo.altText || recipe.name" role="button" tabindex="0" aria-label="Ampliar imagen" (click)="openLightbox($event)" (keydown.enter)="openLightbox($event)" (keydown.space)="openLightbox($event)">
+        <img class="recipe-detail-photo" [src]="photo.url" [alt]="photo.altText?.trim() || 'Foto de ' + recipe.name" role="button" tabindex="0" [attr.aria-label]="'Ampliar foto de ' + recipe.name" (click)="openLightbox($event)" (keydown.enter)="openLightbox($event)" (keydown.space)="openLightbox($event)">
         @if ((recipe.photos?.length ?? 0) > 1) {
           <button class="detail-photo-nav previous" type="button" aria-label="Ver foto anterior" (click)="changePhoto(recipe, -1, $event)">‹</button>
           <button class="detail-photo-nav next" type="button" aria-label="Ver foto siguiente" (click)="changePhoto(recipe, 1, $event)">›</button>
@@ -122,7 +122,7 @@
       }
     </div>
   </article>
-  @if (lightboxOpen) { <app-photo-lightbox [photos]="recipe.photos ?? []" [initialIndex]="activePhotoIndex" (closed)="lightboxOpen = false" /> }
+  @if (lightboxOpen) { <app-photo-lightbox [photos]="recipe.photos ?? []" [recipeName]="recipe.name" [initialIndex]="activePhotoIndex" (closed)="lightboxOpen = false" /> }
 } @else {
   <section class="recipe-not-found">
     <h1>No encontramos esa receta</h1>

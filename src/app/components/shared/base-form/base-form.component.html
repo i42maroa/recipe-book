@@ -127,10 +127,10 @@
         </div>
         <div class="recipe-photo-previews">
           @for (photo of retainedRecipePhotos; track photo.id) {
-            <div class="recipe-photo-preview"><img [src]="photo.url" [alt]="photo.altText || 'Foto de la receta'"><button type="button" aria-label="Quitar foto" (click)="removeRecipePhoto(photo.id)"><app-icon name="close" /></button></div>
+            <div class="recipe-photo-preview"><img [src]="photo.url" [alt]="photo.altText?.trim() || 'Foto de ' + (recipeForm.controls.name.value.trim() || 'la receta')"><button type="button" aria-label="Quitar foto" (click)="removeRecipePhoto(photo.id)"><app-icon name="close" /></button></div>
           }
           @for (photo of newRecipePhotos; track photo.previewUrl; let index = $index) {
-            <div class="recipe-photo-preview"><img [src]="photo.previewUrl" [alt]="photo.file.name"><button type="button" aria-label="Quitar foto" (click)="removeNewRecipePhoto(index)"><app-icon name="close" /></button></div>
+            <div class="recipe-photo-preview"><img [src]="photo.previewUrl" [alt]="'Vista previa de ' + (recipeForm.controls.name.value.trim() || 'la receta') + ', foto ' + (index + 1)"><button type="button" aria-label="Quitar foto" (click)="removeNewRecipePhoto(index)"><app-icon name="close" /></button></div>
           }
         </div>
       </fieldset>
