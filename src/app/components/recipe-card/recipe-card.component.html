@@ -1,7 +1,7 @@
 <article class="recipe-card" role="button" tabindex="0" (click)="selectCard($event)" (keydown.enter)="selectCard($event)" (keydown.space)="selectCard($event)">
   <span [class]="'recipe-photo ' + photoClass()" [class.has-photo]="!!currentPhoto()">
     @if (currentPhoto(); as photo) {
-      <img class="recipe-photo-image" [src]="photo.url" [alt]="photo.altText?.trim() || 'Foto de ' + recipe().name">
+      <img [attr.loading]="priority() ? 'eager' : 'lazy'" [attr.fetchpriority]="priority() ? 'high' : 'auto'" decoding="async" width="640" height="400" class="recipe-photo-image" [src]="photo.url" [alt]="photo.altText?.trim() || 'Foto de ' + recipe().name">
       @if ((recipe().photos?.length ?? 0) > 1) {
         <span class="photo-carousel-button previous" role="button" tabindex="0" aria-label="Ver foto anterior" (click)="changePhoto(-1, $event)" (keydown.enter)="changePhoto(-1, $event)" (keydown.space)="changePhoto(-1, $event)">‹</span>
         <span class="photo-carousel-button next" role="button" tabindex="0" aria-label="Ver foto siguiente" (click)="changePhoto(1, $event)" (keydown.enter)="changePhoto(1, $event)" (keydown.space)="changePhoto(1, $event)">›</span>
@@ -23,7 +23,7 @@
       @if (recipe().difficulty) { <span [class]="'difficulty-badge difficulty-' + (recipe().difficulty | difficultyTone)">{{ recipe().difficulty }}</span> }
     </span>
     <span class="recipe-title">{{ recipe().name }}</span>
-    <span class="recipe-ingredient-count">{{ recipe().ingredientIds.length }} {{ recipe().ingredientIds.length === 1 ? 'ingrediente' : 'ingredientes' }}</span>
+    <span class="recipe-ingredient-count">{{ recipe().ingredientCount }} {{ recipe().ingredientCount === 1 ? 'ingrediente' : 'ingredientes' }}</span>
     <span class="recipe-card-bottom-row">
       <span class="recipe-card-meta">
         @if (recipe().minutes) { <span><app-icon class="meta-icon" name="clock" />{{ recipe().minutes }} min</span> }

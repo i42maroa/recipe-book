@@ -1,5 +1,9 @@
 @if (details$ | async; as details) {
-  @if (details.ingredient; as ingredient) {
+@if (ingredientService.loading.isLoading('ingredients') || (!ingredientService.loaded() && !ingredientService.error())) {
+  <p class="section-status" role="status">Cargando ingrediente…</p>
+} @else if (ingredientService.error()) {
+  <p class="section-status" role="alert">No se pudo cargar el ingrediente. <button type="button" (click)="retryIngredients()">Reintentar</button></p>
+} @else if (details.ingredient; as ingredient) {
     <article class="ingredient-detail-page">
 
       <section class="ingredient-detail-card">
@@ -24,8 +28,12 @@
       }
 
       <section class="ingredient-recipes">
-        <header><h2>Recetas con este ingrediente</h2><span class="recipe-count">{{ recipeCountLabel(details.usedIn) }}</span></header>
-        @if (details.usedIn.length) {
+        <header><h2>Recetas con este ingrediente</h2><span class="recipe-count">{{ details.loading || details.error ? '—' : recipeCountLabel(details.usedIn) }}</span></header>
+        @if (details.loading) {
+          <p role="status">Cargando recetas relacionadas…</p>
+        } @else if (details.error) {
+          <p role="alert">No se pudieron cargar las recetas relacionadas. <button type="button" (click)="retry()">Reintentar</button></p>
+        } @else if (details.usedIn.length) {
           <ul>
             @for (recipe of details.usedIn; track recipe.id) {
               <li><a [routerLink]="['/recipes', recipe.id]"><span>{{ recipe.name }}</span><small>{{ recipe.minutes ?? '—' }} min</small></a></li>
@@ -38,10 +46,6 @@
       
     </article>
   } @else {
-    <section class="ingredient-not-found">
-      <h1>No encontramos ese ingrediente</h1>
-      <p>Puede que ya no esté en tu despensa.</p>
-      
-    </section>
-  }
+    <app-not-found-page resource="ingredient" />
+}
 }

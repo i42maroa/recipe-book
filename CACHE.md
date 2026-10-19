@@ -1,17 +1,24 @@
 # Caché local y restauración de sesión
 
-`CacheService` centraliza `localStorage`. Guarda cada valor con una fecha de caducidad y elimina entradas caducadas o corruptas al leerlas. Las claves se guardan con el prefijo `laurel:cache:`; no se borra el resto del almacenamiento del navegador.
+`CacheService` centraliza `localStorage`. Guarda cada valor con una fecha de caducidad y elimina entradas caducadas o corruptas al leerlas, al iniciar y al guardar datos. Las claves se guardan con el prefijo `laurel:cache:`; no se borra el resto del almacenamiento del navegador.
 
 ```typescript
 const cache = inject(CacheService);
 cache.set('filtros', { pending: true }, 15 * 60 * 1000); // 15 minutos
 const filtros = cache.get<{ pending: boolean }>('filtros');
 cache.remove('filtros');
+cache.clearData(); // Borra solo datos propios; conserva la sesión.
 ```
 
 El tiempo se expresa en milisegundos. Cero elimina la entrada. Leer no prolonga su duración; volver a guardar sí. Si el navegador bloquea `localStorage` o no tiene espacio, el servicio usa memoria para que la pestaña pueda seguir funcionando, pero en ese caso los datos no sobreviven al cierre de la página.
 
 ## Sesión de Supabase
+
+La limpieza se ejecuta al iniciar y al guardar. Se descartan datos caducados o corruptos y se limita la caché de datos a **80 entradas y aproximadamente 2 MiB** de texto serializado, eliminando primero los más antiguos. También se limita la memoria de respaldo cuando el almacenamiento está bloqueado. Ante un error de cuota se liberan datos propios y se reintenta el guardado.
+
+`clearData()` solo elimina datos propios: conserva las entradas de sesión identificadas por el adaptador de Supabase, las claves antiguas `sb-…` y el almacenamiento ajeno a la aplicación. La sesión conserva su propio plazo. La colección de detalles completos en memoria tiene un máximo de 40 recetas; los resultados resumidos del listado no se guardan como detalles.
+
+Las recetas completas y los contadores también utilizan este servicio con caducidades independientes de un minuto. Se invalidan al modificar o eliminar recetas. Configuración y comportamiento: [OPTIMIZACION.md](OPTIMIZACION.md).
 
 `SupabaseService` utiliza `cache.createStorage(environment.sessionCacheTtlMs)` como almacenamiento del SDK, con `persistSession`, `autoRefreshToken` y detección del retorno OAuth activados. La caducidad es de **30 días desde el último guardado o renovación**. Cambia `sessionCacheTtlMs` en los dos archivos de entorno para ajustarla.
 

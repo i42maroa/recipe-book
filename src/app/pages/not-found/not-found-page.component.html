@@ -1,0 +1,14 @@
+<section class="not-found" aria-labelledby="not-found-heading">
+  <div class="not-found-art" aria-hidden="true">
+    <span>4</span><span class="not-found-plate"><app-icon name="recipes" /></span><span>4</span>
+  </div>
+  <span class="eyebrow">PÁGINA NO ENCONTRADA</span>
+  <h1 id="not-found-heading">{{ heading }}</h1>
+  <p>{{ description }}</p>
+  <div class="not-found-actions">
+    <a class="return-link" routerLink="/recipes"><app-icon name="recipes" /> Ver recetas</a>
+    @if (resource() === 'ingredient') {
+      <a class="return-link secondary" routerLink="/ingredients"><app-icon name="ingredients" /> Ver ingredientes</a>
+    }
+  </div>
+</section>

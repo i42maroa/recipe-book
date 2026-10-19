@@ -1,0 +1,73 @@
+# Optimización de carga y llamadas
+
+## Aplicación en Supabase
+
+Ejecuta [20261019000100_recipe_query_optimization.sql](supabase/migrations/20261019000100_recipe_query_optimization.sql) en SQL Editor después de las migraciones anteriores y antes de desplegar este frontend. La migración conserva los datos, los miembros y las políticas existentes.
+
+- `get_recipe_stats()` devuelve total y pendientes en una sola consulta agregada. Se permite su ejecución pública para mantener la lectura pública.
+- `save_recipe_optimized(uuid,jsonb)` llama a `save_recipe` dentro de la misma transacción y compara el estado pendiente anterior con el nuevo. Solo los usuarios autenticados pueden ejecutarla y todas sus escrituras siguen sujetas a RLS. El estado anterior se lee y bloquea en el servidor para no decidir el refresco de contadores con una caché local obsoleta.
+
+La función anterior `save_recipe` se conserva para mantener compatibles los frontends ya desplegados. Esta nueva migración puede ejecutarse de nuevo: usa `create or replace` y vuelve a fijar los permisos. No se ha aplicado contra el proyecto remoto desde esta tarea.
+
+Para las valoraciones parciales, ejecuta también [20261019000200_partial_recipe_rating.sql](supabase/migrations/20261019000200_partial_recipe_rating.sql), después de las anteriores y antes de desplegar. Añade `rate_recipe(uuid,integer)` con `SECURITY INVOKER`, comprobación de editor y ejecución restringida a `authenticated`.
+
+## Cambios en el frontend
+
+- El guardado completo, incluidas las fotos, se coordina en `RecipeService`. Solo consulta el detalle una vez, al terminar, y emite un único aviso de cambio para que el listado se recargue una vez.
+- Si no cambian fotos, orden o textos alternativos, no se consulta `recipe_photos`, no se comprueban permisos adicionales para fotos y no se escribe en Storage. Para los cambios reales se conserva la comprobación de permisos y la sincronización.
+- Los contadores solo se consultan al cargar el listado con caché caducada o después de crear, borrar o cambiar el estado pendiente. Cambiar un nombre, una valoración o las fotos no requiere recalcularlos si el estado pendiente no cambia.
+- Detalles completos y contadores se guardan en `CacheService` con claves separadas por proyecto y una caducidad de 60 segundos. `recipeDetailCacheTtlMs` y `recipeStatsCacheTtlMs`, en ambos entornos, permiten ajustar los plazos. Leer la caché no prolonga el plazo.
+- El listado usa `RecipeCard`, con campos visibles, número de ingredientes y metadatos de fotos. No descarga pasos, cantidades, anotaciones ni URL de origen. Las tarjetas nunca alimentan la caché de detalles: el detalle completo se pide al abrir la receta. Se conservan filtros, paginación y carrusel.
+- Se comparten peticiones simultáneas al mismo detalle o a los contadores. Un guardado o borrado invalida la caché correspondiente; una respuesta antigua no puede sobrescribir una versión nueva ni recuperar una receta borrada.
+- Si falla una foto o la lectura final después de guardar la receta, el formulario conserva el ID y permite reintentar como edición, evitando crear una receta duplicada. Un fallo al actualizar contadores no convierte un guardado ya confirmado en un guardado fallido.
+
+La caché de datos públicos no contiene autorizaciones. La sesión y las comprobaciones de permisos mantienen su comportamiento. Los cambios de otros usuarios se ven en la siguiente carga con caché vencida o al refrescar explícitamente; no se ha añadido sincronización en tiempo real.
+
+## Listado, búsqueda y valoraciones
+
+- `RecipeListService` mantiene en memoria una sola colección con los filtros, búsqueda, controles desplegados, tarjetas y paginación. El componente guarda el scroll antes de salir y lo restaura cuando el listado está renderizado, tanto con Atrás como con el breadcrumb o navbar.
+- Volver del detalle sin cambios reutiliza las tarjetas y no repite su consulta. Si se ha guardado, puntuado o eliminado una receta en esta aplicación, se refresca toda la ventana que estaba cargada, conservando filtros y scroll. Las listas grandes se recuperan por lotes y se respetan los límites de respuesta de la API. Cambiar filtros reinicia la paginación.
+- Este estado de navegación no usa `localStorage`, se pierde al recargar la web y no recibe cambios de otras pestañas o usuarios en tiempo real. Los fallos y las cargas interrumpidas no sustituyen una página ya cargada por una respuesta antigua.
+- El buscador consulta únicamente `recipes.name`, sin distinguir mayúsculas y minúsculas. Se mantienen el mínimo de dos caracteres, la espera de 300 ms y el escape de comodines. No consulta relaciones para buscar por ingredientes.
+- Puntuar envía únicamente ID y valoración. La RPC valida el valor, bloquea la receta y actualiza valoración, pendiente y fecha; no reescribe los demás campos ni relaciones. Devuelve si ha cambiado el contador de pendientes. El detalle visible se actualiza en memoria y se invalida su caché persistente para no prolongar datos ajenos a la escritura parcial.
+- El formulario completo continúa utilizando el guardado transaccional para editar el conjunto de la receta.
+
+## Carga por sección y código bajo demanda
+
+- Supabase utiliza su transporte normal: se ha eliminado la cola global y la copia completa de cada respuesta. Las consultas independientes pueden ejecutarse a la vez.
+- `LoadingService.run(operation, section)` cuenta operaciones simultáneas por sección; `isLoading(section)` solo termina cuando finalizan todas las de esa sección, también si fallan. Las peticiones compartidas de detalles/contadores cuentan como una operación.
+- Los listados, el detalle y las recetas relacionadas diferencian carga, error recuperable, vacío y elemento inexistente. Cargar más mantiene las tarjetas ya visibles. El catálogo de ingredientes y las estadísticas tienen estados independientes. Se ha eliminado el overlay global que bloqueaba la aplicación.
+- Los detalles de receta/ingrediente y el listado de ingredientes se cargan mediante rutas `loadComponent`. El formulario y el visor de fotos usan `@defer`; el optimizador de imágenes se importa únicamente al subir fotos nuevas.
+- Mientras se guarda un formulario se deshabilitan sus controles y el cierre. Se evitan envíos repetidos, y una operación fallida vuelve a habilitarlo.
+
+## Imágenes
+
+Las dos primeras tarjetas dan prioridad a sus fotos; las demás usan `loading="lazy"`. El detalle prioriza su foto principal. Las imágenes se decodifican de forma asíncrona, y tarjetas, detalle y previsualizaciones declaran dimensiones.
+
+Las fotos nuevas JPG/PNG se convierten a WebP con calidad 0,82 y un lado máximo de 1600 píxeles, solo si el resultado ocupa menos. Si el navegador no puede convertirlas se conserva el original. GIF, WebP y AVIF no se recomprimen. Las subidas tienen nombres únicos y una duración de caché HTTP de un año. Las fotos ya existentes no se modifican ni se generan miniaturas en el servidor; esta mejora no añade llamadas a servicios de transformación.
+
+## Caché acotada
+
+La caché de datos se limpia al iniciar y guardar: caducados/corruptos, máximo 80 entradas y unos 2 MiB de texto serializado, descartando las más antiguas. La memoria de detalles completos se limita a 40 recetas. La sesión queda fuera de esos límites y mantiene su plazo independiente. Ver [CACHE.md](CACHE.md).
+
+## Llamadas esperadas
+
+Sin contar renovación de tokens, eventos de autenticación independientes ni recargas adicionales del listado:
+
+| Operación | Llamadas |
+| --- | --- |
+| Editar texto sin cambiar fotos ni pendiente | 3: permiso, guardado, detalle final |
+| Crear una receta sin fotos | 4: permiso, guardado, detalle final, contadores |
+| Cambiar pendiente sin cambiar fotos | 4 |
+| Puntuar una receta ya probada | 2: permiso y valoración parcial |
+| Puntuar una receta pendiente | 3: permiso, valoración parcial y contadores |
+| Volver al listado sin cambios | 0 consultas de recetas; los contadores conservan su TTL independiente |
+| Abrir un detalle aún en caché | 0 |
+| Cargar ambos contadores sin caché | 1 |
+| Volver a pedir contadores aún en caché | 0 |
+
+Los cambios de fotos añaden las lecturas, escrituras y subidas necesarias. Los `SELECT` y escrituras dentro de las funciones SQL siguen teniendo coste de base de datos: reducir peticiones HTTP no elimina ese trabajo.
+
+## Validación
+
+`npm run test:optimization` verifica los flujos reales de los servicios con transporte Supabase simulado: número de llamadas, caché, caducidad, deduplicación, guardado, fotos, borrado y reintentos. `npm run build` y `npm run lint` comprueban el frontend. Las pruebas no ejecutan SQL contra Supabase; después de aplicar la migración, confirma la lectura con un visitante y el guardado con un editor autorizado.

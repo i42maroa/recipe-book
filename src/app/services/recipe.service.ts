@@ -1,32 +1,44 @@
+import { LoadingService } from './loading.service';
+import { RecipeCard } from '../models/recipe-card.model';
 import { AuthService } from './auth.service';
 ﻿import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { MealType, Recipe, RecipeDifficulty } from '../models/recipe.model';
 import { NotificationService } from './notification.service';
 import { SupabaseService } from './supabase.service';
-import { RecipePhotoService } from './recipe-photo.service';
+import { RecipePhotoChanges, RecipePhotoService } from './recipe-photo.service';
+import { CacheService } from './cache.service';
+import { environment } from '../../environments/environment';
 import { MIN_SEARCH_LENGTH } from '../utils/search.utils';
-import { RecipeRow } from '../models/database.model';
+import { RecipeCardRow, RecipeRow } from '../models/database.model';
 import { mapIngredientAmounts } from '../utils/ingredient-amount.utils';
 
 const RECIPE_SELECT = '*, recipe_ingredients(ingredient_id,amount_kind,amount_value,amount_unit), recipe_steps(position,description), recipe_cuisine_types(cuisine_types(name)), recipe_photos(id,storage_path,position,alt_text)';
+const RECIPE_CARD_SELECT = 'id,name,minutes,servings,pending,meal_types,rating,fitness,difficulty,recipe_ingredients(count),recipe_cuisine_types(cuisine_types(name)),recipe_photos(id,storage_path,position,alt_text)';
 export interface RecipeFilters {
   search: string;
-  matchingIngredientIds: string[];
   pending: string;
   sort: string;
   mealType: MealType | '';
   difficulty: RecipeDifficulty | '';
 }
 export interface RecipeBatch {
-  items: Recipe[];
+  items: RecipeCard[];
   offset: number;
   total: number;
 }
 
+interface RecipeStats { total: number; pending: number }
+
+export class RecipeSaveError extends Error {
+  constructor(message: string, readonly recipeId: string) { super(message); }
+}
+
 @Injectable({ providedIn: 'root' })
 export class RecipeService {
+  private readonly loading = inject(LoadingService);
   private readonly auth = inject(AuthService);
+  private readonly cacheStore = inject(CacheService);
   readonly pageSize = 20;
   private readonly recipesSubject = new BehaviorSubject<Recipe[]>([]);
   readonly recipes$ = this.recipesSubject.asObservable();
@@ -34,35 +46,51 @@ export class RecipeService {
   readonly stats$ = this.statsSubject.asObservable();
   private readonly changesSubject = new BehaviorSubject(0);
   readonly changes$ = this.changesSubject.asObservable();
-  private detailId: string | null = null;
+  private readonly detailRequests = new Map<string, { generation: number; promise: Promise<Recipe | null> }>();
+  private readonly detailGenerations = new Map<string, number>();
+  private readonly removedIds = new Set<string>();
+  private statsGeneration = 0;
+  private statsRequest: { generation: number; promise: Promise<void> } | null = null;
+  private readonly statsKey = `recipe-stats:v1:${environment.supabaseUrl}`;
 
   constructor(private readonly supabase: SupabaseService, private readonly notifications: NotificationService, private readonly photoService: RecipePhotoService) {
-    if (supabase.configured) void this.refreshStats().catch((error: unknown) => this.reportLoadError(error));
-    else this.notifications.error('Falta configurar la conexión con Supabase.');
+    if (!supabase.configured) this.notifications.error('Falta configurar la conexión con Supabase.');
   }
 
-  private reportLoadError(error: unknown): void {
-    console.error('Error al cargar recetas desde Supabase:', error);
-    const detail = error instanceof Error ? error.message : 'Error desconocido';
-    this.notifications.error(`No se pudieron cargar las recetas de Supabase: ${detail}`);
+  async loadStats(): Promise<void> {
+    const cached = this.cacheStore.get<RecipeStats>(this.statsKey);
+    if (cached) { this.statsSubject.next(cached); return; }
+    const generation = this.statsGeneration;
+    if (this.statsRequest?.generation === generation) return this.statsRequest.promise;
+    const promise = this.loading.run(() => this.fetchStats(generation), 'recipe-stats');
+    this.statsRequest = { generation, promise };
+    try { await promise; }
+    finally { if (this.statsRequest?.promise === promise) this.statsRequest = null; }
   }
 
-  private async refreshStats(): Promise<void> {
-    const client = this.supabase.requireClient();
-    const total = await client.from('recipes').select('id', { count: 'exact', head: true });
-    if (total.error) throw total.error;
-    const pending = await client.from('recipes').select('id', { count: 'exact', head: true }).eq('pending', true);
-    if (pending.error) throw pending.error;
-    this.statsSubject.next({ total: total.count ?? 0, pending: pending.count ?? 0 });
+  private async fetchStats(generation: number): Promise<void> {
+    const { data, error } = await this.supabase.requireClient().rpc('get_recipe_stats');
+    if (generation !== this.statsGeneration) return this.loadStats();
+    if (error) throw error;
+    const row = (data as RecipeStats[] | null)?.[0];
+    if (!row) throw new Error('No se pudieron obtener los contadores de recetas.');
+    const stats = { total: Number(row.total), pending: Number(row.pending) };
+    this.statsSubject.next(stats);
+    this.cacheStore.set(this.statsKey, stats, environment.recipeStatsCacheTtlMs);
   }
 
-  private async refresh(recipeId: string | null = this.detailId): Promise<void> {
-    if (recipeId) await this.fetchRecipe(recipeId);
-    await this.refreshStats();
-    this.changesSubject.next(this.changesSubject.value + 1);
+  private invalidateStats(): void {
+    this.statsGeneration++;
+    this.cacheStore.remove(this.statsKey);
+  }
+
+  private async refreshChangedStats(): Promise<void> {
+    try { await this.loadStats(); }
+    catch { this.notifications.error('El cambio se ha guardado, pero no se pudieron actualizar los contadores.'); }
   }
 
   async refreshRecipe(id: string): Promise<void> {
+    this.invalidateDetail(id);
     await this.fetchRecipe(id);
     this.changesSubject.next(this.changesSubject.value + 1);
   }
@@ -71,25 +99,11 @@ export class RecipeService {
     const client = this.supabase.requireClient();
     const from = Math.max(0, Math.floor(offset));
     const batchSize = Math.max(1, Math.floor(limit));
-    let query = client.from('recipes').select(RECIPE_SELECT, { count: 'exact' });
+    let query = client.from('recipes').select(RECIPE_CARD_SELECT, { count: 'exact' });
     const search = filters.search.trim();
     if (search.length >= MIN_SEARCH_LENGTH) {
-      const matchingRecipeIds = new Set<string>();
-      if (filters.matchingIngredientIds.length) {
-        // Read only matching links; the recipe records themselves are always paginated.
-        for (let offset = 0; ; offset += 1000) {
-          const { data, error } = await client.from('recipe_ingredients').select('recipe_id')
-            .in('ingredient_id', filters.matchingIngredientIds).order('recipe_id').order('ingredient_id').range(offset, offset + 999);
-          if (error) throw error;
-          for (const row of data ?? []) matchingRecipeIds.add(row.recipe_id);
-          if (!data || data.length < 1000) break;
-        }
-      }
       const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`;
-      if (matchingRecipeIds.size) {
-        const quotedPattern = pattern.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        query = query.or(`name.ilike."${quotedPattern}",id.in.(${[...matchingRecipeIds].join(',')})`);
-      } else query = query.ilike('name', pattern);
+      query = query.ilike('name', pattern);
     }
     if (filters.pending !== 'all') query = query.eq('pending', filters.pending === 'pending');
     if (filters.mealType) query = query.contains('meal_types', [filters.mealType]);
@@ -100,7 +114,7 @@ export class RecipeService {
       case 'time': query = query.order('minutes', { ascending: true, nullsFirst: false }); break;
       default: query = query.order('created_at', { ascending: false });
     }
-    const { data, count, error } = await query.order('id').range(from, from + batchSize - 1).returns<RecipeRow[]>();
+    const { data, count, error } = await query.order('id').range(from, from + batchSize - 1).returns<RecipeCardRow[]>();
     if (error) {
       // Recipes may have been deleted since the previous batch was loaded.
       if (from > 0 && error.code === 'PGRST103') {
@@ -111,22 +125,43 @@ export class RecipeService {
       throw error;
     }
     const total = count ?? 0;
-    const items = this.mapRows(data ?? []);
-    this.cache(items);
+    const items = this.mapCardRows(data ?? []);
     return { items, total, offset: from };
   }
 
   async loadRecipe(id: string): Promise<Recipe | null> {
-    this.detailId = id;
+    const cached = this.cacheStore.get<Recipe>(this.detailKey(id));
+    if (cached) { this.cache([cached], false); return cached; }
     return this.fetchRecipe(id);
   }
 
+  private detailKey(id: string): string { return `recipe-detail:v1:${environment.supabaseUrl}:${id}`; }
+
+  private invalidateDetail(id: string): void {
+    this.detailGenerations.set(id, (this.detailGenerations.get(id) ?? 0) + 1);
+    this.cacheStore.remove(this.detailKey(id));
+  }
+
   private async fetchRecipe(id: string): Promise<Recipe | null> {
+    const generation = this.detailGenerations.get(id) ?? 0;
+    const existing = this.detailRequests.get(id);
+    if (existing?.generation === generation) return existing.promise;
+    const promise = this.loading.run(() => this.fetchRecipeFromServer(id, generation), `recipe-detail:${id}`);
+    this.detailRequests.set(id, { generation, promise });
+    try { return await promise; }
+    finally { if (this.detailRequests.get(id)?.promise === promise) this.detailRequests.delete(id); }
+  }
+
+  private async fetchRecipeFromServer(id: string, generation: number): Promise<Recipe | null> {
     const { data, error } = await this.supabase.requireClient().from('recipes').select(RECIPE_SELECT).eq('id', id).returns<RecipeRow[]>().maybeSingle();
+    if (generation !== (this.detailGenerations.get(id) ?? 0)) return this.removedIds.has(id) ? null : this.loadRecipe(id);
     if (error) throw error;
     const recipe = data ? this.mapRows([data])[0] : null;
-    if (recipe) this.cache([recipe]);
-    else this.recipesSubject.next(this.recipesSubject.value.filter((item) => item.id !== id));
+    if (recipe) { this.removedIds.delete(id); this.cache([recipe]); }
+    else {
+      this.cacheStore.remove(this.detailKey(id));
+      this.recipesSubject.next(this.recipesSubject.value.filter((item) => item.id !== id));
+    }
     return recipe;
   }
 
@@ -142,10 +177,29 @@ export class RecipeService {
     }
   }
 
-  private cache(recipes: Recipe[]): void {
+  private cache(recipes: Recipe[], persist = true): void {
     const cache = new Map(this.recipesSubject.value.map((recipe) => [recipe.id, recipe]));
-    for (const recipe of recipes) cache.set(recipe.id, recipe);
+    for (const recipe of recipes) {
+      cache.delete(recipe.id);
+      cache.set(recipe.id, recipe);
+      if (persist) this.cacheStore.set(this.detailKey(recipe.id), recipe, environment.recipeDetailCacheTtlMs);
+    }
+    while (cache.size > 40) cache.delete(cache.keys().next().value!);
     this.recipesSubject.next([...cache.values()]);
+  }
+
+  private mapCardRows(rows: RecipeCardRow[]): RecipeCard[] {
+    return rows.map((row) => ({
+      id: row.id, name: row.name, minutes: row.minutes, servings: row.servings,
+      pending: row.pending, mealTypes: row.meal_types ?? [], rating: row.rating,
+      fitness: row.fitness, difficulty: row.difficulty ?? undefined,
+      ingredientCount: row.recipe_ingredients?.[0]?.count ?? 0,
+      cuisineTypes: (row.recipe_cuisine_types ?? []).flatMap((item) => item.cuisine_types ? [item.cuisine_types.name] : []),
+      photos: [...(row.recipe_photos ?? [])].sort((a, b) => a.position - b.position).map((photo) => ({
+        id: photo.id, storagePath: photo.storage_path, url: this.photoService.publicUrl(photo.storage_path),
+        position: photo.position, altText: photo.alt_text,
+      })),
+    }));
   }
 
   private mapRows(rows: RecipeRow[]): Recipe[] {
@@ -164,24 +218,64 @@ export class RecipeService {
 
 
 
-  async create(recipe: Omit<Recipe, 'id'>): Promise<string> { return this.save(null, recipe); }
-  async update(id: string, recipe: Omit<Recipe, 'id'>): Promise<string> { return this.save(id, recipe); }
-  private async save(id: string | null, recipe: Omit<Recipe, 'id'>): Promise<string> {
+  async create(recipe: Omit<Recipe, 'id'>, photos?: RecipePhotoChanges): Promise<string> { return this.loading.run(() => this.save(null, recipe, photos), 'recipe-save'); }
+  async update(id: string, recipe: Omit<Recipe, 'id'>, photos?: RecipePhotoChanges): Promise<string> { return this.loading.run(() => this.save(id, recipe, photos), 'recipe-save'); }
+
+  async rate(id: string, rating: number): Promise<void> {
+    if (!Number.isInteger(rating) || rating < 1 || rating > 10) throw new Error('La valoración debe ser un entero del 1 al 10.');
+    await this.loading.run(async () => {
+      await this.auth.requireEditor();
+      const { data, error } = await this.supabase.requireClient().rpc('rate_recipe', { p_id: id, p_rating: rating });
+      if (error) throw error;
+      const row = (data as { id: string; rating: number; pending: boolean; stats_changed: boolean }[] | null)?.[0];
+      if (!row) throw new Error('Supabase no devolvió la valoración guardada.');
+      this.invalidateDetail(id);
+      const recipe = this.getById(id);
+      // Patch the visible detail, but do not extend the lifetime of other cached fields.
+      if (recipe) this.cache([{ ...recipe, rating: row.rating, pending: row.pending }], false);
+      if (row.stats_changed) { this.invalidateStats(); await this.refreshChangedStats(); }
+      this.changesSubject.next(this.changesSubject.value + 1);
+    }, 'recipe-save');
+  }
+
+  private async save(id: string | null, recipe: Omit<Recipe, 'id'>, photos?: RecipePhotoChanges): Promise<string> {
     await this.auth.requireEditor();
-    const { data, error } = await this.supabase.requireClient().rpc('save_recipe', { p_id: id, p_recipe: recipe });
+    const { data, error } = await this.supabase.requireClient().rpc('save_recipe_optimized', { p_id: id, p_recipe: recipe });
     if (error) throw error;
-    const savedId = id ?? String(data);
-    await this.refresh(savedId);
-    return savedId;
+    const result = (data as { id: string; stats_changed: boolean }[] | null)?.[0];
+    if (!result) throw new Error('Supabase no devolvió la receta guardada.');
+    const savedId = result.id;
+    this.removedIds.delete(savedId);
+    this.invalidateDetail(savedId);
+    if (result.stats_changed) this.invalidateStats();
+    try {
+      if (photos) await this.photoService.sync(savedId, photos.retainedPhotos, photos.files, recipe.name, photos.originalPhotos);
+      await this.fetchRecipe(savedId);
+      return savedId;
+    } catch (error) {
+      // The base recipe is already committed. Preserve its ID for a retry as an
+      // edit, rather than accidentally creating a second recipe after a failure.
+      this.cache([{ ...recipe, id: savedId, photos: photos?.originalPhotos ?? recipe.photos ?? [] }], false);
+      this.cacheStore.remove(this.detailKey(savedId));
+      const message = error instanceof Error ? error.message : (error as { message?: string })?.message;
+      throw new RecipeSaveError(message || 'La receta se guardó, pero no se pudo completar la actualización.', savedId);
+    } finally {
+      if (result.stats_changed) await this.refreshChangedStats();
+      this.changesSubject.next(this.changesSubject.value + 1);
+    }
   }
   async remove(id: string): Promise<void> {
     await this.auth.requireEditor();
     await this.photoService.deleteFilesForRecipe(id);
-    const { error } = await this.supabase.requireClient().from('recipes').delete().eq('id', id);
+    const { data, error } = await this.supabase.requireClient().from('recipes').delete().eq('id', id).select('id');
     if (error) throw error;
-    if (this.detailId === id) this.detailId = null;
+    if (!data?.length) throw new Error('No se pudo eliminar la receta. Comprueba que existe y que tienes permiso.');
+    this.removedIds.add(id);
+    this.invalidateDetail(id);
+    this.invalidateStats();
     this.recipesSubject.next(this.recipesSubject.value.filter((recipe) => recipe.id !== id));
-    await this.refresh();
+    await this.refreshChangedStats();
+    this.changesSubject.next(this.changesSubject.value + 1);
   }
   getById(id: string): Recipe | undefined { return this.recipesSubject.value.find((recipe) => recipe.id === id); }
 }

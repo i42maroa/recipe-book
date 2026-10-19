@@ -9,17 +9,18 @@
     <button class="floating-add-button" type="button" aria-label="Añadir receta" title="Añadir receta" (click)="forms.openForm('recipe')"><app-icon name="plus" /></button>
   }
 
-  <div class="recipe-stats">
-    <article><span class="stat-icon stat-green"><app-icon name="recipes" /></span><div><strong>{{ recipeCount$ | async }}</strong><small>Recetas guardadas</small></div></article>
-    <article class="pending-stat" role="button" tabindex="0" (click)="showPendingRecipes()" (keydown.enter)="showPendingRecipes()" (keydown.space)="$event.preventDefault(); showPendingRecipes()" aria-label="Filtrar las recetas por probar"><span class="stat-icon stat-peach"><app-icon name="pending" /></span><div><strong>{{ pendingCount$ | async }}</strong><small>Por probar</small></div></article>
+  <div class="recipe-stats" [attr.aria-busy]="loading.isLoading('recipe-stats')">
+    <article><span class="stat-icon stat-green"><app-icon name="recipes" /></span><div><strong>{{ loading.isLoading('recipe-stats') || statsError() ? '—' : (recipeCount$ | async) }}</strong><small>Recetas guardadas</small></div></article>
+    <article class="pending-stat" role="button" tabindex="0" (click)="showPendingRecipes()" (keydown.enter)="showPendingRecipes()" (keydown.space)="$event.preventDefault(); showPendingRecipes()" aria-label="Filtrar las recetas por probar"><span class="stat-icon stat-peach"><app-icon name="pending" /></span><div><strong>{{ loading.isLoading('recipe-stats') || statsError() ? '—' : (pendingCount$ | async) }}</strong><small>Por probar</small></div></article>
   </div>
 
+  @if (statsError()) { <p role="alert">No se pudieron cargar los contadores. <button type="button" (click)="retryStats()">Reintentar</button></p> }
   <div class="recipe-list-header">
     <h2>Tu colección</h2>     
   </div>
 
 <div class="recipe-controls">
-  <app-search-filter placeholder="Busca por receta o ingrediente…" ariaLabel="Buscar recetas por nombre o ingrediente"  [formControl]="search"></app-search-filter>
+  <app-search-filter placeholder="Busca por nombre de receta…" ariaLabel="Buscar recetas por nombre" [formControl]="search"></app-search-filter>
   <button class="recipe-filter-toggle" type="button" [attr.aria-expanded]="filtersExpanded" aria-controls="recipe-extra-filters" (click)="filtersExpanded = !filtersExpanded">Filtros <app-icon name="chevron-down" [class.expanded]="filtersExpanded" /></button>
   <div id="recipe-extra-filters" class="recipe-extra-filters" [class.expanded]="filtersExpanded">
   <app-select-filter label="Estado" filterType="status" [options]="statusOptions" [formControl]="pendingFilter"></app-select-filter>
@@ -30,12 +31,14 @@
 </div>
 
   @if (page$ | async; as page) {
-  @if (page.error && page.items.length === 0) {
+  @if (page.loading && page.items.length === 0) {
+    <div class="section-status" role="status">Cargando recetas…</div>
+  } @else if (page.error && page.items.length === 0) {
     <div class="empty-state"><p>No se pudieron cargar las recetas.</p><app-button (clicked)="loadMore()">Reintentar</app-button></div>
   } @else {
-  <div class="recipe-grid" id="recipe-results">
-    @for (recipe of page.items; track recipe.id) {
-      <app-recipe-card [recipe]="recipe" (selected)="showRecipe($event)"></app-recipe-card>
+  <div class="recipe-grid" [attr.aria-busy]="page.loading" id="recipe-results">
+    @for (recipe of page.items; track recipe.id; let index = $index) {
+      <app-recipe-card [recipe]="recipe" [priority]="index < 2" (selected)="showRecipe($event)"></app-recipe-card>
     } @empty {
       <div class="empty-state"><app-icon class="empty-state-icon" name="sparkle" /><h3>Aún no hay recetas por aquí</h3><p>Guarda tu primera receta y empieza a llenar tu recetario.</p>@if (auth.canEdit()) { <app-button class="empty-add-recipe" (clicked)="forms.openForm('recipe')">Añadir receta</app-button> }</div>
     }
@@ -43,8 +46,8 @@
   @if (page.items.length > 0) {
     <div class="recipe-load-more">
       @if (page.error) { <p class="load-more-error">No se pudieron cargar más recetas. Vuelve a intentarlo.</p> }
-      @if (page.nextOffset < page.total) {
-        <app-button (clicked)="loadMore()">Cargar más recetas</app-button>
+      @if (page.nextOffset < page.total || page.error) {
+        <app-button [disabled]="page.loading" (clicked)="loadMore()">{{ page.loading ? 'Cargando…' : (page.error ? 'Reintentar' : 'Cargar más recetas') }}</app-button>
       }
       <span class="loaded-total" aria-live="polite">{{ page.items.length }} de {{ page.total }} recetas</span>
     </div>

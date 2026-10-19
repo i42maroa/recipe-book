@@ -3,8 +3,6 @@
   "framework": "angular",
   "outputDirectory": "dist/recetario/browser",
   "rewrites": [
-    { "source": "/recipes/:path*", "destination": "/index.html" },
-    { "source": "/ingredients/:path*", "destination": "/index.html" },
-    { "source": "/login", "destination": "/index.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

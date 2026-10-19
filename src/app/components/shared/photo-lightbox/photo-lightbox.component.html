@@ -5,7 +5,7 @@
       @if (photos.length > 1) {
         <button class="lightbox-arrow previous" type="button" aria-label="Ver imagen anterior" (click)="changePhoto(-1)">‹</button>
       }
-      <img [src]="photo.url" [alt]="photo.altText?.trim() || 'Foto de ' + recipeName">
+      <img decoding="async" [src]="photo.url" [alt]="photo.altText?.trim() || 'Foto de ' + recipeName">
       @if (photos.length > 1) {
         <button class="lightbox-arrow next" type="button" aria-label="Ver imagen siguiente" (click)="changePhoto(1)">›</button>
         <span class="lightbox-counter">{{ activeIndex + 1 }} / {{ photos.length }}</span>

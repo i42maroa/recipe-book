@@ -27,7 +27,7 @@ import { groupIngredients } from '../../utils/ingredients.utils';
 export class IngredientsPageComponent {
   readonly auth = inject(AuthService);
   readonly forms = inject(FormService);
-  private readonly ingredientService = inject(IngredientService);
+  readonly ingredientService = inject(IngredientService);
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   readonly search = this.fb.nonNullable.control('');
@@ -49,6 +49,8 @@ export class IngredientsPageComponent {
 
   readonly ingredientGroups$ = this.filteredIngredients$.pipe(map((items) => groupIngredients(items, this.categories)
     .map((group) => ({ category: group.category, items: group.ingredients }))));
+
+  retry(): void { void this.ingredientService.refresh().catch(() => undefined); }
 
   categoryLabel(category: IngredientCategory): string { return ingredientCategoryLabel(category); }
 

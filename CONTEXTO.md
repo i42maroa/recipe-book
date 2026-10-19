@@ -21,6 +21,7 @@ La persistencia se implementa con Supabase. La consulta es pública; crear, modi
 - **Componentes reutilizables de interfaz:** los elementos comunes, como botones, navegación/navbar y otros controles compartidos, se implementarán como componentes reutilizables para mantener una experiencia coherente y evitar duplicar estructura y estilos.
 - **Organización de carpetas:** los componentes compartidos vivirán en `components/shared/`, cada componente específico tendrá su propia carpeta dentro de `components/` y las pantallas enrutables se organizarán dentro de `pages/`, también en carpetas por página.
 - **Enrutado y composición de la aplicación:** el componente raíz será el marco común de la web e incluirá el navbar, el `router-outlet` para mostrar la página activa y el centro global de notificaciones. El archivo de rutas registrará las páginas disponibles.
+- **Página 404:** las rutas desconocidas y los detalles de recetas o ingredientes inexistentes muestran una página compartida con enlaces a los listados, conservando la URL original. Los fallos de conexión ofrecen reintentar y no se presentan como elementos inexistentes. `vercel.json` sirve la aplicación también al abrir directamente una ruta desconocida.
 - **Servicios reutilizables:** cuando una funcionalidad o lógica de negocio vaya a reutilizarse, se encapsulará en un servicio y se inyectará en los componentes o servicios que la necesiten. Los componentes evitarán concentrar lógica de acceso a datos.
 - **Formularios reactivos:** los formularios usarán formularios reactivos de Angular y observables para gestionar los datos y los cambios de estado de forma reactiva.
 - **Formulario base reutilizable:** habrá un componente reutilizable para presentar formularios. Este componente seleccionará mediante un `switch` entre distintas plantillas de formulario, según el tipo de formulario que se necesite.
@@ -54,7 +55,7 @@ La persona usuaria podrá:
 - Consultar un listado de recetas.
 - Abrir una receta del listado y consultar su información completa.
 - Mostrar la receta seleccionada en una página dedicada, identificada por su ID en la URL (`/recipes/:id`).
-- Buscar recetas por nombre, por estado pendiente (pendiente o no pendiente) y por ingredientes.
+- Buscar recetas por nombre y filtrar por estado pendiente, tipo de plato y dificultad. El buscador del listado no busca dentro de los ingredientes.
 
 ### Ingredientes
 

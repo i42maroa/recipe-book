@@ -5,7 +5,7 @@ import { AsyncPipe } from '@angular/common';
 import { FormBuilder } from '@angular/forms';
 import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { catchError, combineLatest, distinctUntilChanged, from, map, of, switchMap } from 'rxjs';
+import { catchError, combineLatest, distinctUntilChanged, from, map, of, shareReplay, startWith, Subject, switchMap } from 'rxjs';
 import { ButtonComponent } from '../../components/shared/button/button.component';
 import { CuisineType, Ingredient, Recipe, RecipePhoto } from '../../models/recipe.model';
 import { IngredientService } from '../../services/ingredient.service';
@@ -16,11 +16,13 @@ import { IconComponent } from '../../components/shared/icon/icon.component';
 import { DifficultyTonePipe } from '../../pipes/difficulty-tone.pipe';
 import { PhotoLightboxComponent } from '../../components/shared/photo-lightbox/photo-lightbox.component';
 import { groupIngredients } from '../../utils/ingredients.utils';
+import { NotFoundPageComponent } from '../not-found/not-found-page.component';
+import { isUuid } from '../../utils/uuid.utils';
 
 @Component({
   selector: 'app-recipe-detail-page',
   standalone: true,
-  imports: [AsyncPipe, RouterLink, ButtonComponent, MealIconComponent, IconComponent, DifficultyTonePipe, PhotoLightboxComponent],
+  imports: [AsyncPipe, RouterLink, ButtonComponent, MealIconComponent, IconComponent, DifficultyTonePipe, PhotoLightboxComponent, NotFoundPageComponent],
   templateUrl: './recipe-detail-page.component.html',
   styleUrl: './recipe-detail-page.component.css',
 })
@@ -28,9 +30,10 @@ export class RecipeDetailPageComponent {
   activePhotoIndex = 0;
   lightboxOpen = false;
   readonly sharing = signal(false);
+  readonly savingRating = signal(false);
   private readonly route = inject(ActivatedRoute);
   private readonly recipeService = inject(RecipeService);
-  private readonly ingredientService = inject(IngredientService);
+  readonly ingredientService = inject(IngredientService);
   private readonly notifications = inject(NotificationService);
   readonly auth = inject(AuthService);
   isRating = false;
@@ -39,20 +42,29 @@ export class RecipeDetailPageComponent {
   readonly ratingOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
   readonly ingredients$ = this.ingredientService.ingredients$;
-  private readonly loadedRecipeId$ = this.route.paramMap.pipe(
-    map((params) => params.get('id')),
-    distinctUntilChanged(),
-    switchMap((id) => id ? from(this.recipeService.loadRecipe(id)).pipe(
-      map(() => id),
-      catchError(() => {
-        this.notifications.error('No se pudo cargar la receta.');
-        return of(null);
-      }),
-    ) : of(null)),
+  private readonly retries = new Subject<void>();
+  private readonly loadedRecipe$ = combineLatest([
+    this.route.paramMap.pipe(map((params) => params.get('id')), distinctUntilChanged()),
+    this.retries.pipe(startWith(undefined)),
+  ]).pipe(
+    switchMap(([id]) => {
+      this.activePhotoIndex = 0;
+      this.lightboxOpen = false;
+      this.isRating = false;
+      return isUuid(id) ? from(this.recipeService.loadRecipe(id)).pipe(
+        map(() => ({ id, loading: false, error: false })),
+        catchError(() => of({ id, loading: false, error: true })),
+        startWith({ id, loading: true, error: false }),
+      ) : of({ id, loading: false, error: false });
+    }),
   );
-  readonly recipe$ = combineLatest([this.loadedRecipeId$, this.recipeService.recipes$]).pipe(
-    map(([id, recipes]) => recipes.find((recipe) => recipe.id === id) ?? null),
+  readonly view$ = combineLatest([this.loadedRecipe$, this.recipeService.recipes$]).pipe(
+    map(([state, recipes]) => ({ ...state, recipe: recipes.find((recipe) => recipe.id === state.id) ?? null })),
+    shareReplay({ bufferSize: 1, refCount: true }),
   );
+
+  retry(): void { this.retries.next(); }
+  retryIngredients(): void { void this.ingredientService.refresh().catch(() => undefined); }
 
   async shareRecipe(recipe: Recipe): Promise<void> {
     if (this.sharing()) return;
@@ -86,18 +98,20 @@ export class RecipeDetailPageComponent {
   setRating(value: number): void { this.ratingControl.setValue(value); }
 
   async saveRating(recipe: Recipe): Promise<void> {
+    if (this.savingRating()) return;
     const rating = this.ratingControl.value;
     if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
       this.notifications.error('Selecciona de una a diez estrellas.');
       return;
     }
+    this.savingRating.set(true);
     try {
-      await this.recipeService.update(recipe.id, { ...recipe, pending: false, rating });
+      await this.recipeService.rate(recipe.id, rating);
       this.isRating = false;
       this.notifications.success('Valoración guardada.');
     } catch (error) {
       this.notifications.error(error instanceof Error ? error.message : 'No se pudo guardar la valoración.');
-    }
+    } finally { this.savingRating.set(false); }
   }
   ingredientsFor(recipe: Recipe, ingredients: Ingredient[] | null): Ingredient[] {
     const selectedIds = new Set(recipe.ingredientIds);

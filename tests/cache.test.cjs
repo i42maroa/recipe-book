@@ -131,3 +131,61 @@ test('real SDK sign-out removes the cached session and reopening stays signed ou
   try { assert.equal((await reopened.auth.getSession()).data.session, null); }
   finally { await reopened.auth.dispose(); }
 });
+
+
+test('startup and writes prune expired data without expiring or removing sessions', () => {
+  const { cache, reload, storage, advance } = setup();
+  const auth = cache.createStorage(ttl);
+  auth.setItem('custom-session-key', 'session');
+  cache.set('expired', 'old', 10);
+  storage.setItem('unrelated', 'keep');
+  advance(10);
+  const next = reload();
+  assert.equal(storage.getItem('laurel:cache:expired'), null);
+  assert.equal(next.createStorage(ttl).getItem('custom-session-key'), 'session');
+  next.set('fresh', 'value', 100);
+  next.clearData();
+  assert.equal(next.get('fresh'), null);
+  assert.equal(next.createStorage(ttl).getItem('custom-session-key'), 'session');
+  assert.equal(storage.getItem('unrelated'), 'keep');
+});
+
+test('data eviction caps entries and bytes while retaining the session', () => {
+  const { cache, advance } = setup();
+  cache.createStorage(ttl).setItem('sb-project-auth-token', 'session');
+  for (let i = 0; i < 100; i++) { cache.set('recipe-' + i, i, 1000); advance(1); }
+  assert.equal(cache.get('recipe-0'), null);
+  assert.equal(cache.get('recipe-19'), null);
+  assert.equal(cache.get('recipe-20'), 20);
+  assert.equal(cache.get('recipe-99'), 99);
+  cache.set('too-large', 'x'.repeat(1100000), 1000);
+  assert.equal(cache.get('too-large'), null);
+  assert.equal(cache.createStorage(ttl).getItem('sb-project-auth-token'), 'session');
+});
+
+test('bounded memory fallback retains multiple values when localStorage is blocked', () => {
+  const blocked = { getItem() { throw Error('Blocked'); }, setItem() { throw Error('Blocked'); }, removeItem() {} };
+  const { cache } = setup(blocked);
+  for (let i = 0; i < 85; i++) cache.set('data-' + i, i, 1000);
+  assert.equal(cache.get('data-0'), null);
+  assert.equal(cache.get('data-5'), 5);
+  assert.equal(cache.get('data-84'), 84);
+});
+
+test('quota recovery removes only cached data and retries persisting auth', () => {
+  const storage = memoryStorage();
+  const { cache } = setup(storage);
+  cache.set('recipe', 'old', 1000);
+  storage.setItem('outside-cache', 'keep');
+  const setItem = storage.setItem;
+  let first = true;
+  storage.setItem = (key, value) => {
+    if (first) { first = false; const error = Error('quota'); error.name = 'QuotaExceededError'; throw error; }
+    setItem(key, value);
+  };
+  cache.createStorage(ttl).setItem('sb-project-auth-token', 'session');
+  assert.equal(cache.get('recipe'), null);
+  assert.equal(cache.createStorage(ttl).getItem('sb-project-auth-token'), 'session');
+  assert.ok(storage.getItem('laurel:cache:sb-project-auth-token'));
+  assert.equal(storage.getItem('outside-cache'), 'keep');
+});

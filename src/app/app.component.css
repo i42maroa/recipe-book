@@ -7,38 +7,17 @@
   min-height: 100vh;
   min-height: 100dvh;
 }
-.loading-overlay {
+.form-loading {
   position: fixed;
   z-index: 10000;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: var(--overlay);
-  cursor: wait;
-}
-.loading-indicator {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  padding: 24px 32px;
-  border-radius: 10px;
+  inset: auto 16px 24px;
+  width: fit-content;
+  margin: auto;
+  padding: 20px;
   background: var(--color-surface);
-  box-shadow: var(--shadow-dialog);
   color: var(--color-text);
-  font-size: 13px;
-}
-.loading-spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--color-border);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: loading-spin .8s linear infinite;
-}
-@keyframes loading-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) {
-  .loading-spinner { animation: none; }
+  border-radius: 10px;
+  box-shadow: var(--shadow-dialog);
 }
 .main-area {
   display: flex;

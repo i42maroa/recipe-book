@@ -10,14 +10,20 @@ La página `/login` permite entrar con Google o correo y contraseña, comprobar 
 
 En un proyecto ya configurado con el esquema, fotos y comensales, abre **SQL Editor → New query**, pega y ejecuta el contenido de [20261018000100_editor_access.sql](supabase/migrations/20261018000100_editor_access.sql).
 
+Si ya tienes aplicada la seguridad, ejecuta [20261019000100_recipe_query_optimization.sql](supabase/migrations/20261019000100_recipe_query_optimization.sql) **antes de desplegar el frontend optimizado**. Añade `get_recipe_stats()` (ambos contadores en una petición) y `save_recipe_optimized(uuid,jsonb)` (reutiliza el guardado transaccional e indica si han cambiado los contadores). Conserva `SECURITY INVOKER` y RLS. No vuelve a crear tablas ni modifica los miembros autorizados. Detalles: [OPTIMIZACION.md](OPTIMIZACION.md).
+
+Para la escritura parcial de valoraciones, ejecuta después [20261019000200_partial_recipe_rating.sql](supabase/migrations/20261019000200_partial_recipe_rating.sql). Si las anteriores ya están aplicadas, basta con esta nueva migración. Añade `rate_recipe(uuid,integer)`, que actualiza solo `rating`, `pending` y `updated_at`, comprueba pertenencia al grupo y mantiene RLS. No modifica pasos, ingredientes, cocinas ni fotos. La migración debe estar aplicada antes de desplegar esta versión del frontend. No se ha ejecutado desde el repositorio contra Supabase remoto.
+
 Para instalar desde cero, aplica una vez estos archivos, en este orden:
 
 1. `supabase/migrations/20261015000100_initial_schema.sql`
 2. `supabase/migrations/20261016000100_recipe_photos.sql`
 3. `supabase/migrations/20261016000100_recipe_servings.sql`
 4. `supabase/migrations/20261018000100_editor_access.sql`
+5. `supabase/migrations/20261019000100_recipe_query_optimization.sql`
+6. `supabase/migrations/20261019000200_partial_recipe_rating.sql`
 
-La última migración conserva los datos y reemplaza todas las políticas de las tablas del recetario enumeradas en ella. Crea el grupo privado de editores, configura lectura pública y escritura autorizada, restringe las RPC de guardado y protege las escrituras de fotos. El grupo empieza vacío: nadie podrá editar hasta que añadas al primer miembro. No vuelvas a aplicar las migraciones antiguas por separado después de esta, porque contienen permisos de escritura anónima.
+La migración de seguridad conserva los datos y reemplaza todas las políticas de las tablas del recetario enumeradas en ella. Crea el grupo privado de editores, configura lectura pública y escritura autorizada, restringe las RPC de guardado y protege las escrituras de fotos. El grupo empieza vacío: nadie podrá editar hasta que añadas al primer miembro. No vuelvas a aplicar las migraciones antiguas por separado después de configurar la seguridad, porque contienen permisos de escritura anónima.
 
 Si usas CLI y las migraciones anteriores ya están correctamente registradas en el proyecto remoto, puedes usar `supabase db push`. No se ha ejecutado SQL contra tu proyecto desde este cambio.
 
