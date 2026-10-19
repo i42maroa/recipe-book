@@ -87,6 +87,8 @@ La siguiente escritura en BD queda denegada aunque el usuario mantenga una sesi�
 
 ## 4. Configurar Angular y alojamiento
 
+Los enlaces de compartir usan `publicSiteUrl` de los dos archivos de entorno, configurado como `https://recipe-book-neon-two.vercel.app`. Se construyen con el ID de la receta y ese dominio público, incluso al navegar desde otra URL de despliegue o desde localhost. Si cambia el dominio público, actualiza ese valor y vuelve a desplegar. El dominio público debe permitir acceso anónimo en Vercel; las URLs de preview pueden mantener su protección.
+
 Pon **Project URL** y la clave **publishable** (o `anon` legacy) en `supabaseUrl` y `supabaseAnonKey` de `src/environments/environment.ts` y `src/environments/environment.production.ts`. Son claves públicas; nunca uses `secret` ni `service_role` en el navegador. No hacen falta variables nuevas para Google.
 
 El alojamiento debe servir `index.html` para las rutas Angular, incluido `/login`, para poder abrirlas directamente y recibir el retorno de OAuth. Configura la reescritura SPA si el alojamiento no la incluye.
