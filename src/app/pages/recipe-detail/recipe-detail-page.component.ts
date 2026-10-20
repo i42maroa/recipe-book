@@ -18,11 +18,12 @@ import { PhotoLightboxComponent } from '../../components/shared/photo-lightbox/p
 import { groupIngredients } from '../../utils/ingredients.utils';
 import { NotFoundPageComponent } from '../not-found/not-found-page.component';
 import { isUuid } from '../../utils/uuid.utils';
+import { SkeletonComponent } from '../../components/shared/skeleton/skeleton.component';
 
 @Component({
   selector: 'app-recipe-detail-page',
   standalone: true,
-  imports: [AsyncPipe, RouterLink, ButtonComponent, MealIconComponent, IconComponent, DifficultyTonePipe, PhotoLightboxComponent, NotFoundPageComponent],
+  imports: [AsyncPipe, RouterLink, ButtonComponent, MealIconComponent, IconComponent, DifficultyTonePipe, PhotoLightboxComponent, NotFoundPageComponent, SkeletonComponent],
   templateUrl: './recipe-detail-page.component.html',
   styleUrl: './recipe-detail-page.component.css',
 })
@@ -62,6 +63,8 @@ export class RecipeDetailPageComponent {
     map(([state, recipes]) => ({ ...state, recipe: recipes.find((recipe) => recipe.id === state.id) ?? null })),
     shareReplay({ bufferSize: 1, refCount: true }),
   );
+
+  constructor() { void this.ingredientService.ensureLoaded().catch(() => undefined); }
 
   retry(): void { this.retries.next(); }
   retryIngredients(): void { void this.ingredientService.refresh().catch(() => undefined); }

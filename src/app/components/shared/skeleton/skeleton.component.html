@@ -1,0 +1,18 @@
+@switch (variant()) {
+  @case ('recipe-card') {
+    <div class="card recipe-card">
+      <span class="block photo"></span>
+      <div class="card-content"><span class="block short"></span><span class="block title"></span><span class="block text"></span><div class="meta"><span class="block short"></span><span class="block short"></span></div></div>
+    </div>
+  }
+  @case ('ingredient-card') {
+    <div class="card ingredient-card"><span class="block icon"></span><div class="ingredient-copy"><span class="block text"></span><span class="block short"></span></div></div>
+  }
+  @case ('rows') {
+    <div class="rows">@for (row of [0, 1, 2, 3]; track row) { <div class="row"><span class="block text"></span><span class="block short"></span></div> }</div>
+  }
+  @case ('paragraph') {
+    <div class="paragraph"><span class="block"></span><span class="block"></span><span class="block text"></span></div>
+  }
+  @default { <span [class]="'block ' + variant()"></span> }
+}

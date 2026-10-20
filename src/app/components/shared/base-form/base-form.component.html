@@ -1,4 +1,4 @@
-﻿    <div class="modal-scrim" (click)="requestCancel()">
+﻿    <div class="modal-scrim" (click)="formType === 'ingredient' && requestCancel()">
       <section class="form-modal" [class.recipe-modal]="formType === 'recipe'" (click)="$event.stopPropagation()" aria-modal="true" role="dialog" [attr.aria-label]="formType === 'recipe' ? (recipeToEdit ? 'Modificar receta' : 'Nueva receta') : (ingredientToEdit ? 'Modificar ingrediente' : 'Nuevo ingrediente')">
         <header class="form-modal-header"><div><span class="eyebrow">{{ formType === 'recipe' ? (recipeToEdit ? 'EDITAR RECETA' : 'AÑADIR AL RECETARIO') : (ingredientToEdit ? 'EDITAR INGREDIENTE' : 'TU DESPENSA') }}</span><h2>{{ formType === 'recipe' ? (recipeToEdit ? 'Modificar receta' : 'Nueva receta') : (ingredientToEdit ? 'Modificar ingrediente' : 'Nuevo ingrediente') }}</h2></div><button class="icon-button" type="button" aria-label="Cerrar" [disabled]="busy()" (click)="requestCancel()"><app-icon name="close" /></button></header>
         @if (ingredientService.loading.isLoading('ingredients')) {
@@ -10,7 +10,7 @@
         @switch (formType) {
           @case ('recipe') {
             <form [formGroup]="recipeForm" (ngSubmit)="saveRecipe()" class="form-body recipe-wizard">
-<fieldset class="form-fields" [disabled]="busy() || !ingredientService.loaded() || ingredientService.error()" [attr.aria-busy]="busy()">
+<fieldset class="form-fields" [disabled]="busy() || !ingredientService.loaded() || ingredientService.error() || ingredientService.loading.isLoading('ingredients')" [attr.aria-busy]="busy()">
   <nav class="form-tabs" role="tablist" aria-label="Secciones de la receta">
     @for (tab of recipeTabLabels; track tab; let index = $index) {
       <button type="button" role="tab" [attr.aria-selected]="activeRecipeTab === index" [class.active]="activeRecipeTab === index" [class.completed]="activeRecipeTab > index" (click)="setRecipeTab(index)">
@@ -153,7 +153,7 @@
           }
           @case ('ingredient') {
             <form [formGroup]="ingredientForm" (ngSubmit)="saveIngredient()" class="form-body">
-<fieldset class="form-fields" [disabled]="busy() || !ingredientService.loaded() || ingredientService.error()" [attr.aria-busy]="busy()">
+<fieldset class="form-fields" [disabled]="busy() || !ingredientService.loaded() || ingredientService.error() || !ingredientDetailsReady() || ingredientService.loading.isLoading('ingredients')" [attr.aria-busy]="busy()">
               <label class="field-label"><span class="field-label-title">Nombre del ingrediente <b>*</b></span><input formControlName="name" placeholder="Ej. Garbanzos"></label>
               <label class="field-label"><span class="field-label-title">Categoría <b>*</b></span><select formControlName="category"><option value="">Elige una categoría</option>@for (category of categories; track category) { <option [value]="category">{{ categoryLabel(category) }}</option> }</select></label>
               @if (ingredientForm.controls.category.value === 'Elaboracion') {

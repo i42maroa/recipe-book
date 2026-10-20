@@ -15,6 +15,7 @@ export class RecipeCardComponent {
   readonly recipe = input.required<RecipeCard>();
   readonly selected = output<RecipeCard>();
   readonly priority = input(false);
+  readonly disabled = input(false);
   activePhotoIndex = 0;
   currentPhoto(): RecipePhoto | undefined {
     const photos = this.recipe().photos ?? [];
@@ -31,7 +32,7 @@ export class RecipeCardComponent {
       event.preventDefault();
       event.stopPropagation();
     }
-    this.selected.emit(this.recipe());
+    if (!this.disabled()) this.selected.emit(this.recipe());
   }
   cuisineFlag(cuisine: CuisineType): string { return cuisineFlag(cuisine); }
   photoClass(): string { return mealPhotoClass(this.recipe().mealTypes[0]); }

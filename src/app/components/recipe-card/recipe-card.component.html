@@ -1,4 +1,4 @@
-<article class="recipe-card" role="button" tabindex="0" (click)="selectCard($event)" (keydown.enter)="selectCard($event)" (keydown.space)="selectCard($event)">
+<article class="recipe-card" [class.is-disabled]="disabled()" role="button" [attr.aria-disabled]="disabled() ? 'true' : null" [attr.tabindex]="disabled() ? -1 : 0" (click)="selectCard($event)" (keydown.enter)="selectCard($event)" (keydown.space)="selectCard($event)">
   <span [class]="'recipe-photo ' + photoClass()" [class.has-photo]="!!currentPhoto()">
     @if (currentPhoto(); as photo) {
       <img [attr.loading]="priority() ? 'eager' : 'lazy'" [attr.fetchpriority]="priority() ? 'high' : 'auto'" decoding="async" width="640" height="400" class="recipe-photo-image" [src]="photo.url" [alt]="photo.altText?.trim() || 'Foto de ' + recipe().name">

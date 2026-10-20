@@ -2,6 +2,7 @@ import { AuthService } from './auth.service';
 import { Injectable, inject } from '@angular/core';
 import { RecipePhoto } from '../models/recipe.model';
 import { SupabaseService } from './supabase.service';
+import { NotificationService } from './notification.service';
 
 const BUCKET = 'recipe-photos';
 const MAX_PHOTOS = 3;
@@ -15,6 +16,8 @@ export interface RecipePhotoChanges {
 @Injectable({ providedIn: 'root' })
 export class RecipePhotoService {
   private readonly auth = inject(AuthService);
+  private readonly notifications = inject(NotificationService);
+  private cleanupRequest: Promise<boolean> | undefined;
   constructor(private readonly supabase: SupabaseService) {}
 
   publicUrl(storagePath: string): string {
@@ -38,14 +41,13 @@ export class RecipePhotoService {
       .from('recipe_photos').select('id,storage_path,position,alt_text').eq('recipe_id', recipeId).order('position');
     if (readError) throw readError;
     const current = currentRows ?? [];
-    const retainedPaths = new Set(retainedPhotos.map((photo) => photo.storagePath));
-    const removedPaths = current.map((row) => row.storage_path).filter((path) => !retainedPaths.has(path));
-    const appendOnly = removedPaths.length === 0 && current.length === retainedPhotos.length && current.every((row, index) => {
+    const unchanged = current.length === retainedPhotos.length && current.every((row, index) => {
       const retained = retainedPhotos[index];
       return row.id === retained.id && row.storage_path === retained.storagePath && row.alt_text === retained.altText && row.position === index + 1;
     });
-    if (appendOnly && files.length === 0) return;
+    if (unchanged && files.length === 0) return;
     const newlyUploaded: string[] = [];
+    let metadataSubmitted = false;
     try {
       const addedRows: { recipe_id: string; storage_path: string; position: number; alt_text: string }[] = [];
       for (const [index, original] of files.entries()) {
@@ -59,14 +61,6 @@ export class RecipePhotoService {
         addedRows.push({ recipe_id: recipeId, storage_path: path, position: retainedPhotos.length + index + 1, alt_text: `Foto de ${recipeName}` });
       }
 
-      // For the common case of adding photos, preserve existing metadata rows and append only new rows.
-      // This avoids deleting/reinserting rows that may be referenced by an already-rendered recipe.
-      if (appendOnly) {
-        const { error } = await client.from('recipe_photos').insert(addedRows);
-        if (error) throw error;
-        return;
-      }
-
       const retainedRows = retainedPhotos.map((photo, index) => ({
         id: photo.id,
         recipe_id: recipeId,
@@ -74,33 +68,52 @@ export class RecipePhotoService {
         position: index + 1,
         alt_text: photo.altText,
       }));
-      const { error: clearError } = await client.from('recipe_photos').delete().eq('recipe_id', recipeId);
-      if (clearError) throw clearError;
-      const { error: insertError } = await client.from('recipe_photos').insert([...retainedRows, ...addedRows]);
-      if (insertError) {
-        if (current.length) await client.from('recipe_photos').insert(current.map((row) => ({ ...row, recipe_id: recipeId })));
-        throw insertError;
+      metadataSubmitted = true;
+      const { error } = await client.rpc('sync_recipe_photos', {
+        p_recipe_id: recipeId, p_expected: current, p_photos: [...retainedRows, ...addedRows],
+      });
+      if (error?.code === 'PGRST202') {
+        // PostgREST explicitly rejected the missing RPC, so these new uploads
+        // cannot have become referenced. This is not an ambiguous network error.
+        metadataSubmitted = false;
+        throw new Error('No se han guardado las fotos: Supabase no encuentra sync_recipe_photos. Aplica la migración 20261020000300_atomic_recipe_photos.sql y vuelve a guardar esta receta.');
       }
-
-      if (removedPaths.length) {
-        const { error } = await client.storage.from(BUCKET).remove(removedPaths);
-        if (error) console.error('No se pudieron eliminar algunas fotos sustituidas:', error);
-      }
+      if (error) throw error;
     } catch (error) {
-      if (newlyUploaded.length) await client.storage.from(BUCKET).remove(newlyUploaded);
+      // A lost response can hide a committed transaction. Never remove uploaded
+      // files after submitting metadata: the database may already reference them.
+      if (!metadataSubmitted && newlyUploaded.length) {
+        try { await client.storage.from(BUCKET).remove(newlyUploaded); } catch { /* Preserve the original upload error. */ }
+      }
       throw error;
     }
+    if (!await this.cleanupPending()) this.notifications.error('Las fotos se han guardado. Quedan archivos antiguos pendientes de limpieza; se reintentará en la próxima operación de fotos.');
   }
 
-  async deleteFilesForRecipe(recipeId: string): Promise<void> {
-    await this.auth.requireEditor();
-    const { data, error } = await this.supabase.requireClient()
-      .from('recipe_photos').select('storage_path').eq('recipe_id', recipeId);
-    if (error) throw error;
-    const paths = (data ?? []).map((row: { storage_path: string }) => row.storage_path);
-    if (paths.length) {
-      const { error: removeError } = await this.supabase.requireClient().storage.from(BUCKET).remove(paths);
-      if (removeError) throw removeError;
+  /** Cleanup is retryable and cannot turn an already committed save into a failure. */
+  cleanupPending(): Promise<boolean> {
+    if (!this.cleanupRequest) {
+      this.cleanupRequest = this.cleanFiles().catch(() => false).finally(() => { this.cleanupRequest = undefined; });
     }
+    return this.cleanupRequest;
+  }
+
+  private async cleanFiles(): Promise<boolean> {
+    const client = this.supabase.requireClient();
+    const { data, error } = await client.from('recipe_photo_cleanup').select('storage_path').order('created_at').order('storage_path').limit(101);
+    if (error) throw error;
+    const paths = (data ?? []).slice(0, 100).map((row: { storage_path: string }) => row.storage_path);
+    if (!paths.length) return true;
+    const { data: referenced, error: referenceError } = await client.from('recipe_photos').select('storage_path').in('storage_path', paths);
+    if (referenceError) throw referenceError;
+    const protectedPaths = new Set((referenced ?? []).map((row: { storage_path: string }) => row.storage_path));
+    const unused = paths.filter((path: string) => !protectedPaths.has(path));
+    if (unused.length) {
+      const { error: removeError } = await client.storage.from(BUCKET).remove(unused);
+      if (removeError) throw removeError;
+      const { error: clearError } = await client.from('recipe_photo_cleanup').delete().in('storage_path', unused);
+      if (clearError) throw clearError;
+    }
+    return protectedPaths.size === 0 && (data ?? []).length <= 100;
   }
 }

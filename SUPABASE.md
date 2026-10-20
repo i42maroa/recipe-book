@@ -116,3 +116,15 @@ Comprueba que abrir `/login` directamente funciona y que no existe ningún enlac
 Una actualización o borrado rechazado por RLS puede afectar cero filas sin devolver error. Confirma que no cambió el dato. Las inserciones no autorizadas deben fallar. No compruebes RLS con el rol administrador de SQL Editor ni con `service_role`: tienen privilegios elevados. Usa peticiones de navegador con la clave pública y las sesiones de cada caso.
 
 Al añadir tablas, vistas, RPC o buckets, configura sus permisos expresamente. La migración cubre las tablas listadas que existan al ejecutarla; no aplica políticas automáticamente a futuras tablas.
+
+## Comidas privadas por fecha
+
+Aplica [20261020000100_daily_meals.sql](supabase/migrations/20261020000100_daily_meals.sql) después de las migraciones anteriores y antes de desplegar esta versión. Crea `scheduled_meals` y la RPC `save_scheduled_day(date,jsonb)`, sin entidad de plan ni favoritos.
+
+Cada registro pertenece a un usuario, fecha y desayuno/comida/cena. La clave primaria impide más de un registro por hueco; las validaciones impiden más de cinco recetas o repetir una receta en el mismo hueco. Los comensales deben ser enteros entre 1 y 100. Lecturas y escrituras requieren `owner_id = auth.uid()` y pertenencia al grupo de editores. No hay acceso anónimo.
+
+La RPC guarda un día de forma atómica y conserva las demás fechas. Recibe solo fecha y comidas: el propietario se obtiene de la sesión del servidor. Una lista vacía elimina las comidas de ese día. El bloqueo transaccional por usuario/fecha serializa guardados del mismo día; entre dos pestañas prevalece el último guardado completo.
+
+La migración bloquea las escrituras antiguas mientras transfiere los datos. Para cada propietario y fecha elige el registro anterior actualizado más recientemente, incluidos los huecos vacíos, mantiene comensales y preparación y quita duplicados del mismo hueco. Los favoritos no se convierten en comidas fechadas. `meal_plans` se conserva como archivo, pero se revocan sus permisos de navegador. No se borran los datos antiguos ni se necesitan claves nuevas.
+
+Comprueba con sesiones reales de dos editores que puedan consultar y guardar sus propias comidas, sin acceder a las del otro. Verifica que anónimos y cuentas sin permiso no puedan leer o escribir, que la RPC no permita elegir otro propietario, que guardar un día no cambie el siguiente, que quitar la última receta lo vacíe y que se rechacen duplicados, seis recetas por hueco y modos no válidos. Comprueba también que la antigua API `meal_plans` ya no permita lecturas desde el navegador. Usa la clave pública y las sesiones correspondientes: SQL Editor como administrador omite RLS.

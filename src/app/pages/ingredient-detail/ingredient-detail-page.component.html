@@ -1,7 +1,11 @@
 @if (details$ | async; as details) {
-@if (ingredientService.loading.isLoading('ingredients') || (!ingredientService.loaded() && !ingredientService.error())) {
-  <p class="section-status" role="status">Cargando ingrediente…</p>
-} @else if (ingredientService.error()) {
+@if (details.validId && (ingredientService.loading.isLoading('ingredients') || (!ingredientService.loaded() && !ingredientService.error()))) {
+  <p class="loading-status" role="status">Cargando ingrediente…</p>
+  <article class="ingredient-detail-page" aria-busy="true">
+    <section class="ingredient-detail-card"><app-skeleton class="avatar-skeleton" variant="avatar" /><h1 class="name-skeleton" aria-hidden="true"><app-skeleton variant="title" /></h1><app-skeleton class="category-skeleton" /></section>
+    <section class="ingredient-recipes"><header><h2>Recetas con este ingrediente</h2></header><app-skeleton variant="rows" /></section>
+  </article>
+} @else if (details.validId && ingredientService.error()) {
   <p class="section-status" role="alert">No se pudo cargar el ingrediente. <button type="button" (click)="retryIngredients()">Reintentar</button></p>
 } @else if (details.ingredient; as ingredient) {
     <article class="ingredient-detail-page">
@@ -27,10 +31,11 @@
         </section>
       }
 
-      <section class="ingredient-recipes">
-        <header><h2>Recetas con este ingrediente</h2><span class="recipe-count">{{ details.loading || details.error ? '—' : recipeCountLabel(details.usedIn) }}</span></header>
+      @if (details.loading) { <p class="loading-status" role="status">Cargando recetas relacionadas…</p> }
+      <section class="ingredient-recipes" [attr.aria-busy]="details.loading">
+        <header><h2>Recetas con este ingrediente</h2><span class="recipe-count">@if (details.loading) { <app-skeleton class="count-skeleton" /> } @else { {{ details.error ? '—' : recipeCountLabel(details.usedIn) }} }</span></header>
         @if (details.loading) {
-          <p role="status">Cargando recetas relacionadas…</p>
+          <app-skeleton variant="rows" />
         } @else if (details.error) {
           <p role="alert">No se pudieron cargar las recetas relacionadas. <button type="button" (click)="retry()">Reintentar</button></p>
         } @else if (details.usedIn.length) {

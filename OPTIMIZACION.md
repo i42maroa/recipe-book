@@ -14,6 +14,7 @@ Para las valoraciones parciales, ejecuta también [20261019000200_partial_recipe
 ## Cambios en el frontend
 
 - El guardado completo, incluidas las fotos, se coordina en `RecipeService`. Solo consulta el detalle una vez, al terminar, y emite un único aviso de cambio para que el listado se recargue una vez.
+- Todas las modificaciones de metadatos de fotos, también al añadirlas, pasan por `sync_recipe_photos`: sustitución transaccional y comprobación de versión, sin borrado/restauración desde el navegador.
 - Si no cambian fotos, orden o textos alternativos, no se consulta `recipe_photos`, no se comprueban permisos adicionales para fotos y no se escribe en Storage. Para los cambios reales se conserva la comprobación de permisos y la sincronización.
 - Los contadores solo se consultan al cargar el listado con caché caducada o después de crear, borrar o cambiar el estado pendiente. Cambiar un nombre, una valoración o las fotos no requiere recalcularlos si el estado pendiente no cambia.
 - Detalles completos y contadores se guardan en `CacheService` con claves separadas por proyecto y una caducidad de 60 segundos. `recipeDetailCacheTtlMs` y `recipeStatsCacheTtlMs`, en ambos entornos, permiten ajustar los plazos. Leer la caché no prolonga el plazo.
@@ -71,3 +72,38 @@ Los cambios de fotos añaden las lecturas, escrituras y subidas necesarias. Los 
 ## Validación
 
 `npm run test:optimization` verifica los flujos reales de los servicios con transporte Supabase simulado: número de llamadas, caché, caducidad, deduplicación, guardado, fotos, borrado y reintentos. `npm run build` y `npm run lint` comprueban el frontend. Las pruebas no ejecutan SQL contra Supabase; después de aplicar la migración, confirma la lectura con un visitante y el guardado con un editor autorizado.
+
+## Fotos: borrado y sincronización seguros
+
+Aplica [20261020000300_atomic_recipe_photos.sql](supabase/migrations/20261020000300_atomic_recipe_photos.sql) después de las anteriores y antes de desplegar este frontend. `sync_recipe_photos` bloquea la receta, compara los metadatos actuales con la versión leída y aplica todos los cambios o ninguno. Una edición antigua recibe un conflicto en lugar de sustituir fotos nuevas. Conserva los identificadores de las fotos retenidas. Las funciones usan `SECURITY INVOKER`, RLS y comprobación de editor.
+
+`delete_recipe_with_photos` elimina la receta y registra sus rutas en `recipe_photo_cleanup` dentro de una misma transacción. El cliente solo toca Storage después de recibir la confirmación. La cola conserva los archivos pendientes si Storage falla; `cleanupPending` comparte peticiones simultáneas, comprueba que no existan referencias activas y procesa hasta 100 archivos. Se reintenta en posteriores modificaciones de fotos o borrados de recetas. Los fallos de limpieza se notifican sin presentar el guardado o borrado confirmado como fallido. No se ha añadido una tarea programada de limpieza.
+
+Una respuesta de red perdida puede ocultar una sincronización confirmada. Por ello, después de enviar la RPC no se borran automáticamente las subidas nuevas en caso de error. Esto evita destruir fotos ya referenciadas, aunque pueda dejar archivos huérfanos si la transacción no llegó a confirmarse. Las subidas incompletas anteriores al envío de metadatos sí intentan limpiar sus archivos.
+
+Para ejecutar las nueve pruebas SQL aisladas, instala la dependencia temporal fuera de `package.json` y del lockfile del proyecto:
+
+```powershell
+npm install --prefix .angular/sql-validation --no-save --package-lock=false @electric-sql/pglite
+npm run test:photos:sql
+```
+
+Las pruebas usan las definiciones reales de las tablas y la nueva migración en PostgreSQL/WASM, con identidades y políticas de prueba. Comprueban rollback, reordenación, conflictos, permisos y la cola; no acceden a Supabase remoto ni prueban el servicio Storage real.
+
+## Búsqueda compartida e índice de ingredientes
+
+`search.utils.ts` centraliza la normalización de texto y la espera de búsquedas. `recipe-filters.utils.ts` reúne el flujo de controles y la clave normalizada usada en el listado y en la caché del planner. Se conserva la diferencia de presentación para términos incompletos: el listado mantiene su último criterio válido y el selector retira resultados seleccionables. El selector también evita volver a cargar resultados antiguos durante una búsqueda pendiente.
+
+`IngredientService` reconstruye el índice solo al cambiar el catálogo. `ingredient-search.utils.ts` mantiene los nombres ya normalizados y mapas por ID y nombre; el buscador, los formularios de receta/ingrediente y el catálogo reutilizan ese índice. La exclusión de ingredientes seleccionados utiliza `Set`. `tests/search.test.cjs` verifica los casos con acentos, mayúsculas, términos incompletos, debounces, restablecimiento y selección de etiquetas sin repetir la normalización de cada nombre.
+
+## Catálogo bajo demanda y cancelación del listado
+
+Inyectar `IngredientService` o suscribirse a sus observables no inicia consultas. Los consumidores llaman a `ensureLoaded` cuando necesitan ingredientes; el filtro se crea mediante `@defer` al abrir por primera vez el panel. Cerrarlo conserva su estado. El catálogo resumido incluye solo ID, nombre y categoría y se reutiliza entre filtros, páginas y formularios.
+
+La lectura del catálogo usa lotes de hasta 200 filas con orden estable por ID y un recuento exacto en la primera petición. El offset avanza según las filas recibidas, incluso si la API limita cada respuesta a menos filas. Se publica el conjunto completo una vez terminado. Si falla una página, se conserva el catálogo anterior y se puede reintentar sin validar formularios contra datos parciales. Las cargas concurrentes comparten una promesa; una escritura durante una lectura invalida la respuesta antigua y reinicia la carga.
+
+`ensureDetails(id)` solicita composición y cantidades solo para ese ingrediente, conserva su distinción respecto al catálogo y comparte solicitudes simultáneas. Los detalles y formularios de edición cargan esos datos antes de presentarlos como completos; los formularios conservan cantidades, selecciones y borradores. Los resultados anteriores a una actualización o borrado no pueden recuperar versiones antiguas del ingrediente.
+
+`RecipeListService` crea un `AbortController` por carga. Al cambiar criterios o revisión, o al irse el último suscriptor, aborta la petición y detiene las páginas siguientes de un refresco grande. Las cancelaciones no producen avisos de error ni sustituyen el estado guardado. Una petición ya completada no se aborta. El transporte de `RecipeService.getBatch` recibe la señal tanto para búsquedas normales como por ingredientes.
+
+`tests/ingredients.test.cjs` cubre catálogos mayores de mil elementos, límites de respuesta inferiores al lote solicitado, carga diferida, errores/reintentos, detalles selectivos, peticiones compartidas y escrituras concurrentes. Las pruebas del listado verifican las señales de cancelación, el último suscriptor y el abandono de refrescos por lotes. En Chrome con Supabase simulado se comprobaron cero lecturas de ingredientes con filtros cerrados, tres páginas para 205 ingredientes limitadas a 80 filas por respuesta, reutilización entre pantallas, cantidades al editar una elaboración y cancelación real de una consulta de recetas obsoleta. Estos cambios no requieren una migración nueva.

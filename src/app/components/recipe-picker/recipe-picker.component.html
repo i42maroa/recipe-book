@@ -1,0 +1,23 @@
+<dialog #dialog class="recipe-picker" aria-labelledby="recipe-picker-title" (cancel)="$event.preventDefault(); closed.emit()" (click)="backdrop($event)">
+  <header class="picker-heading"><div><p>AÑADIR AL PLAN</p><h2 id="recipe-picker-title">{{ dayLabel() }} · {{ slotLabel() }}</h2><span>Selecciona una receta para añadirla a este hueco.</span></div><button type="button" class="close" aria-label="Cerrar selector de recetas" (click)="closed.emit()">✕</button></header>
+  <div class="picker-filters">
+    <app-recipe-filters [search]="search" [sort]="sort" [mealType]="mealType" [difficulty]="difficulty" [ingredientIds]="ingredientIds" [(expanded)]="filtersExpanded" />
+  </div>
+  <section class="picker-results" aria-label="Recetas disponibles" [attr.aria-busy]="loading()">
+    @if (loading() && !results().length) { <p class="status" role="status">Cargando recetas…</p> }
+    @else if (error() && !results().length) { <p class="status" role="alert">No se pudieron cargar las recetas. <button type="button" (click)="load()">Reintentar</button></p> }
+    @else {
+      <div class="recipe-grid">
+        @for (recipe of results(); track recipe.id; let index = $index) {
+          <div class="picker-option"><app-recipe-card [recipe]="recipe" [priority]="index < 2" [disabled]="isAdded(recipe.id)" (selected)="select($event)" />
+            @if (isAdded(recipe.id)) { <span class="already-added">Ya añadida a este hueco</span> }
+          </div>
+        }
+        @empty { <p class="status">{{ search.value.trim().length === 1 ? 'Escribe al menos dos letras para buscar.' : 'No hay recetas con estos filtros.' }}</p> }
+      </div>
+      @if (error()) { <p role="alert">No se pudieron cargar más recetas.</p> }
+      @if (results().length < total() || (error() && results().length)) { <button class="load-more" type="button" [disabled]="loading()" (click)="load(true)">{{ loading() ? 'Cargando…' : error() ? 'Reintentar' : 'Cargar más recetas' }}</button> }
+    }
+  </section>
+  <footer>{{ results().length }} de {{ total() }} recetas</footer>
+</dialog>

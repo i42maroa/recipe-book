@@ -16,6 +16,9 @@
       <a class="nav-item" routerLink="/ingredients" routerLinkActive="active">
         <app-icon class="nav-icon" name="ingredients" /> Ingredientes
       </a>
+      @if (auth.user() && auth.canEdit()) {
+        <a class="nav-item" routerLink="/planner" routerLinkActive="active"><app-icon class="nav-icon" name="recipes" /> Planificación</a>
+      }
     </nav>
     @if (auth.canEdit()) {
       @if (detail(); as current) {

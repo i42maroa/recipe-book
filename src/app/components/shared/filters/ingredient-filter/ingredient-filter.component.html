@@ -1,0 +1,26 @@
+<div class="ingredient-filter">
+  <app-search-filter placeholder="Añade un ingrediente…" ariaLabel="Buscar ingredientes para filtrar recetas" [formControl]="search" />
+  @if (ingredients.loading.isLoading('ingredients')) {
+    <p role="status">Cargando ingredientes…</p>
+  } @else if (ingredients.error()) {
+    <p role="alert">No se pudieron cargar los ingredientes. <button type="button" (click)="retry()">Reintentar</button></p>
+  } @else if (searching()) {
+    <div class="ingredient-results" aria-label="Ingredientes disponibles">
+      @for (ingredient of results(); track ingredient.id) {
+        <button class="ingredient-option" type="button" [attr.aria-label]="'Añadir ' + ingredient.name" (click)="add(ingredient.id)">{{ ingredient.name }} <app-icon name="plus" /></button>
+      } @empty {
+        <p role="status">No hay ingredientes disponibles que coincidan.</p>
+      }
+    </div>
+  }
+  @if (selectedIds().length) {
+    <div class="ingredient-tags" aria-label="Ingredientes seleccionados">
+      @for (ingredient of selected(); track ingredient.id) {
+        <button type="button" class="ingredient-tag" [attr.aria-label]="'Quitar ' + ingredient.name" (click)="remove(ingredient.id)">{{ ingredient.name }} <app-icon name="close" /></button>
+      }
+    </div>
+    <p>Con al menos uno de estos ingredientes. Primero, las recetas con más coincidencias.</p>
+  } @else {
+    <p>Escribe al menos 2 caracteres y selecciona los ingredientes.</p>
+  }
+</div>

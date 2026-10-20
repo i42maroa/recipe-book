@@ -1,8 +1,9 @@
 import { Injectable, inject } from '@angular/core';
-import { EMPTY, BehaviorSubject, Subject, catchError, combineLatest, exhaustMap, from, map, of, shareReplay, startWith, switchMap, tap } from 'rxjs';
+import { EMPTY, BehaviorSubject, Subject, catchError, combineLatest, defer, exhaustMap, finalize, from, map, of, shareReplay, startWith, switchMap, tap } from 'rxjs';
 import { RecipeCard } from '../models/recipe-card.model';
 import { RecipeBatch, RecipeFilters, RecipeService } from './recipe.service';
 import { NotificationService } from './notification.service';
+import { recipeFilterKey } from '../utils/recipe-filters.utils';
 
 export interface RecipeListPage {
   items: RecipeCard[];
@@ -32,12 +33,12 @@ export class RecipeListService {
   filtersExpanded = false;
   scrollPosition: [number, number] = [0, 0];
 
-  get filters(): RecipeFilters { return { ...this.filtersSubject.value }; }
+  get filters(): RecipeFilters { return { ...this.filtersSubject.value, ingredientIds: [...(this.filtersSubject.value.ingredientIds ?? [])] }; }
 
   setFilters(filters: RecipeFilters): void {
     if (this.sameFilters(this.filtersSubject.value, filters)) return;
     this.scrollPosition = [0, 0];
-    this.filtersSubject.next({ ...filters });
+    this.filtersSubject.next({ ...filters, ingredientIds: [...(filters.ingredientIds ?? [])] });
   }
 
   loadMore(): void { this.requests.next(); }
@@ -56,8 +57,13 @@ export class RecipeListService {
           if (reuse) { reuse = false; return of(state); }
           if (!refresh && state.nextOffset >= state.total) return EMPTY;
           const replacing = refresh;
-          const request = replacing ? this.loadWindow(filters, windowSize) : this.recipes.getBatch(filters, state.nextOffset, 10);
-          return from(request).pipe(
+          return defer(() => {
+            const controller = new AbortController();
+            let settled = false;
+            const request = (replacing ? this.loadWindow(filters, windowSize, controller.signal)
+              : this.recipes.getBatch(filters, state.nextOffset, 10, controller.signal)).finally(() => { settled = true; });
+            return from(request).pipe(finalize(() => { if (!settled) controller.abort(); }));
+          }).pipe(
             map((result) => {
               const items = new Map((replacing ? [] : state.items).map((recipe) => [recipe.id, recipe]));
               for (const recipe of result.items) items.set(recipe.id, recipe);
@@ -82,15 +88,17 @@ export class RecipeListService {
   );
 
   private sameFilters(a: RecipeFilters, b: RecipeFilters): boolean {
-    return a.search === b.search && a.pending === b.pending && a.sort === b.sort && a.mealType === b.mealType && a.difficulty === b.difficulty;
+    return recipeFilterKey(a) === recipeFilterKey(b);
   }
 
-  private async loadWindow(filters: RecipeFilters, target: number): Promise<RecipeBatch> {
+  private async loadWindow(filters: RecipeFilters, target: number, signal: AbortSignal): Promise<RecipeBatch> {
     const items: RecipeCard[] = [];
     let total = target;
     // Small windows use one call; larger ones respect the API's response limits.
     do {
-      const batch = await this.recipes.getBatch(filters, items.length, Math.min(100, target - items.length));
+      signal.throwIfAborted();
+      const batch = await this.recipes.getBatch(filters, items.length, Math.min(100, target - items.length), signal);
+      signal.throwIfAborted();
       total = batch.total;
       items.push(...batch.items);
       if (!batch.items.length) break;

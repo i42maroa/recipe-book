@@ -6,6 +6,38 @@ const id = '67c2c188-5725-471f-8bac-74d81adfad96';
 const base = { name: 'Arroz', minutes: 20, servings: 2, pending: true, mealTypes: ['Plato'], rating: null, sourceUrl: '', annotations: '', fitness: false, steps: ['Cocinar'], ingredientIds: ['ingredient'], ingredientAmounts: {}, cuisineTypes: [], photos: [] };
 const photo = { id: 'photo-1', storagePath: `${id}/one.jpg`, url: 'https://storage/one.jpg', position: 1, altText: 'Foto de arroz' };
 const filters = { search: '', pending: 'all', sort: 'recent', mealType: '', difficulty: '' };
+
+test('ingredient search preserves server ranking, pagination, other filters and cancellation', async () => {
+  const calls = [];
+  const signal = new AbortController().signal;
+  const builder = {
+    select(value) { assert.ok(value.includes('recipe_ingredients(count)')); return this; },
+    returns() { return this; },
+    ilike(...args) { calls.push(['ilike', ...args]); return this; },
+    eq(...args) { calls.push(['eq', ...args]); return this; },
+    contains(...args) { calls.push(['contains', ...args]); return this; },
+    abortSignal(value) { assert.equal(value, signal); return this; },
+    range(...args) { calls.push(['range', ...args]); return this; },
+    order() { assert.fail('The client must preserve the ranking returned by SQL'); },
+    then(resolve) { resolve({ data: [], count: 25, error: null }); },
+  };
+  const client = {
+    rpc(name, args, options) { calls.push(['rpc', name, args, options]); return builder; },
+    from() { assert.fail('Ingredient filtering must happen on the server before pagination'); },
+  };
+  const { RecipeService } = loadService('src/app/services/recipe.service.ts', {}, {}, {
+    '../../environments/environment': { environment: { supabaseUrl: 'test' } },
+    '../utils/search.utils': { MIN_SEARCH_LENGTH: 2 },
+  });
+  const service = new RecipeService({ configured: true, requireClient: () => client }, {}, {});
+  const batch = await service.getBatch({ ...filters, ingredientIds: ['tomato', 'lettuce', 'tomato'], sort: 'rating', search: '100%', pending: 'pending', mealType: 'Plato', difficulty: 'Fácil' }, 20, 10, signal);
+  assert.equal(batch.total, 25);
+  assert.equal(batch.offset, 20);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
+    ['rpc', 'search_recipes_by_ingredients', { p_ingredient_ids: ['tomato', 'lettuce'], p_sort: 'rating' }, { count: 'exact' }],
+    ['ilike', 'name', '%100\\%%'], ['eq', 'pending', true], ['contains', 'meal_types', ['Plato']], ['eq', 'difficulty', 'Fácil'], ['range', 20, 29],
+  ]);
+});
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const deferred = () => { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; };
 
@@ -18,6 +50,7 @@ function setup() {
   const { CacheService } = loadService('src/app/services/cache.service.ts', { DOCUMENT: { defaultView: { localStorage: memoryStorage() } } }, { Date: Clock });
   const cache = new CacheService();
   const state = { calls: [], lastPattern: null, lastRatingArgs: null, allowEdit: true, failRate: false, rows: new Map([[id, clone(base)]]), photos: new Map([[id, []]]), nextRead: null, nextBatch: null, nextStats: null, failUpload: false, failStats: false, failSave: false };
+  Object.assign(state, { cleanup: new Set(), removedPaths: [], failDelete: false, failPhotoSync: false, lostPhotoReply: false, failCleanup: false });
   const notifications = { errors: [], success() {}, error(message) { this.errors.push(message); } };
   const auth = { canEdit: () => true, requireEditor: async () => { state.calls.push('permission'); if (!state.allowEdit) throw Error('Not allowed'); } };
   function row(recipeId) {
@@ -31,6 +64,21 @@ function setup() {
   const client = {
     rpc: async (name, args) => {
       state.calls.push(name);
+      if (name === 'delete_recipe_with_photos') {
+        if (state.failDelete) return { error: Error('Delete rejected') };
+        for (const photo of state.photos.get(args.p_id) ?? []) state.cleanup.add(photo.storage_path);
+        state.rows.delete(args.p_id); state.photos.delete(args.p_id);
+        return { data: args.p_id, error: null };
+      }
+      if (name === 'sync_recipe_photos') {
+        if (state.missingPhotoRpc) return { error: { code: 'PGRST202', message: 'Could not find the function public.sync_recipe_photos in the schema cache' } };
+        if (state.failPhotoSync) return { error: Error('Photo transaction rejected') };
+        const previous = state.photos.get(args.p_recipe_id) ?? [];
+        const retained = new Set(args.p_photos.map(photo => photo.storage_path));
+        for (const photo of previous) if (!retained.has(photo.storage_path)) state.cleanup.add(photo.storage_path);
+        state.photos.set(args.p_recipe_id, clone(args.p_photos).map((photo, index) => ({ ...photo, id: photo.id ?? `added-photo-${index}` })));
+        return state.lostPhotoReply ? { error: Error('Response lost after commit') } : { data: null, error: null };
+      }
       if (name === 'get_recipe_stats' && state.nextStats) { const next = state.nextStats; state.nextStats = null; return next(); }
       if (name === 'get_recipe_stats') return state.failStats ? { error: Error('Counters unavailable') } : { data: [{ total: state.rows.size, pending: [...state.rows.values()].filter((recipe) => recipe.pending).length }], error: null };
       if (name === 'rate_recipe') {
@@ -52,16 +100,21 @@ function setup() {
       return { data: [{ id: savedId, stats_changed: changed }], error: null };
     },
     from: (table) => {
-      let recordId, deletion = false, inserts, selection;
+      let recordId, deletion = false, inserts, selection, selectedIds, selectedPaths;
       const builder = {
         select(value) { selection = value; return this; }, eq(_field, value) { recordId = value; return this; }, returns() { return this; },
-        order() { return this; }, range() { return this; },
+        in(field, values) { if (field === 'storage_path') { selectedPaths = values; return this; } assert.equal(field, 'id'); selectedIds = values; state.lastCardIds = values; return this; },
+        order() { return this; }, range() { return this; }, limit() { return this; },
         ilike(field, pattern) { assert.equal(field, 'name'); state.lastPattern = pattern; return this; },
         delete() { deletion = true; return this; }, insert(values) { inserts = values; return this; },
         maybeSingle() { return run(true); }, then(resolve, reject) { return run(false).then(resolve, reject); },
       };
       async function run(single) {
         state.calls.push(`${table}:${deletion ? 'delete' : inserts ? 'insert' : single ? 'detail' : recordId ? 'read' : 'batch'}`);
+        if (table === 'recipe_photo_cleanup') {
+          if (deletion) for (const path of selectedPaths ?? []) state.cleanup.delete(path);
+          return { data: [...state.cleanup].slice(0, 100).map(storage_path => ({ storage_path })), error: null };
+        }
         if (table === 'recipes') {
           if (deletion) {
             const existed = state.rows.delete(recordId);
@@ -73,9 +126,10 @@ function setup() {
             assert.ok(selection.includes('recipe_ingredients(count)'));
             for (const field of ['recipe_steps', 'amount_value', 'annotations', 'source_url']) assert.ok(!selection.includes(field));
           }
-          return { data: single ? row(recordId) : [...state.rows.keys()].map((id) => ({ ...row(id), recipe_ingredients: [{ count: state.rows.get(id).ingredientIds.length }] })), count: state.rows.size, error: null };
+          return { data: single ? row(recordId) : [...state.rows.keys()].filter(id => !selectedIds || selectedIds.includes(id)).map((id) => ({ ...row(id), recipe_ingredients: [{ count: state.rows.get(id).ingredientIds.length }] })), count: state.rows.size, error: null };
         }
         assert.equal(table, 'recipe_photos');
+        if (selectedPaths) return { data: [...state.photos.values()].flat().filter(photo => selectedPaths.includes(photo.storage_path)), error: null };
         if (deletion) state.photos.set(recordId, []);
         else if (inserts) for (const value of inserts) {
           const previous = state.photos.get(value.recipe_id) ?? [];
@@ -88,11 +142,11 @@ function setup() {
     storage: { from: () => ({
       getPublicUrl: (key) => ({ data: { publicUrl: `https://storage/${key}` } }),
       upload: async () => { state.calls.push('storage:upload'); return { error: state.failUpload ? Error('Upload failed') : null }; },
-      remove: async () => { state.calls.push('storage:remove'); return { error: null }; },
+      remove: async (paths) => { state.calls.push('storage:remove'); if (state.failCleanup) return { error: Error('Storage unavailable') }; state.removedPaths.push(...paths); return { error: null }; },
     }) },
   };
   const supabase = { configured: true, requireClient: () => client };
-  const { RecipePhotoService } = loadService('src/app/services/recipe-photo.service.ts', { AuthService: auth }, { crypto: require('node:crypto').webcrypto }, { '../utils/photo-upload.utils': photoUtils });
+  const { RecipePhotoService } = loadService('src/app/services/recipe-photo.service.ts', { AuthService: auth, NotificationService: notifications }, { crypto: require('node:crypto').webcrypto }, { '../utils/photo-upload.utils': photoUtils });
   const photoService = new RecipePhotoService(supabase);
   const { RecipeService, RecipeSaveError } = loadService('src/app/services/recipe.service.ts', { AuthService: auth, CacheService: cache, LoadingService: new LoadingService() }, {}, {
     '../../environments/environment': { environment: { supabaseUrl: 'https://test.supabase.co', recipeDetailCacheTtlMs: 60000, recipeStatsCacheTtlMs: 60000 } },
@@ -146,6 +200,37 @@ test('cards contain summary data and never seed the full detail cache', async ()
   assert.equal(recipe.steps[0], 'Cocinar');
 });
 
+test('selected recipe IDs load complete listing cards with photos and counts without detail requests', async () => {
+  const { service, state, clear } = setup();
+  state.rows.set('other-recipe', clone(base));
+  state.photos.set(id, [{ id: photo.id, storage_path: photo.storagePath, position: 1, alt_text: 'Foto de arroz' }]);
+  clear();
+  const cards = await service.getCardsByIds([id, id]);
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0].id, id);
+  assert.equal(cards[0].ingredientCount, 1);
+  assert.equal(cards[0].minutes, 20);
+  assert.equal(cards[0].servings, 2);
+  assert.equal(cards[0].pending, true);
+  assert.equal(cards[0].photos[0].url, 'https://storage/' + photo.storagePath);
+  assert.equal(state.lastCardIds.length, 1);
+  assert.deepEqual(state.calls, ['recipes:batch']);
+  assert.equal(service.getById(id), undefined);
+  await service.loadRecipe(id);
+  assert.equal(state.calls.at(-1), 'recipes:detail');
+});
+
+test('empty or deleted card selections do not load unrelated recipes, and failed selections can be retried', async () => {
+  const { service, state, clear } = setup();
+  clear();
+  assert.equal((await service.getCardsByIds([])).length, 0);
+  assert.equal(state.calls.length, 0);
+  assert.equal((await service.getCardsByIds(['deleted-recipe'])).length, 0);
+  state.nextBatch = async () => ({ data: null, error: Error('Offline') });
+  await assert.rejects(service.getCardsByIds([id]), /Offline/);
+  assert.equal((await service.getCardsByIds([id])).length, 1);
+});
+
 test('stats use one aggregate call, cache it and deduplicate concurrent refreshes', async () => {
   const { service, state, clear, advance } = setup();
   await Promise.all([service.loadStats(), service.loadStats()]);
@@ -184,6 +269,97 @@ test('a late response cannot resurrect a deleted recipe and deletion does not re
   assert.equal(service.getById(id), undefined);
   assert.equal(state.calls.filter((call) => call === 'recipes:detail').length, 0);
   assert.equal(state.calls.filter((call) => call === 'get_recipe_stats').length, 1);
+});
+
+test('a rejected deletion preserves recipe, photo metadata, files and cache', async () => {
+  const { service, state, clear } = setup();
+  state.photos.set(id, [{ id: photo.id, storage_path: photo.storagePath, position: 1, alt_text: photo.altText }]);
+  await service.loadRecipe(id); clear();
+  state.failDelete = true;
+  await assert.rejects(service.remove(id), /Delete rejected/);
+  assert.equal(state.rows.has(id), true);
+  assert.equal(state.photos.get(id).length, 1);
+  assert.equal(state.cleanup.size, 0);
+  assert.equal(state.removedPaths.length, 0);
+  assert.equal(service.getById(id).photos.length, 1);
+  assert.deepEqual(state.calls, ['permission', 'delete_recipe_with_photos']);
+});
+
+test('deletion commits before file cleanup and cleanup failures remain retryable', async () => {
+  const { service, photoService, state, notifications } = setup();
+  state.photos.set(id, [{ id: photo.id, storage_path: photo.storagePath, position: 1, alt_text: photo.altText }]);
+  state.failCleanup = true;
+  await service.remove(id);
+  assert.equal(state.rows.has(id), false);
+  assert.equal(state.cleanup.has(photo.storagePath), true);
+  assert.equal(state.removedPaths.length, 0);
+  assert.ok(notifications.errors.some(message => message.includes('receta se ha eliminado')));
+  assert.ok(state.calls.indexOf('delete_recipe_with_photos') < state.calls.indexOf('storage:remove'));
+  state.failCleanup = false;
+  assert.equal(await photoService.cleanupPending(), true);
+  assert.deepEqual(state.removedPaths, [photo.storagePath]);
+  assert.equal(state.cleanup.size, 0);
+});
+
+test('rejected photo transactions leave the original metadata and files intact', async () => {
+  const { photoService, state } = setup();
+  const original = [{ id: photo.id, storage_path: photo.storagePath, position: 1, alt_text: photo.altText }];
+  state.photos.set(id, clone(original)); state.failPhotoSync = true;
+  await assert.rejects(photoService.sync(id, [], []), /Photo transaction rejected/);
+  assert.deepEqual(state.photos.get(id), original);
+  assert.equal(state.removedPaths.length, 0);
+  assert.equal(state.calls.includes('recipe_photos:delete'), false);
+});
+
+test('losing a photo transaction response never deletes potentially committed uploads', async () => {
+  const { photoService, state } = setup();
+  state.lostPhotoReply = true;
+  const file = new File(['image'], 'image.webp', { type: 'image/webp' });
+  await assert.rejects(photoService.sync(id, [], [file]), /Response lost/);
+  assert.equal(state.photos.get(id).length, 1);
+  assert.equal(state.calls.includes('storage:remove'), false);
+});
+
+test('a missing photo migration reports the committed recipe, cleans rejected uploads and retries without duplicates', async () => {
+  const { forms, state, notifications } = setup();
+  let dialog; forms.dialog$.subscribe(value => { dialog = value; });
+  const file = new File(['image'], 'image.webp', { type: 'image/webp' });
+  const value = { ...base, pending: 'yes', photos: [], photoFiles: [file] };
+  forms.openForm('recipe'); state.missingPhotoRpc = true;
+  await forms.saveRecipe(value);
+  assert.equal(state.rows.size, 2);
+  assert.equal(dialog.recipeToEdit.id, 'new-recipe');
+  assert.equal(state.removedPaths.length, 1);
+  assert.ok(notifications.errors.some(message => message.includes('La receta ya está guardada.') && message.includes('20261020000300_atomic_recipe_photos.sql')), JSON.stringify(notifications.errors));
+  state.missingPhotoRpc = false;
+  await forms.saveRecipe(value);
+  assert.equal(dialog, null);
+  assert.equal(state.rows.size, 2);
+  assert.equal(state.photos.get('new-recipe').length, 1);
+  assert.equal(state.removedPaths.length, 1);
+});
+
+test('photo replacement succeeds even if old file cleanup fails, and retries safely', async () => {
+  const { photoService, state } = setup();
+  state.photos.set(id, [{ id: photo.id, storage_path: photo.storagePath, position: 1, alt_text: photo.altText }]);
+  state.failCleanup = true;
+  await photoService.sync(id, [], []);
+  assert.deepEqual(state.photos.get(id), []);
+  assert.equal(state.cleanup.has(photo.storagePath), true);
+  state.failCleanup = false;
+  assert.equal(await photoService.cleanupPending(), true);
+  assert.equal(state.cleanup.size, 0);
+});
+
+test('cleanup protects referenced files and shares concurrent cleanup requests', async () => {
+  const { photoService, state } = setup();
+  state.photos.set(id, [{ storage_path: photo.storagePath }]);
+  state.cleanup.add(photo.storagePath);
+  const first = photoService.cleanupPending(), second = photoService.cleanupPending();
+  assert.equal(first, second);
+  assert.equal(await first, false);
+  assert.equal(state.removedPaths.length, 0);
+  assert.equal(state.cleanup.has(photo.storagePath), true);
 });
 
 test('a stale list response cannot overwrite the detail cached by a completed save', async () => {
@@ -233,7 +409,7 @@ test('changing photo order still updates metadata and performs just one final de
   await service.loadRecipe(id); clear();
   await service.update(id, base, { originalPhotos: [photo, second], retainedPhotos: [second, photo], files: [] });
   assert.equal(state.calls.filter((call) => call === 'recipes:detail').length, 1);
-  assert.equal(state.calls.filter((call) => call === 'recipe_photos:insert').length, 1);
+  assert.equal(state.calls.filter((call) => call === 'sync_recipe_photos').length, 1);
   assert.equal(service.getById(id).photos[0].id, 'photo-2');
 });
 

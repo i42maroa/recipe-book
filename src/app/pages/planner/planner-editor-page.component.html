@@ -1,0 +1,66 @@
+<section class="planner-page">
+  <header class="heading"><div><p class="eyebrow">TU COCINA, A TU RITMO</p><h1>{{ todayOnly ? 'Planificación del día' : 'Planificación semanal' }}</h1>@if (!todayOnly) { <p>Organiza los próximos siete días y guarda las comidas de cada día.</p> }</div></header>
+  @if (!todayOnly) {
+    <div class="week-navigation" aria-label="Navegar por bloques de siete días"><button type="button" aria-label="Ver los siete días anteriores" title="Siete días anteriores" [disabled]="busy() || loading()" (click)="moveWeek(-1)">←</button><p>{{ periodLabel() }}</p><button type="button" aria-label="Ver los siete días siguientes" title="Siete días siguientes" [disabled]="busy() || loading()" (click)="moveWeek(1)">→</button></div>
+  }
+  @if (error() && !loading()) { <div class="notice" role="alert">No se pudieron cargar las comidas. <button type="button" (click)="load()">Reintentar</button></div> }
+  @else {
+    @if (loading()) { <p class="sr-only" role="status">{{ todayOnly ? 'Cargando las comidas de hoy…' : 'Cargando las comidas de los siete días…' }}</p> }
+    @if (picker(); as target) { <app-recipe-picker [dayLabel]="target.label" [slotLabel]="slotLabel(target.slot)" [excludedRecipeIds]="recipeIdsForSlot(target.date, target.slot)" (selected)="add($event)" (closed)="closePicker()" /> }
+    <fieldset class="calendar" [disabled]="busy() || loading()" [attr.aria-busy]="busy() || loading()"><legend class="sr-only">{{ todayOnly ? 'Comidas de hoy' : 'Comidas de los siete días' }}</legend>
+      @if (!todayOnly) {
+      <nav class="week-days" aria-label="Días de la semana">
+        @for (day of days(); track day.date) { <button type="button" [class.today]="day.date === today" [attr.aria-current]="day.date === today ? 'date' : null" (click)="goToDay(day.offset)">{{ day.shortLabel }}@if (loading()) { <span class="skeleton skeleton-count" aria-hidden="true"></span> } @else { <span>{{ dayRecipeCount(day.date) }} {{ dayRecipeCount(day.date) === 1 ? 'receta' : 'recetas' }}</span> }</button> }
+      </nav>
+      }
+      @for (day of days(); track day.date) {
+        <section class="day" [id]="'scheduled-day-' + day.offset">
+          <header class="day-heading"><h2>{{ day.label }}</h2>
+            @if (loading()) { <button class="loading-add" type="button" disabled [attr.aria-label]="'Añadir comida al ' + day.label">+</button> }
+            @else {
+            <details class="meal-actions header-actions"><summary [id]="'day-add-' + day.date" [attr.aria-label]="'Añadir comida al ' + day.label">+</summary>
+              <div class="meal-menu">@for (slot of slots; track slot.id) { <button type="button" [disabled]="busy() || forSlot(day.date, slot.id).length >= 5" (click)="choose(day.date, slot.id)">{{ slot.label }}<small>{{ forSlot(day.date, slot.id).length }}/5</small></button> }</div>
+            </details>
+            }
+          </header>
+          <div class="meals">
+            @if (loading()) {
+              @for (slot of slots; track slot.id) {
+                <section class="meal" [attr.aria-label]="day.label + ', ' + slot.label">
+                  <div class="meal-heading"><h3>{{ slot.label }}</h3></div>
+                  <div class="meal-entries" aria-hidden="true"><div class="entry loading-entry"><span class="skeleton skeleton-title"></span><span class="skeleton skeleton-meta"></span></div></div>
+                </section>
+              }
+            }
+            @else {
+            @for (slot of slots; track slot.id) {
+              @if (forSlot(day.date, slot.id).length) {
+                <section class="meal" [attr.aria-label]="day.label + ', ' + slot.label">
+                  <div class="meal-heading"><h3>{{ slot.label }}</h3><button type="button" class="slot-add" [disabled]="busy() || forSlot(day.date, slot.id).length >= 5" [attr.aria-label]="'Añadir receta a ' + slot.label" (click)="choose(day.date, slot.id)">+ <small>{{ forSlot(day.date, slot.id).length }}/5</small></button></div>
+                  <div class="meal-entries">
+                    @for (entry of forSlot(day.date, slot.id); track entry.key) {
+                      <article class="entry">
+                        @if (recipe(entry); as recipe) {
+                          <a class="entry-title" [routerLink]="['/recipes', recipe.id]" [queryParams]="recipeQueryParams()">{{ recipe.name }}</a>
+                          <div class="entry-meta"><span class="entry-servings" [attr.aria-label]="recipe.servings ? recipe.servings + ' comensales' : 'Sin comensales indicados'"><app-icon name="person" /> {{ recipe.servings ?? '—' }}</span><span class="entry-types">{{ recipe.mealTypes.join(' · ') || 'Sin tipo de plato' }}</span>@if (recipe.pending) { <span class="entry-new">Nueva</span> }</div>
+                          @if (recipe.servings !== mealServings(day.date, slot.id)) {
+                            <label>Preparación<select [formControl]="entry.control" (change)="markDirty(day.date)" [attr.aria-label]="'Preparación de ' + recipe.name"><option value="scale">Ajustar proporción</option><option value="leftovers">Receta completa y sobras</option></select></label><p class="portion">{{ summary(entry) }}</p>
+                          }
+                        } @else { <strong class="entry-title">Receta no disponible</strong> }
+                        <button class="entry-remove" type="button" [disabled]="busy()" [attr.aria-label]="'Quitar ' + (recipe(entry)?.name ?? 'receta no disponible') + ' de esta comida'" title="Quitar receta" (click)="removeEntry(entry)"><app-icon name="close" /></button>
+                      </article>
+                    }
+                  </div>
+                </section>
+              }
+            }
+            }
+          </div>
+          @if (!loading() && dirtyDates().has(day.date)) {
+            <footer class="day-save"><p role="status">Cambios sin guardar.</p><button class="primary" type="button" [disabled]="busy()" (click)="saveDay(day.date)">{{ savingDate() === day.date ? 'Guardando…' : 'Guardar' }}</button></footer>
+          }
+        </section>
+      }
+    </fieldset>
+  }
+</section>

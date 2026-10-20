@@ -13,7 +13,7 @@ export function groupIngredients(ingredients: Ingredient[], categoryOrder?: Ingr
   });
 }
 
-export function selectedIngredients(ingredients: Ingredient[], ids: string[]): Ingredient[] {
-  const byId = new Map(ingredients.map((ingredient) => [ingredient.id, ingredient]));
+export function selectedIngredients(ingredients: Ingredient[] | Map<string, Ingredient>, ids: string[]): Ingredient[] {
+  const byId = Array.isArray(ingredients) ? new Map(ingredients.map((ingredient) => [ingredient.id, ingredient])) : ingredients;
   return ids.map((id) => byId.get(id)).filter((ingredient): ingredient is Ingredient => ingredient !== undefined);
 }

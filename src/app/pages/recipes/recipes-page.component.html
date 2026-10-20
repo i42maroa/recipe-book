@@ -10,37 +10,35 @@
   }
 
   <div class="recipe-stats" [attr.aria-busy]="loading.isLoading('recipe-stats')">
-    <article><span class="stat-icon stat-green"><app-icon name="recipes" /></span><div><strong>{{ loading.isLoading('recipe-stats') || statsError() ? '—' : (recipeCount$ | async) }}</strong><small>Recetas guardadas</small></div></article>
-    <article class="pending-stat" role="button" tabindex="0" (click)="showPendingRecipes()" (keydown.enter)="showPendingRecipes()" (keydown.space)="$event.preventDefault(); showPendingRecipes()" aria-label="Filtrar las recetas por probar"><span class="stat-icon stat-peach"><app-icon name="pending" /></span><div><strong>{{ loading.isLoading('recipe-stats') || statsError() ? '—' : (pendingCount$ | async) }}</strong><small>Por probar</small></div></article>
+    <article class="saved-stat" role="button" tabindex="0" (click)="showAllRecipes()" (keydown.enter)="showAllRecipes()" (keydown.space)="$event.preventDefault(); showAllRecipes()" aria-label="Mostrar todas las recetas"><span class="stat-icon stat-green"><app-icon name="recipes" /></span><div>@if (loading.isLoading('recipe-stats')) { <app-skeleton class="stat-skeleton" variant="title" /> } @else { <strong>{{ statsError() ? '—' : (recipeCount$ | async) }}</strong> }<small>Recetas guardadas</small></div></article>
+    <article class="pending-stat" [attr.aria-pressed]="pendingOnly.value" role="button" tabindex="0" (click)="showPendingRecipes()" (keydown.enter)="showPendingRecipes()" (keydown.space)="$event.preventDefault(); showPendingRecipes()" aria-label="Filtrar las recetas por probar"><span class="stat-icon stat-peach"><app-icon name="pending" /></span><div>@if (loading.isLoading('recipe-stats')) { <app-skeleton class="stat-skeleton" variant="title" /> } @else { <strong>{{ statsError() ? '—' : (pendingCount$ | async) }}</strong> }<small>Por probar</small></div></article>
   </div>
+  @if (loading.isLoading('recipe-stats')) { <p class="loading-status" role="status">Cargando los contadores de recetas…</p> }
 
   @if (statsError()) { <p role="alert">No se pudieron cargar los contadores. <button type="button" (click)="retryStats()">Reintentar</button></p> }
   <div class="recipe-list-header">
     <h2>Tu colección</h2>     
   </div>
 
-<div class="recipe-controls">
-  <app-search-filter placeholder="Busca por nombre de receta…" ariaLabel="Buscar recetas por nombre" [formControl]="search"></app-search-filter>
-  <button class="recipe-filter-toggle" type="button" [attr.aria-expanded]="filtersExpanded" aria-controls="recipe-extra-filters" (click)="filtersExpanded = !filtersExpanded">Filtros <app-icon name="chevron-down" [class.expanded]="filtersExpanded" /></button>
-  <div id="recipe-extra-filters" class="recipe-extra-filters" [class.expanded]="filtersExpanded">
-  <app-select-filter label="Estado" filterType="status" [options]="statusOptions" [formControl]="pendingFilter"></app-select-filter>
-  <app-select-filter label="Orden" filterType="order" [options]="sortOptions" [formControl]="sortFilter"></app-select-filter>
-  <app-select-filter label="Tipo de plato" filterType="meal-type" [options]="mealTypeOptions" [formControl]="mealTypeFilter"></app-select-filter>
-  <app-select-filter label="Dificultad" filterType="difficulty" [options]="difficultyOptions" [formControl]="difficultyFilter"></app-select-filter>
-  </div>
-</div>
+  <app-recipe-filters [search]="search" [sort]="sortFilter" [mealType]="mealTypeFilter" [difficulty]="difficultyFilter" [ingredientIds]="ingredientFilter" [(expanded)]="filtersExpanded" />
 
   @if (page$ | async; as page) {
-  @if (page.loading && page.items.length === 0) {
-    <div class="section-status" role="status">Cargando recetas…</div>
-  } @else if (page.error && page.items.length === 0) {
-    <div class="empty-state"><p>No se pudieron cargar las recetas.</p><app-button (clicked)="loadMore()">Reintentar</app-button></div>
+  @if (page.error && page.items.length === 0) {
+    <div class="empty-state" role="alert"><p>No se pudieron cargar las recetas.</p><app-button (clicked)="loadMore()">Reintentar</app-button></div>
   } @else {
+  @if (page.loading) { <p class="loading-status" role="status">Cargando recetas…</p> }
   <div class="recipe-grid" [attr.aria-busy]="page.loading" id="recipe-results">
     @for (recipe of page.items; track recipe.id; let index = $index) {
       <app-recipe-card [recipe]="recipe" [priority]="index < 2" (selected)="showRecipe($event)"></app-recipe-card>
-    } @empty {
+    }
+    @if (page.loading) {
+      @for (placeholder of [0, 1, 2, 3, 4, 5]; track placeholder) { <app-skeleton variant="recipe-card" /> }
+    } @else if (!page.items.length) {
+      @if (hasFilters) {
+        <div class="empty-state"><app-icon class="empty-state-icon" name="search" /><h3>No hay recetas que coincidan</h3><p>Prueba con otros ingredientes o cambia los filtros.</p></div>
+      } @else {
       <div class="empty-state"><app-icon class="empty-state-icon" name="sparkle" /><h3>Aún no hay recetas por aquí</h3><p>Guarda tu primera receta y empieza a llenar tu recetario.</p>@if (auth.canEdit()) { <app-button class="empty-add-recipe" (clicked)="forms.openForm('recipe')">Añadir receta</app-button> }</div>
+      }
     }
   </div>
   @if (page.items.length > 0) {

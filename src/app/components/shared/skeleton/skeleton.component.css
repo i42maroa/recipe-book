@@ -1,0 +1,27 @@
+:host { display: block; min-width: 0; width: 100%; }
+.block { display: block; position: relative; overflow: hidden; height: 12px; border-radius: 5px; background: var(--color-border); }
+.block::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, var(--color-surface), transparent); transform: translateX(-100%); animation: skeleton-shimmer 1.6s ease-in-out infinite; }
+.text { width: 75%; }
+.short { width: 35%; height: 10px; }
+.title { width: 100%; height: 28px; }
+.avatar { width: 84px; height: 84px; border-radius: 24px; }
+.hero { width: 100%; height: 260px; border-radius: 10px; }
+.card { overflow: hidden; border: 1px solid var(--color-border); border-radius: 7px; background: var(--color-surface); }
+.photo { height: 138px; border-radius: 0; }
+.card-content { display: grid; gap: 14px; padding: 15px 14px; }
+.card-content .title { width: 70%; height: 40px; }
+.meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 4px; }
+.ingredient-card { display: flex; align-items: center; gap: 11px; padding: 13px; }
+.icon { width: 39px; height: 39px; flex-shrink: 0; border-radius: 9px; }
+.ingredient-copy { display: grid; flex: 1; min-width: 0; gap: 8px; }
+.ingredient-copy .text { width: 90%; }
+.ingredient-copy .short { width: 60%; height: 9px; }
+.rows { display: grid; gap: 12px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 32px; }
+.row .text { width: 60%; }
+.row .short { width: 15%; }
+.paragraph { display: grid; gap: 12px; padding: 8px 0; }
+@keyframes skeleton-shimmer { to { transform: translateX(100%); } }
+@media (max-width: 760px) { .hero { height: 210px; } .photo { height: 132px; } }
+@media (max-width: 520px) { .hero { height: 175px; } }
+@media (prefers-reduced-motion: reduce) { .block::after { animation: none; display: none; } }

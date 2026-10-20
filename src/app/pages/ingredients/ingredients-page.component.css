@@ -31,6 +31,8 @@
   color: var(--color-text-muted);
   font-size: 10px;
 }
+.total-skeleton { width: 90px; }
+.category-skeleton { width: 200px; }
 .pantry-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

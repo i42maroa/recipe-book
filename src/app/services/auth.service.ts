@@ -54,15 +54,13 @@ export class AuthService {
 
   private async checkPermission(session: Session | null, revision: number): Promise<boolean> {
     if (!session) return false;
-    try {
-      const { data, error } = await this.supabase.requireClient().rpc('is_recipe_editor');
-      const allowed = !error && data === true;
-      if (revision === this.revision) this.editor.set(allowed);
-      return revision === this.revision && allowed;
-    } catch {
-      if (revision === this.revision) this.editor.set(false);
-      return false;
-    }
+    const { data, error } = await this.supabase.requireClient().rpc('is_recipe_editor');
+    // A failed check blocks the operation, but does not revoke a previously
+    // verified session or destroy its unsaved work. Only a response can revoke it.
+    if (error) throw error;
+    const allowed = data === true;
+    if (revision === this.revision) this.editor.set(allowed);
+    return revision === this.revision && allowed;
   }
 
   refreshPermission(): Promise<boolean> {
@@ -75,9 +73,10 @@ export class AuthService {
   private async loadSessionAndPermission(): Promise<boolean> {
     const startingRevision = this.revision;
     const { data, error } = await this.supabase.requireClient().auth.getSession();
-    if (error) { this.editor.set(false); throw error; }
+    if (error) throw error;
     if (startingRevision !== this.revision && data.session?.user.id !== this.currentUser()?.id) return false;
     const revision = ++this.revision;
+    if (this.currentUser()?.id !== data.session?.user.id) this.editor.set(false);
     this.currentUser.set(data.session?.user ?? null);
     if (!data.session) this.editor.set(false);
     return this.checkPermission(data.session, revision);

@@ -21,6 +21,7 @@ export interface RecipeFilters {
   sort: string;
   mealType: MealType | '';
   difficulty: RecipeDifficulty | '';
+  ingredientIds?: string[];
 }
 export interface RecipeBatch {
   items: RecipeCard[];
@@ -95,11 +96,14 @@ export class RecipeService {
     this.changesSubject.next(this.changesSubject.value + 1);
   }
 
-  async getBatch(filters: RecipeFilters, offset = 0, limit = this.pageSize): Promise<RecipeBatch> {
+  async getBatch(filters: RecipeFilters, offset = 0, limit = this.pageSize, signal?: AbortSignal): Promise<RecipeBatch> {
     const client = this.supabase.requireClient();
     const from = Math.max(0, Math.floor(offset));
     const batchSize = Math.max(1, Math.floor(limit));
-    let query = client.from('recipes').select(RECIPE_CARD_SELECT, { count: 'exact' });
+    const ingredientIds = [...new Set(filters.ingredientIds ?? [])];
+    let query = ingredientIds.length
+      ? client.rpc('search_recipes_by_ingredients', { p_ingredient_ids: ingredientIds, p_sort: filters.sort }, { count: 'exact' }).returns<RecipeCardRow[]>().select(RECIPE_CARD_SELECT)
+      : client.from('recipes').select(RECIPE_CARD_SELECT, { count: 'exact' });
     const search = filters.search.trim();
     if (search.length >= MIN_SEARCH_LENGTH) {
       const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`;
@@ -108,13 +112,17 @@ export class RecipeService {
     if (filters.pending !== 'all') query = query.eq('pending', filters.pending === 'pending');
     if (filters.mealType) query = query.contains('meal_types', [filters.mealType]);
     if (filters.difficulty) query = query.eq('difficulty', filters.difficulty);
-    switch (filters.sort) {
-      case 'name': query = query.order('name'); break;
-      case 'rating': query = query.order('rating', { ascending: false, nullsFirst: false }); break;
-      case 'time': query = query.order('minutes', { ascending: true, nullsFirst: false }); break;
-      default: query = query.order('created_at', { ascending: false });
+    if (!ingredientIds.length) {
+      switch (filters.sort) {
+        case 'name': query = query.order('name'); break;
+        case 'rating': query = query.order('rating', { ascending: false, nullsFirst: false }); break;
+        case 'time': query = query.order('minutes', { ascending: true, nullsFirst: false }); break;
+        default: query = query.order('created_at', { ascending: false });
+      }
+      query = query.order('id');
     }
-    const { data, count, error } = await query.order('id').range(from, from + batchSize - 1).returns<RecipeCardRow[]>();
+    if (signal) query = query.abortSignal(signal);
+    const { data, count, error } = await query.range(from, from + batchSize - 1).returns<RecipeCardRow[]>();
     if (error) {
       // Recipes may have been deleted since the previous batch was loaded.
       if (from > 0 && error.code === 'PGRST103') {
@@ -125,8 +133,24 @@ export class RecipeService {
       throw error;
     }
     const total = count ?? 0;
+    if (data && !Array.isArray(data)) throw new Error('La consulta de recetas no devolvió una lista.');
     const items = this.mapCardRows(data ?? []);
     return { items, total, offset: from };
+  }
+
+  async getCardsByIds(ids: string[], signal?: AbortSignal): Promise<RecipeCard[]> {
+    const uniqueIds = [...new Set(ids)];
+    const cards: RecipeCard[] = [];
+    for (let offset = 0; offset < uniqueIds.length; offset += 100) {
+      signal?.throwIfAborted();
+      let query = this.supabase.requireClient().from('recipes').select(RECIPE_CARD_SELECT)
+        .in('id', uniqueIds.slice(offset, offset + 100));
+      if (signal) query = query.abortSignal(signal);
+      const { data, error } = await query.returns<RecipeCardRow[]>();
+      if (error) throw error;
+      cards.push(...this.mapCardRows(data ?? []));
+    }
+    return cards;
   }
 
   async loadRecipe(id: string): Promise<Recipe | null> {
@@ -258,7 +282,7 @@ export class RecipeService {
       this.cache([{ ...recipe, id: savedId, photos: photos?.originalPhotos ?? recipe.photos ?? [] }], false);
       this.cacheStore.remove(this.detailKey(savedId));
       const message = error instanceof Error ? error.message : (error as { message?: string })?.message;
-      throw new RecipeSaveError(message || 'La receta se guardó, pero no se pudo completar la actualización.', savedId);
+      throw new RecipeSaveError(`La receta ya está guardada. ${message || 'No se pudo completar la actualización de las fotos o la carga final.'}`, savedId);
     } finally {
       if (result.stats_changed) await this.refreshChangedStats();
       this.changesSubject.next(this.changesSubject.value + 1);
@@ -266,16 +290,16 @@ export class RecipeService {
   }
   async remove(id: string): Promise<void> {
     await this.auth.requireEditor();
-    await this.photoService.deleteFilesForRecipe(id);
-    const { data, error } = await this.supabase.requireClient().from('recipes').delete().eq('id', id).select('id');
+    const { data, error } = await this.supabase.requireClient().rpc('delete_recipe_with_photos', { p_id: id });
     if (error) throw error;
-    if (!data?.length) throw new Error('No se pudo eliminar la receta. Comprueba que existe y que tienes permiso.');
+    if (data !== id) throw new Error('No se pudo confirmar la eliminación de la receta.');
     this.removedIds.add(id);
     this.invalidateDetail(id);
     this.invalidateStats();
     this.recipesSubject.next(this.recipesSubject.value.filter((recipe) => recipe.id !== id));
     await this.refreshChangedStats();
     this.changesSubject.next(this.changesSubject.value + 1);
+    if (!await this.photoService.cleanupPending()) this.notifications.error('La receta se ha eliminado. Quedan archivos pendientes de limpieza; se reintentará en la próxima operación de fotos.');
   }
   getById(id: string): Recipe | undefined { return this.recipesSubject.value.find((recipe) => recipe.id === id); }
 }

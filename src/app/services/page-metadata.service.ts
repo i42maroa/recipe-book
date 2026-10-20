@@ -21,7 +21,7 @@ export class PageMetadataService {
       // Only the URL changes: the shared title, description and image stay static.
       meta.updateTag({ property: 'og:url', content: url });
       const notFound = router.routerState.snapshot.root.firstChild?.routeConfig?.path === '**';
-      meta.updateTag({ name: 'robots', content: path === '/login' || notFound ? 'noindex, nofollow' : 'index, follow' });
+      meta.updateTag({ name: 'robots', content: path === '/login' || path === '/planner' || path.startsWith('/planner/') || notFound ? 'noindex, nofollow' : 'index, follow' });
       let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
       if (!canonical) {
         canonical = document.createElement('link');

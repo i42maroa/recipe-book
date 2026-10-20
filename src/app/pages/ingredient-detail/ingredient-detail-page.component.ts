@@ -9,11 +9,13 @@ import { IngredientIconComponent } from '../../components/shared/ingredient-icon
 import { groupIngredients, selectedIngredients } from '../../utils/ingredients.utils';
 import { NotFoundPageComponent } from '../not-found/not-found-page.component';
 import { isUuid } from '../../utils/uuid.utils';
+import { SkeletonComponent } from '../../components/shared/skeleton/skeleton.component';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-ingredient-detail-page',
   standalone: true,
-  imports: [AsyncPipe, RouterLink, IngredientIconComponent, NotFoundPageComponent],
+  imports: [AsyncPipe, RouterLink, IngredientIconComponent, NotFoundPageComponent, SkeletonComponent],
   templateUrl: './ingredient-detail-page.component.html',
   styleUrl: './ingredient-detail-page.component.css',
 })
@@ -43,13 +45,21 @@ export class IngredientDetailPageComponent {
       const components = selectedIngredients(ingredients, ingredient?.derivedFromIds ?? [])
         .sort((a, b) => a.category.localeCompare(b.category, 'es') || a.name.localeCompare(b.name, 'es'));
       const madeFrom = groupIngredients(components).map((group) => ({ category: group.category, components: group.ingredients }));
-      return { ingredient, usedIn, madeFrom, loading, error };
+      return { ingredient, usedIn, madeFrom, loading, error, validId: isUuid(id) };
     }),
     shareReplay({ bufferSize: 1, refCount: true }),
   );
 
+  constructor() {
+    this.ingredientId$.pipe(takeUntilDestroyed()).subscribe(id => {
+      if (isUuid(id)) void this.ingredientService.ensureDetails(id).catch(() => undefined);
+    });
+  }
+
   retry(): void { this.retries.next(); }
-  retryIngredients(): void { void this.ingredientService.refresh().catch(() => undefined); }
+  retryIngredients(): void {
+    void this.ingredientService.refresh().then(() => this.ingredientService.ensureDetails(this.route.snapshot.paramMap.get('id') ?? '')).catch(() => undefined);
+  }
 
   recipeCountLabel(recipes: Pick<Recipe, 'id'>[]): string {
     return recipes.length === 1 ? '1 receta' : `${recipes.length} recetas`;

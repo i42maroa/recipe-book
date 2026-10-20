@@ -30,7 +30,7 @@
 .search-icon { font-size: 22px; line-height: 1; }
 .search-box input {
   width: 100%;
-  min-width: 60px;
+  min-width: 0;
   border: 0;
   outline: 0;
   background: transparent;

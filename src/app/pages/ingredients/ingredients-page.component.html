@@ -11,11 +11,18 @@
   <app-filter-container class="pantry-tools" gap="10px">
     <app-search-filter placeholder="Busca un ingrediente…" ariaLabel="Buscar ingredientes" [formControl]="search"></app-search-filter>
     <app-select-filter label="Categoría" filterType="ingredient-category" [options]="categoryOptions" [formControl]="category"></app-select-filter>
-    <span class="ingredient-total">{{ ingredientService.loading.isLoading('ingredients') || ingredientService.error() ? '—' : ((filteredIngredients$ | async)?.length ?? 0) }} ingredientes</span>
+    <span class="ingredient-total">@if (ingredientService.loading.isLoading('ingredients')) { <app-skeleton class="total-skeleton" /> } @else { {{ ingredientService.error() ? '—' : ((filteredIngredients$ | async)?.length ?? 0) }} ingredientes }</span>
   </app-filter-container>
 
+  @if (ingredientService.loading.isLoading('ingredients')) { <p class="loading-status" role="status">Cargando ingredientes…</p> }
+  <div class="ingredient-results" [attr.aria-busy]="ingredientService.loading.isLoading('ingredients')">
   @if (ingredientService.loading.isLoading('ingredients')) {
-    <p class="section-status" role="status">Cargando ingredientes…</p>
+    @for (group of [0, 1]; track group) {
+      <section class="ingredient-category-group" aria-hidden="true">
+        <div class="category-heading"><app-skeleton class="category-skeleton" variant="title" /></div>
+        <div class="pantry-grid">@for (placeholder of [0, 1, 2, 3]; track placeholder) { <app-skeleton variant="ingredient-card" /> }</div>
+      </section>
+    }
   } @else if (ingredientService.error()) {
     <p class="section-status" role="alert">No se pudieron cargar los ingredientes. <button type="button" (click)="retry()">Reintentar</button></p>
   } @else if (ingredientGroups$ | async; as groups) {
@@ -38,6 +45,7 @@
       </div>
     }
   }
+  </div>
 
   <aside class="pantry-tip"><p>Los ingredientes que forman parte de una receta están protegidos y no se pueden eliminar.</p></aside>
 </section>

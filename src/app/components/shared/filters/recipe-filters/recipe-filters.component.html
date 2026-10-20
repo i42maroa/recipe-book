@@ -1,0 +1,12 @@
+<div class="recipe-controls">
+  <app-search-filter placeholder="Busca por nombre de receta…" ariaLabel="Buscar recetas por nombre" [formControl]="search()" />
+  <app-select-filter class="recipe-sort" label="Orden" filterType="order" [compact]="true" [options]="sortOptions" [formControl]="sort()" />
+  <button class="recipe-filter-toggle" type="button" [attr.aria-expanded]="expanded()" [attr.aria-controls]="panelId" (click)="expanded.set(!expanded())">Filtros <app-icon name="chevron-down" [class.expanded]="expanded()" /></button>
+  <div [id]="panelId" class="recipe-extra-filters" role="group" aria-label="Filtros de recetas" [class.expanded]="expanded()">
+    <app-select-filter label="Tipo de plato" filterType="meal-type" [options]="mealTypeOptions" [formControl]="mealType()" />
+    <app-select-filter label="Dificultad" filterType="difficulty" [options]="difficultyOptions" [formControl]="difficulty()" />
+    @defer (when expanded()) {
+      <app-ingredient-filter [selectedIds]="ingredientIds().value" (selectedIdsChange)="ingredientIds().setValue($event)" />
+    }
+  </div>
+</div>
