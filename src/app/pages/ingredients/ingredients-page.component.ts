@@ -17,10 +17,12 @@ import { IngredientCardComponent } from '../../components/ingredient-card/ingred
 import { IconComponent } from '../../components/shared/icon/icon.component';
 import { searchTerms } from '../../utils/search.utils';
 import { groupIngredients } from '../../utils/ingredients.utils';
+import { SkeletonComponent } from '../../components/shared/skeleton/skeleton.component';
+import { findIngredients } from '../../utils/ingredient-search.utils';
 
 
 @Component({
-  selector: 'app-ingredients-page', standalone: true, imports: [AsyncPipe, ReactiveFormsModule, ButtonComponent, FilterContainerComponent, SelectFilterComponent, SearchFilterComponent, IngredientCardComponent, IconComponent],
+  selector: 'app-ingredients-page', standalone: true, imports: [AsyncPipe, ReactiveFormsModule, ButtonComponent, FilterContainerComponent, SelectFilterComponent, SearchFilterComponent, IngredientCardComponent, IconComponent, SkeletonComponent],
   templateUrl: './ingredients-page.component.html',
   styleUrl: './ingredients-page.component.css'
 })
@@ -38,17 +40,18 @@ export class IngredientsPageComponent {
     ...this.categories.map((itemCategory) => ({ value: itemCategory, label: itemCategory })),
   ];
   readonly filteredIngredients$ = combineLatest([
-    this.ingredientService.ingredients$,
+    this.ingredientService.ingredientIndex$,
     this.search.valueChanges.pipe(searchTerms(), startWith('')),
-    this.category.valueChanges.pipe(startWith('')),
+    this.category.valueChanges.pipe(startWith(this.category.value)),
   ]).pipe(
-    map(([items, query, category]) => [...items]
-      .filter((item) => item.name.toLowerCase().includes(query.toLowerCase().trim()) && (!category || item.category === category))
+    map(([index, query, category]) => findIngredients(index, query, { category })
       .sort((a, b) => a.name.localeCompare(b.name)))
   );
 
   readonly ingredientGroups$ = this.filteredIngredients$.pipe(map((items) => groupIngredients(items, this.categories)
     .map((group) => ({ category: group.category, items: group.ingredients }))));
+
+  constructor() { void this.ingredientService.ensureLoaded().catch(() => undefined); }
 
   retry(): void { void this.ingredientService.refresh().catch(() => undefined); }
 

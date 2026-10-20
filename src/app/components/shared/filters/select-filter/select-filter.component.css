@@ -41,6 +41,9 @@
 }
 .opened .select-label, .select-trigger:focus-visible .select-label { color: var(--color-primary); }
 .select-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+:host(.compact) { width: max-content; max-width: 100%; }
+:host(.compact) .select-filter, :host(.compact) .select-trigger { width: max-content; max-width: 100%; }
+:host(.compact) .select-value { flex: 0 0 auto; }
 .select-chevron { width: 14px; height: 14px; flex: 0 0 auto; transition: transform .15s; }
 .opened .select-chevron { transform: rotate(180deg); }
 .disabled { opacity: .6; }
@@ -79,3 +82,4 @@
 .select-option.selected.active { box-shadow: inset 3px 0 var(--color-primary); }
 .select-option app-icon { width: 16px; height: 16px; flex: 0 0 auto; }
 @media (pointer: coarse) { .select-option { min-height: 44px; } }
+@media (max-width: 460px) { :host(.compact) .select-trigger { padding: 0 8px; gap: 6px; font-size: 11px; } }

@@ -13,7 +13,8 @@ import { IngredientService } from '../../../services/ingredient.service';
 import { NotificationService } from '../../../services/notification.service';
 import { SelectFilterOption } from '../filters/select-filter-options';
 import { IconComponent } from '../icon/icon.component';
-import { MIN_SEARCH_LENGTH, searchTerms } from '../../../utils/search.utils';
+import { MIN_SEARCH_LENGTH, normalizeSearch, searchTerms } from '../../../utils/search.utils';
+import { findIngredients } from '../../../utils/ingredient-search.utils';
 import { groupIngredients, selectedIngredients } from '../../../utils/ingredients.utils';
 
 interface IngredientGroup { category: IngredientCategory; ingredients: Ingredient[] }
@@ -49,10 +50,11 @@ export class BaseFormComponent implements OnInit {
   readonly newIngredientName = this.fb.nonNullable.control('', [Validators.required, Validators.pattern(/\S/)]);
   readonly newIngredientCategory = this.fb.nonNullable.control<IngredientCategory | ''>('', Validators.required);
   readonly addingIngredient = signal(false);
+  readonly ingredientDetailsReady = signal(true);
   readonly compositionSearch = this.fb.nonNullable.control('');
   readonly compositionCategoryFilter = this.fb.nonNullable.control<IngredientCategory | ''>('');
   readonly filteredIngredients$ = combineLatest([
-    this.ingredients$,
+    this.ingredientService.ingredientIndex$,
     defer(() => this.ingredientSearch.valueChanges.pipe(
       startWith(this.ingredientSearch.value),
       map((query) => query.trim().length >= MIN_SEARCH_LENGTH ? query : ''),
@@ -61,14 +63,10 @@ export class BaseFormComponent implements OnInit {
     defer(() => this.ingredientCategoryFilter.valueChanges.pipe(startWith(this.ingredientCategoryFilter.value))),
     this.selectedIngredientIdsSubject,
   ]).pipe(
-    map(([ingredients, query, category, selectedIds]) => {
-      const normalizedQuery = this.normalizeSearch(query);
+    map(([index, query, category, selectedIds]) => {
+      const normalizedQuery = normalizeSearch(query);
       if (normalizedQuery.length < MIN_SEARCH_LENGTH && !category) return [];
-      const filtered = ingredients.filter((ingredient) =>
-        !selectedIds.includes(ingredient.id)
-        && (!normalizedQuery || this.normalizeSearch(ingredient.name).includes(normalizedQuery))
-        && (!category || ingredient.category === category),
-      );
+      const filtered = findIngredients(index, query, { category, excludedIds: new Set(selectedIds) });
       return this.groupIngredients(filtered);
     }),
   );
@@ -89,22 +87,15 @@ export class BaseFormComponent implements OnInit {
   ];
   readonly newIngredientCategoryOptions: SelectFilterOption[] = this.quickCategories
     .map((category) => ({ value: category, label: this.categoryLabel(category) }));
-  readonly compositionIngredients$ = this.ingredients$.pipe(
-    map((ingredients) => ingredients.filter((ingredient) =>
-      ingredient.category !== 'Elaboracion' && ingredient.id !== this.ingredientToEdit?.id,
-    )),
-  );
   readonly filteredCompositionIngredients$ = combineLatest([
-    this.compositionIngredients$,
+    this.ingredientService.ingredientIndex$,
     defer(() => this.compositionSearch.valueChanges.pipe(startWith(this.compositionSearch.value), searchTerms())),
     defer(() => this.compositionCategoryFilter.valueChanges.pipe(startWith(this.compositionCategoryFilter.value))),
   ]).pipe(
-    map(([ingredients, query, category]) => {
-      const normalizedQuery = this.normalizeSearch(query);
-      const filtered = ingredients.filter((ingredient) =>
-        (!normalizedQuery || this.normalizeSearch(ingredient.name).includes(normalizedQuery))
-        && (!category || ingredient.category === category),
-      );
+    map(([index, query, category]) => {
+      const filtered = findIngredients(index, query, { category, excludeElaborations: true,
+        excludedIds: new Set(this.ingredientToEdit ? [this.ingredientToEdit.id] : []),
+      });
       return this.groupIngredients(filtered);
     }),
   );
@@ -115,10 +106,10 @@ export class BaseFormComponent implements OnInit {
     rating: this.fb.control<number | null>(null, [Validators.min(1), Validators.max(10)]), sourceUrl: [''], annotations: [''], fitness: [false], difficulty: this.fb.nonNullable.control<RecipeDifficulty>('Media')
   });
   readonly selectedIngredients$ = combineLatest([
-    this.ingredients$,
+    this.ingredientService.ingredientIndex$,
     this.selectedIngredientIdsSubject,
   ]).pipe(
-    map(([ingredients, selectedIds]) => selectedIngredients(ingredients, selectedIds)
+    map(([index, selectedIds]) => selectedIngredients(index.byId, selectedIds)
       .sort((a, b) => a.category.localeCompare(b.category, 'es') || a.name.localeCompare(b.name, 'es'))),
   );
   readonly ingredientForm = this.fb.nonNullable.group({
@@ -128,10 +119,10 @@ export class BaseFormComponent implements OnInit {
     derivedFromAmounts: this.fb.nonNullable.control<Record<string, RecipeIngredientAmount>>({}),
   });
   readonly selectedCompositionIngredients$ = combineLatest([
-    this.ingredients$,
+    this.ingredientService.ingredientIndex$,
     defer(() => this.ingredientForm.controls.derivedFromIds.valueChanges.pipe(startWith(this.ingredientForm.controls.derivedFromIds.value))),
   ]).pipe(
-    map(([ingredients, selectedIds]) => this.groupIngredients(selectedIngredients(ingredients, selectedIds))),
+    map(([index, selectedIds]) => this.groupIngredients(selectedIngredients(index.byId, selectedIds))),
   );
 
   constructor() {
@@ -187,6 +178,23 @@ export class BaseFormComponent implements OnInit {
         derivedFromAmounts: this.ingredientToEdit.derivedFromAmounts ?? {},
       });
     }
+    void this.loadIngredients().catch(() => undefined);
+  }
+
+  private async loadIngredients(refresh = false): Promise<void> {
+    const editing = this.formType === 'ingredient' ? this.ingredientToEdit : null;
+    if (editing) this.ingredientDetailsReady.set(false);
+    await (refresh ? this.ingredientService.refresh() : this.ingredientService.ensureLoaded());
+    if (editing) {
+      const ingredient = await this.ingredientService.ensureDetails(editing.id);
+      if (this.destroyRef.destroyed) return;
+      if (!ingredient) { this.notifications.error('El ingrediente ya no está disponible.'); return; }
+      if (!this.ingredientForm.dirty) this.ingredientForm.patchValue({
+        name: ingredient.name, category: ingredient.category,
+        derivedFromIds: ingredient.derivedFromIds ?? [], derivedFromAmounts: ingredient.derivedFromAmounts ?? {},
+      });
+    }
+    if (!this.destroyRef.destroyed) this.ingredientDetailsReady.set(true);
   }
 
   isSelected(id: string): boolean { return this.recipeForm.controls.ingredientIds.value.includes(id); }
@@ -267,9 +275,6 @@ export class BaseFormComponent implements OnInit {
     else delete amounts[id];
     this.ingredientForm.controls.derivedFromAmounts.setValue(amounts);
   }
-  private normalizeSearch(value: string): string {
-    return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es').trim();
-  }
   private groupIngredients(ingredients: Ingredient[]): IngredientGroup[] {
     return groupIngredients(ingredients, this.categories);
   }
@@ -293,8 +298,8 @@ export class BaseFormComponent implements OnInit {
 
     this.addingIngredient.set(true);
     try {
-      const ingredients = await firstValueFrom(this.ingredients$);
-      const existing = ingredients.find((ingredient) => this.normalizeSearch(ingredient.name) === this.normalizeSearch(name));
+      const index = await firstValueFrom(this.ingredientService.ingredientIndex$);
+      const existing = index.byName.get(normalizeSearch(name));
       const ingredient = existing ?? await this.ingredientService.add(name, category);
       this.addRecipeIngredient(ingredient.id);
       this.ingredientSearch.setValue('');
@@ -384,7 +389,7 @@ export class BaseFormComponent implements OnInit {
   }
   busy(): boolean { return this.savingRecipe || this.savingIngredient() || this.addingIngredient(); }
   requestCancel(): void { if (!this.busy()) this.cancel.emit(); }
-  retryIngredients(): void { void this.ingredientService.refresh().catch(() => undefined); }
+  retryIngredients(): void { void this.loadIngredients(true).catch(() => undefined); }
 
   saveRecipe(): void {
     if (this.busy() || !this.ingredientService.loaded() || this.ingredientService.error()) return;
@@ -409,7 +414,7 @@ export class BaseFormComponent implements OnInit {
     });
   }
   async saveIngredient(): Promise<void> {
-    if (this.busy() || !this.ingredientService.loaded() || this.ingredientService.error()) return;
+    if (this.busy() || !this.ingredientDetailsReady() || !this.ingredientService.loaded() || this.ingredientService.error()) return;
     this.savingIngredient.set(true);
     try { await this.performSaveIngredient(); }
     finally { this.savingIngredient.set(false); }

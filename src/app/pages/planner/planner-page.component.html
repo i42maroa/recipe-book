@@ -1,0 +1,38 @@
+<section class="planner-page">
+  <header class="heading"><div><p class="eyebrow">TU COCINA, A TU RITMO</p><h1>Comidas de hoy</h1><p>Tus platos guardados para hoy.</p></div></header>
+  @if (error() && !loading()) {
+    <div class="notice" role="alert">No se pudieron cargar las comidas. <button type="button" (click)="load()">Reintentar</button></div>
+  } @else if (!loading() && !sections().length) {
+    <div class="empty-day">
+      <p>Todavía no has añadido comidas para hoy.</p>
+      <div class="empty-day-actions">
+        <a class="plan-day" routerLink="/planner/day">Planificar Día</a>
+        <a class="plan-week" routerLink="/planner/week">Planificar Semana</a>
+      </div>
+    </div>
+  } @else {
+    @if (loading()) { <p class="loading-status" role="status">Cargando las comidas de hoy…</p> }
+    <section class="day saved-day" [attr.aria-busy]="loading()">
+      <header class="day-heading"><h2>{{ day.label }}</h2>@if (!loading() && sections().length) { <a class="edit-day" routerLink="/planner/day">Editar</a> }</header>
+      @if (loading()) {
+        @for (slot of slots; track slot.id) {
+          <section class="meal" [attr.aria-label]="slot.label"><div class="meal-heading"><h3>{{ slot.label }}</h3></div><div class="meal-entries"><div class="loading-entry"><app-skeleton variant="paragraph" /></div></div></section>
+        }
+      } @else {
+        @for (meal of sections(); track meal.id) {
+          @if (meal.recipes.length) {
+            <section class="meal" [attr.aria-label]="meal.label">
+              <div class="meal-heading"><h3>{{ meal.label }}</h3></div>
+              <div class="meal-entries">
+                @for (entry of meal.recipes; track entry.recipeId; let index = $index) {
+                  @if (cards()[entry.recipeId]; as recipe) { <app-recipe-card [recipe]="recipe" [priority]="index < 2" (selected)="showRecipe($event)" /> }
+                  @else { <p class="unavailable-recipe">Receta no disponible.</p> }
+                }
+              </div>
+            </section>
+          }
+        }
+      }
+    </section>
+  }
+</section>

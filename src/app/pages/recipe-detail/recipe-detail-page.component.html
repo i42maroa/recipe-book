@@ -1,6 +1,17 @@
 ﻿@if (view$ | async; as view) {
 @if (view.loading) {
-  <section class="section-status" role="status">Cargando receta…</section>
+  <p class="loading-status" role="status">Cargando receta…</p>
+  <article class="recipe-detail-page" aria-busy="true">
+    <div class="recipe-detail-hero skeleton-hero"><app-skeleton variant="hero" /></div>
+    <div class="recipe-detail-content">
+      <div class="recipe-title-row"><h1 class="loading-title" aria-hidden="true"><app-skeleton variant="title" /></h1><app-button class="recipe-share-button" variant="ghost" [disabled]="true"><app-icon name="share" />Compartir</app-button></div>
+      <div class="recipe-facts-row" aria-hidden="true"><app-skeleton class="facts-skeleton" /><app-skeleton class="facts-skeleton" /></div>
+      <div class="recipe-detail-columns">
+        <section><div class="ingredients-heading"><h2>Ingredientes</h2></div><app-skeleton variant="rows" /></section>
+        <section><h2>Preparación</h2><div class="loading-steps">@for (step of [0, 1, 2]; track step) { <app-skeleton variant="paragraph" /> }</div></section>
+      </div>
+    </div>
+  </article>
 } @else if (view.error) {
   <section class="section-status" role="alert">No se pudo cargar la receta. <button type="button" (click)="retry()">Reintentar</button></section>
 } @else if (view.recipe; as recipe) {
@@ -68,7 +79,8 @@
             }
           </div>
           @if (ingredientService.loading.isLoading('ingredients')) {
-            <p role="status">Cargando ingredientes…</p>
+            <p class="loading-status" role="status">Cargando ingredientes…</p>
+            <div aria-busy="true"><app-skeleton variant="rows" /></div>
           } @else if (ingredientService.error()) {
             <p role="alert">No se pudieron cargar los ingredientes. <button type="button" (click)="retryIngredients()">Reintentar</button></p>
           } @else {
@@ -76,7 +88,7 @@
             @for (group of ingredientGroups; track group.category) {
               <li class="ingredient-category-group"><strong>{{ group.category }}</strong><ul class="ingredient-group-items">
                 @for (ingredient of group.ingredients; track ingredient.id) {
-                  <li><i></i><a [routerLink]="['/ingredients', ingredient.id]" [queryParams]="{ fromRecipeId: recipe.id }">{{ ingredient.name }}</a><span class="ingredient-detail-info">@if (amountLabel(recipe, ingredient.id); as amount) { <small class="ingredient-quantity">{{ amount }}</small> }</span></li>
+                  <li><i></i><a [routerLink]="['/ingredients', ingredient.id]" [queryParams]="{ fromRecipeId: recipe.id }" queryParamsHandling="merge">{{ ingredient.name }}</a><span class="ingredient-detail-info">@if (amountLabel(recipe, ingredient.id); as amount) { <small class="ingredient-quantity">{{ amount }}</small> }</span></li>
                 }
               </ul></li>
             }

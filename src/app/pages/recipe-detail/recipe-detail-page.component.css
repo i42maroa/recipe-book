@@ -28,6 +28,12 @@
   background: linear-gradient(135deg, #e8e3d5, #c6b99d);
 }
 .recipe-detail-hero.has-photo { min-height: 360px; }
+.recipe-detail-hero.skeleton-hero { background: transparent; }
+.recipe-detail-hero.skeleton-hero::after { display: none; }
+.skeleton-hero app-skeleton { width: 100%; }
+.recipe-title-row .loading-title { max-width: 70%; }
+.facts-skeleton { max-width: 140px; }
+.loading-steps { display: grid; gap: 16px; }
 .recipe-detail-hero::after {
   position: absolute;
   inset: 0;

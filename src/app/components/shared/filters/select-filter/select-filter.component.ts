@@ -1,4 +1,4 @@
-﻿import { Component, ElementRef, HostListener, forwardRef, inject, Input, OnChanges } from '@angular/core';
+﻿import { ChangeDetectorRef, Component, ElementRef, HostListener, forwardRef, inject, Input, OnChanges } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 import { SelectFilterOption, SelectFilterType } from '../select-filter-options';
 import { IconComponent } from '../../icon/icon.component';
@@ -11,6 +11,7 @@ let nextSelectId = 0;
   imports: [IconComponent],
   templateUrl: './select-filter.component.html',
   styleUrl: './select-filter.component.css',
+  host: { '[class.compact]': 'compact' },
   providers: [{ provide: NG_VALUE_ACCESSOR, useExisting: forwardRef(() => SelectFilterComponent), multi: true }],
 })
 export class SelectFilterComponent implements ControlValueAccessor, OnChanges {
@@ -19,6 +20,7 @@ export class SelectFilterComponent implements ControlValueAccessor, OnChanges {
   @Input() options: SelectFilterOption[] = [];
   @Input() placeholder = '';
   @Input() ariaLabel = '';
+  @Input() compact = false;
 
   value = '';
   disabled = false;
@@ -26,6 +28,7 @@ export class SelectFilterComponent implements ControlValueAccessor, OnChanges {
   activeIndex = 0;
   readonly selectId = `select-filter-${nextSelectId++}`;
   private readonly element = inject(ElementRef<HTMLElement>);
+  private readonly changeDetector = inject(ChangeDetectorRef);
   private onChange: (value: string) => void = () => undefined;
   private onTouched: () => void = () => undefined;
 
@@ -37,12 +40,13 @@ export class SelectFilterComponent implements ControlValueAccessor, OnChanges {
   get selectedLabel(): string {
     return this.displayOptions.find((option) => option.value === this.value)?.label ?? '';
   }
-  writeValue(value: string | null): void { this.value = value ?? ''; }
+  writeValue(value: string | null): void { this.value = value ?? ''; this.changeDetector.markForCheck(); }
   registerOnChange(fn: (value: string) => void): void { this.onChange = fn; }
   registerOnTouched(fn: () => void): void { this.onTouched = fn; }
   setDisabledState(disabled: boolean): void {
     this.disabled = disabled;
     if (disabled) this.opened = false;
+    this.changeDetector.markForCheck();
   }
   updateValue(value: string): void {
     this.value = value;

@@ -7,7 +7,7 @@ function setup() {
   document.visibilityState = 'visible';
   document.defaultView = new EventTarget();
   const cleanup = [];
-  const state = { session: { user: { id: 'user', email: 'user@example.com' } }, allowed: true, offline: false, reads: 0, rpcs: 0, pendingRpc: null };
+  const state = { session: { user: { id: 'user', email: 'user@example.com' } }, allowed: true, offline: false, rpcError: null, reads: 0, rpcs: 0, pendingRpc: null };
   let callback;
   const client = {
     auth: {
@@ -29,7 +29,7 @@ function setup() {
     rpc: async () => {
       state.rpcs++;
       if (state.pendingRpc) await state.pendingRpc;
-      return { data: state.allowed, error: null };
+      return { data: state.allowed, error: state.rpcError };
     },
   };
   const { AuthService } = loadService('src/app/services/auth.service.ts', {
@@ -108,6 +108,20 @@ test('revoked membership blocks the next write even with a restored session', as
     state.allowed = false;
     await assert.rejects(auth.requireEditor());
     assert.equal(auth.user().id, 'user');
+    assert.equal(auth.canEdit(), false);
+  } finally { dispose(); }
+});
+
+test('temporary permission failures block writes without revoking the verified session', async () => {
+  const { auth, state, dispose } = setup();
+  try {
+    await auth.refreshPermission();
+    state.rpcError = Error('Temporary failure');
+    await assert.rejects(auth.requireEditor(), /Temporary failure/);
+    assert.equal(auth.user().id, 'user');
+    assert.equal(auth.canEdit(), true);
+    state.rpcError = null; state.allowed = false;
+    await assert.rejects(auth.requireEditor());
     assert.equal(auth.canEdit(), false);
   } finally { dispose(); }
 });

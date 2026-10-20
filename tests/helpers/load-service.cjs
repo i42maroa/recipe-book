@@ -19,7 +19,7 @@ exports.loadService = (file, injections, globals = {}, modules = {}) => {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, experimentalDecorators: true },
   }).outputText;
   vm.runInNewContext(compiled, {
-    exports: module.exports, module, setTimeout, clearTimeout,
+    exports: module.exports, module, setTimeout, clearTimeout, structuredClone, AbortController, Error,
     require: (name) => modules[name] ?? (name === '@angular/core' ? core : name === 'rxjs' ? require('rxjs') : tokens),
     ...globals,
   });

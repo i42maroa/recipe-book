@@ -18,6 +18,8 @@
   box-shadow: 0 9px 25px var(--shadow-card);
 }
 .recipe-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.recipe-card.is-disabled { opacity: .55; cursor: default; }
+.recipe-card.is-disabled:hover { transform: none; box-shadow: none; }
 .recipe-photo {
   position: relative;
   display: flex;

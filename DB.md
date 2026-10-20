@@ -67,8 +67,7 @@ La cantidad se guarda en la relación con la receta (o con la elaboración que l
 | `ingredient_components` | Componentes y cantidades de una elaboración. |
 | `cuisine_types` | Catálogo de estilos/cocinas. |
 | `recipe_cuisine_types` | Relación muchos-a-muchos entre recetas y estilos. |
-| `weekly_plans` | Semana planificada. |
-| `weekly_plan_items` | Receta asignada a una fecha de la semana. |
+| `scheduled_meals` | Comidas privadas por usuario, fecha y hueco, sin entidad de plan. |
 | `shopping_lists` | Lista de la compra guardada, si se necesita persistirla. |
 | `shopping_list_items` | Ingredientes y estado de compra de una lista. |
 | `recipe_photos` | Metadatos y ruta de fotos almacenadas en Supabase Storage. |
@@ -271,28 +270,11 @@ Los índices deben responder a consultas reales: cada índice adicional ocupa es
 
 ## Funcionalidades futuras
 
-### Organización semanal
+### Organización semanal implementada
 
-```sql
-create table public.weekly_plans (
-  id uuid primary key default gen_random_uuid(),
-  week_start date not null unique,
-  created_at timestamptz not null default now()
-);
+La planificación utiliza `scheduled_meals`, con clave primaria `(owner_id, meal_date, slot)`. Cada registro guarda comensales y un array JSON de hasta cinco recetas con `recipeId` y `mode` (`scale` o `leftovers`). No existe un nombre ni identificador de plan ni favoritos en el modelo activo.
 
-create table public.weekly_plan_items (
-  id uuid primary key default gen_random_uuid(),
-  weekly_plan_id uuid not null
-    references public.weekly_plans(id) on delete cascade,
-  planned_date date not null,
-  recipe_id uuid not null
-    references public.recipes(id) on delete restrict,
-  notes text,
-  unique (weekly_plan_id, planned_date, recipe_id)
-);
-```
-
-Se puede permitir más de una receta por día. Si se quiere limitar a una receta por momento de comida, añadir una columna `meal_slot` y una restricción única adecuada.
+La RPC `save_scheduled_day(date,jsonb)` guarda los huecos de un día en una transacción, incluyendo borrados, y no modifica otras fechas. RLS restringe lecturas y escrituras al propietario que pertenezca al grupo de editores. La tabla y conversión de datos previos están en [20261020000100_daily_meals.sql](supabase/migrations/20261020000100_daily_meals.sql); los datos históricos quedan como archivo sin acceso de navegador.
 
 ### Lista de la compra
 

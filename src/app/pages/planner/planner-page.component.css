@@ -1,0 +1,24 @@
+.planner-page { max-width: 1380px; margin: 0 auto; padding: 44px 5% 32px; }
+.heading, .day-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+h1 { font: 500 clamp(28px, 3vw, 39px)/1.2 var(--font-serif); margin: 10px 0; }
+p { color: var(--color-text-secondary); line-height: 1.5; }
+.eyebrow { font-size: 10px; letter-spacing: 2px; color: var(--color-primary); }
+.edit-day, .plan-day, .plan-week, button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; box-sizing: border-box; padding: 10px 14px; border: 1px solid var(--color-border); border-radius: 7px; background: var(--color-surface); color: var(--color-primary); text-decoration: none; flex-shrink: 0; font: inherit; font-size: 13px; }
+button { cursor: pointer; }
+.edit-day:hover, .plan-day:hover, .plan-week:hover, button:hover:not(:disabled) { background: var(--color-success-soft); }
+button:disabled { opacity: .55; cursor: default; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.day { margin-top: 16px; padding: 20px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; }
+.day-heading { margin-bottom: 16px; }
+.day-heading h2 { margin: 0; font: 500 24px/1.3 var(--font-serif); text-transform: capitalize; }
+.meal { min-width: 0; border-top: 1px solid var(--color-border); padding: 15px 0 0; }
+.meal-heading { margin-bottom: 15px; }
+h3 { font-size: 15px; margin: 0; }
+.meal-entries { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.loading-entry, .unavailable-recipe { padding: 14px; border-radius: 8px; background: var(--color-surface-soft); }
+.unavailable-recipe, .empty-day { font-size: 13px; }
+.empty-day { margin-top: 16px; padding: 20px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-success-soft); }
+.empty-day p { margin-bottom: 12px; }
+.empty-day-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.notice { background: var(--color-warning-soft); color: var(--color-text); padding: 14px; border-radius: 8px; }
+@media (max-width: 760px) { .planner-page { padding: 28px 17px; } .heading { align-items: start; flex-direction: column; } .meal-entries { grid-template-columns: 1fr; } .day { padding: 16px; } }
