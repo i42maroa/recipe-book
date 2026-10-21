@@ -110,6 +110,19 @@ test('saving one date uses one atomic RPC, never a multi-day overwrite or client
   assert.equal(Object.keys(payload).sort().join(','), 'p_date,p_meals');
 });
 
+test('planning consumers invalidate previews before a write and again after its confirmation', async () => {
+  const { state, service } = setup(); let release;
+  state.hold = new Promise(resolve => { release = resolve; });
+  const phases = []; const subscription = service.changes$.subscribe(() => phases.push('invalidate'));
+  const writing = service.saveDay('2026-10-20', [meal()]);
+  await new Promise(setImmediate); assert.equal(phases.length, 1);
+  release(); await writing; assert.equal(phases.length, 2);
+  state.error = Error('Write failed');
+  await assert.rejects(service.saveDay('2026-10-20', []), /Write failed/);
+  assert.equal(phases.length, 3);
+  subscription.unsubscribe();
+});
+
 test('an empty day is sent to the RPC so removing the last recipe is persisted', async () => {
   const { state, service } = setup();
   await service.saveDay('2026-10-20', []);

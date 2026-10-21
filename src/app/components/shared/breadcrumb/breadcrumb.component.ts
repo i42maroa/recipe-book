@@ -52,6 +52,7 @@ export class BreadcrumbComponent {
       : [{ label: 'Recetas', url: '/recipes' }];
 
     if (segments[0] === 'login') return [{ label: 'Acceso', url: null }];
+    if (segments[0] === 'shopping') return [{ label: 'Compra', url: null }];
     if (segments[0] === 'planner') {
       if (segments[1] === 'week' || segments[1] === 'day') {
         return [{ label: 'Planificación', url: '/planner' }, { label: segments[1] === 'day' ? 'Día' : 'Semanal', url: null }];

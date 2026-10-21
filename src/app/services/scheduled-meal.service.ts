@@ -1,4 +1,5 @@
 import { Injectable, effect, inject } from '@angular/core';
+import { Subject } from 'rxjs';
 import { MealSelection, RecipeSummary, ScheduledMeal } from '../models/scheduled-meal.model';
 import { calendarWeek, dateNumber, shiftDate, validateDay } from '../utils/scheduled-meal.utils';
 import { AuthService } from './auth.service';
@@ -6,6 +7,8 @@ import { SupabaseService } from './supabase.service';
 
 @Injectable({ providedIn: 'root' })
 export class ScheduledMealService {
+  private readonly changesSubject = new Subject<void>();
+  readonly changes$ = this.changesSubject.asObservable();
   private readonly auth = inject(AuthService);
   private readonly supabase = inject(SupabaseService);
   private cacheOwner: string | undefined;
@@ -65,9 +68,11 @@ export class ScheduledMealService {
     // Discard in-flight reads from before this write as well as cached old data.
     this.generation++;
     this.days.delete(date);
+    this.changesSubject.next();
     const { error } = await this.supabase.requireClient().rpc('save_scheduled_day', { p_date: date, p_meals: meals });
     if (error) throw error;
     if (this.auth.user()?.id !== owner || !this.auth.canEdit()) throw new Error('La sesión ha cambiado.');
+    this.changesSubject.next();
     this.remember(date, meals.filter(meal => meal.recipes.length).map(meal => ({ ...meal, date })));
   }
 

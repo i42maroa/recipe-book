@@ -36,8 +36,6 @@ export class RecipePickerComponent {
   readonly mealType = new FormControl<MealType | ''>(this.initialFilters.mealType, { nonNullable: true });
   readonly difficulty = new FormControl<RecipeDifficulty | ''>(this.initialFilters.difficulty, { nonNullable: true });
   readonly ingredientIds = new FormControl<string[]>(this.initialFilters.ingredientIds ?? [], { nonNullable: true });
-  get filtersExpanded(): boolean { return this.state.pickerFiltersExpanded; }
-  set filtersExpanded(value: boolean) { this.state.pickerFiltersExpanded = value; }
   readonly results = signal<RecipeCard[]>([]);
   readonly loading = signal(false);
   readonly error = signal(false);

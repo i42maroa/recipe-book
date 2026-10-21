@@ -19,6 +19,8 @@ export class IngredientIconComponent {
       Carne: 'meat',
       Lacteo: 'dairy',
       Cereal: 'grain',
+      Liquidos: 'liquid',
+      FrutosSecos: 'nuts',
       Especia: 'spice',
       Elaboracion: 'preparation',
       Otro: 'other',

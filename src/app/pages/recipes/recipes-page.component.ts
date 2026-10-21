@@ -42,8 +42,6 @@ export class RecipesPageComponent {
   readonly forms = inject(FormService);
   readonly loading = inject(LoadingService);
   readonly statsError = signal(false);
-  get filtersExpanded(): boolean { return this.list.filtersExpanded; }
-  set filtersExpanded(value: boolean) { this.list.filtersExpanded = value; }
   readonly pageSize = this.recipeService.pageSize;
 
   readonly search = this.fb.nonNullable.control(this.list.searchInput);

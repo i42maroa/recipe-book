@@ -24,6 +24,7 @@ export class IngredientService {
   readonly ingredients$ = this.ingredientIndex$.pipe(map(index => index.ingredients));
   private revision = 0;
   private catalogRequest: Promise<void> | undefined;
+  private readonly catalogWrites = new Map<string, Ingredient>();
   private readonly detailRequests = new Map<string, { revision: number; promise: Promise<Ingredient | null> }>();
   constructor(private readonly supabase: SupabaseService, private readonly notifications: NotificationService) {}
 
@@ -39,7 +40,9 @@ export class IngredientService {
     const promise = this.loading.run(() => this.fetchCatalog(), 'ingredients')
       .then(() => { this.loaded.set(true); })
       .catch(error => { this.error.set(true); throw error; })
-      .finally(() => { if (this.catalogRequest === promise) this.catalogRequest = undefined; });
+      .finally(() => {
+        if (this.catalogRequest === promise) { this.catalogRequest = undefined; this.catalogWrites.clear(); }
+      });
     this.catalogRequest = promise;
     return promise;
   }
@@ -68,6 +71,8 @@ export class IngredientService {
         if (!rows.length || (total !== null && offset >= total)) break;
       }
       if (revision !== this.revision) continue;
+      for (const [id, ingredient] of this.catalogWrites) items.set(id, ingredient);
+      this.catalogWrites.clear();
       this.publish([...items.values()]);
       return;
     }
@@ -104,6 +109,7 @@ export class IngredientService {
   }
 
   private remember(ingredient: Ingredient): void {
+    if (this.catalogRequest) this.catalogWrites.set(ingredient.id, ingredient);
     this.publish([...this.indexSubject.value.ingredients.filter(item => item.id !== ingredient.id), ingredient]);
   }
   async add(name: string, category: IngredientCategory, derivedFromIds: string[] = [], derivedFromAmounts: Ingredient['derivedFromAmounts'] = {}): Promise<Ingredient> {
@@ -113,7 +119,6 @@ export class IngredientService {
     const { error } = await this.supabase.requireClient().rpc('save_ingredient', { p_id: id, p_name: ingredient.name, p_category: category, p_components: this.components(ingredient) });
     if (error) throw error;
     this.revision++;
-    await this.refresh();
     this.remember(ingredient);
     return ingredient;
   }
@@ -133,6 +138,7 @@ export class IngredientService {
       const { error } = await this.supabase.requireClient().from('ingredients').delete().eq('id', id);
       if (error) throw error;
       this.revision++;
+      this.catalogWrites.delete(id);
       this.publish(this.indexSubject.value.ingredients.filter((item) => item.id !== id));
       this.notifications.success('Ingrediente eliminado.'); return true;
     } catch (error) {

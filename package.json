@@ -8,6 +8,8 @@
     "lint": "ng lint",
     "test:assets": "node --test tests/site-assets.test.cjs",
     "test:photos:sql": "node --test tests/recipe-photo-transactions.test.cjs",
+    "test:shopping": "node --test tests/shopping-list.test.cjs",
+    "test:shopping:sql": "node --test tests/shopping-list-sql.test.cjs",
     "test:planner": "node --test tests/scheduled-meals.test.cjs tests/planner-state.test.cjs",
     "test:session": "node --test tests/cache.test.cjs tests/auth.test.cjs",
     "test:optimization": "node --test tests/recipe-optimization.test.cjs tests/recipe-list.test.cjs tests/loading.test.cjs tests/photo-upload.test.cjs tests/search.test.cjs tests/ingredients.test.cjs"

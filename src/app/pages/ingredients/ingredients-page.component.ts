@@ -5,7 +5,7 @@ import { Component, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { combineLatest, map, startWith } from 'rxjs';
-import { Ingredient, IngredientCategory } from '../../models/recipe.model';
+import { INGREDIENT_CATEGORIES, Ingredient, IngredientCategory } from '../../models/recipe.model';
 import { IngredientService } from '../../services/ingredient.service';
 import { ButtonComponent } from '../../components/shared/button/button.component';
 import { FormService } from '../../services/form.service';
@@ -34,10 +34,10 @@ export class IngredientsPageComponent {
   private readonly fb = inject(FormBuilder);
   readonly search = this.fb.nonNullable.control('');
   readonly category = this.fb.nonNullable.control<IngredientCategory | ''>('');
-  readonly categories: IngredientCategory[] = ['Verdura', 'Fruta', 'Legumbre', 'Pescado', 'Carne', 'Lacteo', 'Cereal', 'Especia', 'Elaboracion', 'Otro'];
+  readonly categories: IngredientCategory[] = [...INGREDIENT_CATEGORIES];
   readonly categoryOptions: SelectFilterOption[] = [
     { value: '', label: 'Todos los tipos' },
-    ...this.categories.map((itemCategory) => ({ value: itemCategory, label: itemCategory })),
+    ...this.categories.map((itemCategory) => ({ value: itemCategory, label: ingredientCategoryLabel(itemCategory) })),
   ];
   readonly filteredIngredients$ = combineLatest([
     this.ingredientService.ingredientIndex$,

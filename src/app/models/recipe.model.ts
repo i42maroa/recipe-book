@@ -1,6 +1,7 @@
 export type MealType = 'Desayuno' | 'Entrante' | 'Plato' | 'Postre';
 export type CuisineType = 'Española' | 'Italiana' | 'Mexicana' | 'Japonesa' | 'China' | 'India' | 'Francesa' | 'Peruana' | 'Árabe' | 'Otra';
-export type IngredientCategory = 'Verdura' | 'Fruta' | 'Legumbre' | 'Pescado' | 'Carne' | 'Lacteo' | 'Cereal' | 'Especia' | 'Elaboracion' | 'Otro';
+export const INGREDIENT_CATEGORIES = ['Verdura', 'Fruta', 'Legumbre', 'Pescado', 'Carne', 'Lacteo', 'Cereal', 'Liquidos', 'FrutosSecos', 'Especia', 'Elaboracion', 'Otro'] as const;
+export type IngredientCategory = typeof INGREDIENT_CATEGORIES[number];
 
 export interface Ingredient {
   id: string;

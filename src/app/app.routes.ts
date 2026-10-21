@@ -4,6 +4,7 @@ import { editorGuard } from './guards/editor.guard';
 import type { PlannerEditorPageComponent } from './pages/planner/planner-editor-page.component';
 
 export const routes: Routes = [
+  { path: 'shopping', canActivate: [editorGuard], loadComponent: () => import('./pages/shopping/shopping-page.component').then(m => m.ShoppingPageComponent) },
   { path: 'planner/week', canActivate: [editorGuard], canDeactivate: [(component: PlannerEditorPageComponent) => component.canLeave()], loadComponent: () => import('./pages/planner/planner-editor-page.component').then((m) => m.PlannerEditorPageComponent) },
   { path: 'planner/day', data: { todayOnly: true }, canActivate: [editorGuard], canDeactivate: [(component: PlannerEditorPageComponent) => component.canLeave()], loadComponent: () => import('./pages/planner/planner-editor-page.component').then((m) => m.PlannerEditorPageComponent) },
   { path: 'planner', pathMatch: 'full', canActivate: [editorGuard], loadComponent: () => import('./pages/planner/planner-page.component').then((m) => m.PlannerPageComponent) },

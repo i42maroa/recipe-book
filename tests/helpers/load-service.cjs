@@ -9,10 +9,11 @@ exports.loadService = (file, injections, globals = {}, modules = {}) => {
     let value = initial;
     const read = () => value;
     read.set = (next) => { value = next; };
+    read.update = (change) => { value = change(value); };
     read.asReadonly = () => read;
     return read;
   };
-  const core = { ...tokens, Injectable: () => (value) => value, signal, effect: (run) => run(), inject: (token) => injections[token] };
+  const core = { ...tokens, Injectable: () => (value) => value, signal, computed: (read) => read, effect: (run) => run(), inject: (token) => injections[token] };
   const module = { exports: {} };
   const source = fs.readFileSync(path.resolve(__dirname, '../..', file), 'utf8');
   const compiled = ts.transpileModule(source, {

@@ -1,5 +1,10 @@
 <div class="ingredient-filter">
-  <app-search-filter placeholder="Añade un ingrediente…" ariaLabel="Buscar ingredientes para filtrar recetas" [formControl]="search" />
+  <div class="ingredient-controls">
+    <app-search-filter placeholder="Añade un ingrediente…" [ariaLabel]="purpose() === 'shopping' ? 'Buscar ingredientes para añadir a la compra' : 'Buscar ingredientes para filtrar recetas'" [formControl]="search" />
+    @if (purpose() === 'shopping') {
+      <app-select-filter label="Categoría" filterType="ingredient-category" ariaLabel="Filtrar ingredientes por categoría" [options]="categoryOptions" [formControl]="category" />
+    }
+  </div>
   @if (ingredients.loading.isLoading('ingredients')) {
     <p role="status">Cargando ingredientes…</p>
   } @else if (ingredients.error()) {
@@ -13,14 +18,24 @@
       }
     </div>
   }
-  @if (selectedIds().length) {
+  @if (canCreate()) {
+    <div class="new-ingredient" role="group" aria-label="Crear un ingrediente que no existe">
+      <p>No existe un ingrediente llamado «{{ newName() }}». Puedes crearlo y añadirlo a tu lista.</p>
+      <div class="new-ingredient-controls">
+        <app-select-filter label="Categoría del nuevo ingrediente" placeholder="Elige una categoría" ariaLabel="Categoría del nuevo ingrediente" [options]="newCategoryOptions" [formControl]="newCategory" />
+        <button class="create-ingredient" type="button" [disabled]="disabled() || addingIngredient() || newCategory.invalid" (click)="createIngredient()"><app-icon name="plus" />{{ addingIngredient() ? 'Creando…' : 'Crear y añadir ingrediente' }}</button>
+      </div>
+    </div>
+  }
+  @if (createError()) { <p class="create-error" role="alert">{{ createError() }}</p> }
+  @if (selectedIds().length && showSelected()) {
     <div class="ingredient-tags" aria-label="Ingredientes seleccionados">
       @for (ingredient of selected(); track ingredient.id) {
         <button type="button" class="ingredient-tag" [attr.aria-label]="'Quitar ' + ingredient.name" (click)="remove(ingredient.id)">{{ ingredient.name }} <app-icon name="close" /></button>
       }
     </div>
-    <p>Con al menos uno de estos ingredientes. Primero, las recetas con más coincidencias.</p>
+    @if (purpose() === 'recipe-filter') { <p>Con al menos uno de estos ingredientes. Primero, las recetas con más coincidencias.</p> }
   } @else {
-    <p>Escribe al menos 2 caracteres y selecciona los ingredientes.</p>
+    <p>{{ selectedCategory() ? 'Selecciona un ingrediente de esta categoría o busca por nombre.' : 'Escribe al menos 2 caracteres y selecciona los ingredientes.' }}</p>
   }
 </div>
