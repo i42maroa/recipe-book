@@ -62,10 +62,10 @@ function setup() {
   return { list, state, changes, connect, settled };
 }
 
-test('returning restores all loaded cards, filters, expanded controls and scroll without a recipe request', async () => {
+test('returning restores all loaded cards, filters and scroll without a recipe request', async () => {
   const { list, state, connect, settled } = setup();
   list.setFilters({ ...list.filters, search: 'Arroz', pending: 'pending', sort: 'name', mealType: 'Plato', difficulty: 'Media' });
-  list.searchInput = 'Arroz'; list.filtersExpanded = true;
+  list.searchInput = 'Arroz';
   const first = connect(); await settled();
   list.loadMore(); await settled();
   list.loadMore(); await settled();
@@ -80,7 +80,6 @@ test('returning restores all loaded cards, filters, expanded controls and scroll
   assert.equal(list.searchInput, 'Arroz');
   assert.equal(list.filters.pending, 'pending');
   assert.equal(list.filters.sort, 'name');
-  assert.equal(list.filtersExpanded, true);
   assert.equal(list.scrollPosition[1], 1700);
   assert.equal(state.calls.length, 0);
   list.loadMore(); await settled();

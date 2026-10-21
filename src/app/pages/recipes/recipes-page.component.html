@@ -20,7 +20,7 @@
     <h2>Tu colección</h2>     
   </div>
 
-  <app-recipe-filters [search]="search" [sort]="sortFilter" [mealType]="mealTypeFilter" [difficulty]="difficultyFilter" [ingredientIds]="ingredientFilter" [(expanded)]="filtersExpanded" />
+  <app-recipe-filters [search]="search" [sort]="sortFilter" [mealType]="mealTypeFilter" [difficulty]="difficultyFilter" [ingredientIds]="ingredientFilter" />
 
   @if (page$ | async; as page) {
   @if (page.error && page.items.length === 0) {

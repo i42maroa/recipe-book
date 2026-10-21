@@ -1,0 +1,33 @@
+<section class="plan-picker" aria-label="Ingredientes del planning">
+  <p class="picker-heading">Selecciona el primer día y después el último. Se incluyen ambos días.</p>
+  <div class="picker-body">
+    <div class="selected-range" role="group" aria-label="Fecha que se está seleccionando">
+      <button class="range-field" type="button" [class.active]="!choosingEnd()" [attr.aria-pressed]="!choosingEnd()" (click)="choosingEnd.set(false)"><small>Desde</small><strong>{{ fromLabel() }}</strong></button>
+      <app-icon name="arrow-right" />
+      <button class="range-field" type="button" [disabled]="disabled() || !from()" [class.active]="choosingEnd()" [attr.aria-pressed]="choosingEnd()" (click)="choosingEnd.set(true)"><small>Hasta</small><strong>{{ toLabel() }}</strong></button>
+    </div>
+    <p class="range-help" role="status">{{ choosingEnd() ? 'Selecciona el día final (Hasta). Puedes cambiar de semana.' : 'Selecciona el día de inicio (Desde). Puedes cambiar de semana.' }}</p>
+    <div class="week-navigation"><button type="button" aria-label="Ver los siete días anteriores" [disabled]="disabled() || start() <= today" (click)="moveWeek(-1)">←</button><p>{{ periodLabel() }}</p><button type="button" aria-label="Ver los siete días siguientes" [disabled]="disabled()" (click)="moveWeek(1)">→</button></div>
+    <div class="week-days" role="group" aria-label="Seleccionar intervalo de compra" [attr.aria-busy]="loadingWeek()">
+      @for (day of days(); track day.date) {
+        <button type="button" [disabled]="disabled() || day.date < today" [class.in-range]="rangeSelected() && day.date >= from() && day.date <= to()" [class.range-edge]="day.date === from() || day.date === to()" [class.today]="day.date === today" [attr.aria-current]="day.date === today ? 'date' : null" [attr.aria-pressed]="day.date === from() || day.date === to() || (rangeSelected() && day.date >= from() && day.date <= to())" [attr.aria-label]="day.label" (click)="choose(day.date)">{{ day.shortLabel }}@if (loadingWeek()) { <app-skeleton /> } @else if (weekError()) { <span>—</span> } @else { <span>{{ counts()[day.date] ?? 0 }} recetas</span> }</button>
+      }
+    </div>
+    @if (loadingWeek()) { <p class="loading-status" role="status">Cargando días del planning…</p> }
+    @if (weekError()) { <p class="error" role="alert">No se pudieron cargar los contadores del planning. <button type="button" (click)="loadWeek()">Reintentar</button></p> }
+    <section class="preview" aria-label="Vista previa de la lista de la compra" [attr.aria-busy]="loadingPreview()">
+      <h3>Ingredientes para este intervalo</h3>
+      @if (!rangeSelected()) { <p role="status">Elige las fechas Desde y Hasta para calcular los ingredientes.</p> }
+      @else if (loadingPreview()) { <p role="status">Calculando ingredientes…</p><app-skeleton variant="rows" /> }
+      @else if (previewError()) { <p class="error" role="alert">{{ previewError() }}</p><button type="button" (click)="loadPreview()">Reintentar cálculo</button> }
+      @else if (!preview().length) { <p role="status">No hay ingredientes en las recetas disponibles de estos días. Elige otro intervalo.</p><a class="plan-week-link" routerLink="/planner/week" [queryParams]="{ start: from() }">Hacer plan semanal<app-icon name="arrow-right" /></a> }
+      @else {
+        <p class="preview-total">{{ preview().length }} ingredientes diferentes. El número indica cuántas veces aparecen en las recetas del planning.</p>
+        @for (group of groups(); track group.category) { <div class="preview-group"><h4>{{ group.label }}</h4><ul>@for (item of group.items; track item.id) { <li><span>{{ item.name }}</span><strong>×{{ item.occurrences }}</strong></li> }</ul></div> }
+      }
+    </section>
+  </div>
+  @if (rangeSelected() && !loadingPreview() && !previewError() && preview().length) {
+    <footer><button type="button" class="primary" [disabled]="disabled()" (click)="confirm()">Añadir</button></footer>
+  }
+</section>

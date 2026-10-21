@@ -12,7 +12,6 @@ test('picker cache distinguishes ingredient sets and preserves isolated selectio
   const { service } = setup();
   const selected = { ...filters, ingredientIds: ['tomato', 'lettuce'] };
   service.pickerFilters = selected;
-  service.pickerFiltersExpanded = true;
   selected.ingredientIds.push('onion');
   service.pickerFilters.ingredientIds.push('carrot');
   assert.deepEqual(Array.from(service.pickerFilters.ingredientIds), ['tomato', 'lettuce']);
@@ -20,7 +19,6 @@ test('picker cache distinguishes ingredient sets and preserves isolated selectio
   assert.equal(service.pickerPage(filters), undefined);
   assert.equal(service.pickerPage({ ...filters, ingredientIds: ['tomato'] }), undefined);
   assert.equal(service.pickerPage({ ...filters, ingredientIds: ['lettuce', 'tomato', 'tomato'] }).items[0].id, card.id);
-  assert.equal(service.pickerFiltersExpanded, true);
 });
 
 function setup() {
@@ -81,12 +79,10 @@ test('owner changes and permission revocation clear all private navigation state
   const signal = new AbortController().signal;
   await service.recipeData([card.id], true, signal);
   service.pickerFilters = { ...filters, search: 'private' };
-  service.pickerFiltersExpanded = true;
   service.rememberPicker(filters, { items: [card], offset: 1, total: 1 });
   state.owner = 'user-b';
   assert.equal(service.pickerPage(filters), undefined);
   assert.equal(service.pickerFilters.search, '');
-  assert.equal(service.pickerFiltersExpanded, false);
   await service.recipeData([card.id], true, signal);
   assert.equal(state.reads, 2);
   state.allowed = false;

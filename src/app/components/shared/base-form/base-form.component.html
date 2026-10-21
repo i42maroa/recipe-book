@@ -162,29 +162,36 @@
                     <label class="ingredient-search"><span class="input-floating-label">Buscar</span><app-icon class="search-icon" name="search" /><input [formControl]="compositionSearch" placeholder="Buscar por nombre"></label>
                     <app-select-filter filterType="ingredient-category" ariaLabel="Filtrar por categoría" [options]="compositionCategoryOptions" [formControl]="compositionCategoryFilter"></app-select-filter>
                   </app-filter-container>
-                  <div class="composition-picker">
+                  @if (compositionSearch.value.trim().length >= minSearchLength || compositionCategoryFilter.value) {
+                  <div class="ingredient-picker composition-picker" aria-label="Resultados de la búsqueda de componentes">
                     @for (group of (filteredCompositionIngredients$ | async) ?? []; track group.category) {
                       <section class="ingredient-category-group">
                         <h3>{{ categoryLabel(group.category) }}</h3>
-                        <div class="composition-category-options">
+                        <div class="ingredient-category-options">
                           @for (component of group.ingredients; track component.id) {
-                            <label class="ingredient-option"><input type="checkbox" [checked]="isCompositionSelected(component.id)" (change)="toggleCompositionIngredient(component.id)"><span>{{ component.name }}</span></label>
+                            <button type="button" class="ingredient-search-result" [attr.aria-label]="'Añadir ' + component.name" (click)="addCompositionIngredient(component.id)"><span>{{ component.name }}</span><app-icon name="plus" /></button>
                           }
                         </div>
                       </section>
                     } @empty {
-                      <p class="ingredient-empty">Añade ingredientes a la despensa antes de crear una elaboración.</p>
+                      <p class="ingredient-empty">No hay ingredientes disponibles que coincidan con la búsqueda y la categoría.</p>
+                      <div class="new-recipe-ingredient" role="group" aria-label="Añadir un componente nuevo">
+                        <label class="field-label"><span class="field-label-title">Nombre del ingrediente</span><input [formControl]="newCompositionName" (keydown.enter)="$event.preventDefault(); createCompositionIngredient()"></label>
+                        <app-select-filter label="Categoría" placeholder="Elige una categoría" ariaLabel="Categoría del nuevo componente" [options]="newIngredientCategoryOptions" [formControl]="newCompositionCategory"></app-select-filter>
+                        <app-button type="button" [disabled]="addingIngredient() || newCompositionName.invalid || newCompositionCategory.invalid" (clicked)="createCompositionIngredient()">{{ addingIngredient() ? 'Añadiendo…' : 'Añadir' }}</app-button>
+                      </div>
                     }
                   </div>
+                  } @else {
+                    <p class="ingredient-empty">Escribe al menos 2 caracteres o selecciona una categoría para encontrar y añadir ingredientes.</p>
+                  }
                 </fieldset>
                 <fieldset class="field-set selected-ingredients"><legend>Componentes seleccionados</legend>
                   <div class="selected-ingredient-list">
-                    @for (group of (selectedCompositionIngredients$ | async) ?? []; track group.category) {
-                      <section class="selected-ingredient-category">
-                        <h3>{{ categoryLabel(group.category) }}</h3>
-                        @for (component of group.ingredients; track component.id) {
-                          <div class="selected-ingredient">
-                            <div class="selected-ingredient-heading"><strong>{{ component.name }}</strong></div>
+                    @for (component of (selectedCompositionIngredients$ | async) ?? []; track component.id) {
+                          <div class="selected-ingredient recipe-selected-ingredient">
+                            <button type="button" class="remove-selected-ingredient" [attr.aria-label]="'Quitar ' + component.name" (click)="removeCompositionIngredient(component.id)"><app-icon name="close" /></button>
+                            <div class="selected-ingredient-heading"><strong>{{ component.name }}</strong><small>{{ categoryLabel(component.category) }}</small></div>
                             <div class="ingredient-amount-controls">
                               <select [value]="compositionAmountKind(component.id)" [attr.aria-label]="'Cantidad de ' + component.name" (change)="setCompositionAmountKind(component.id, $any($event.target).value)"><option value="none">Sin cantidad</option><option value="spoon">1 cucharada</option><option value="glass">1 vaso</option><option value="specific">Cantidad específica</option></select>
                               @if (compositionAmount(component.id); as amount) {
@@ -195,8 +202,6 @@
                               }
                             </div>
                           </div>
-                        }
-                      </section>
                     } @empty { <p class="ingredient-empty">Selecciona componentes arriba para indicar sus cantidades.</p> }
                   </div>
                 </fieldset>

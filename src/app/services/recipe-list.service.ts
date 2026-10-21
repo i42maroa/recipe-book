@@ -30,7 +30,6 @@ export class RecipeListService {
   private readonly requests = new Subject<void>();
   private snapshot: Snapshot | null = null;
   searchInput = '';
-  filtersExpanded = false;
   scrollPosition: [number, number] = [0, 0];
 
   get filters(): RecipeFilters { return { ...this.filtersSubject.value, ingredientIds: [...(this.filtersSubject.value.ingredientIds ?? [])] }; }

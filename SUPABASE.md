@@ -22,6 +22,13 @@ Para instalar desde cero, aplica una vez estos archivos, en este orden:
 4. `supabase/migrations/20261018000100_editor_access.sql`
 5. `supabase/migrations/20261019000100_recipe_query_optimization.sql`
 6. `supabase/migrations/20261019000200_partial_recipe_rating.sql`
+7. `supabase/migrations/20261019000300_meal_plans.sql`
+8. `supabase/migrations/20261019000400_unique_meal_plan_recipes.sql`
+9. `supabase/migrations/20261020000100_daily_meals.sql`
+10. `supabase/migrations/20261020000200_recipe_ingredient_search.sql`
+11. `supabase/migrations/20261020000300_atomic_recipe_photos.sql`
+12. `supabase/migrations/20261020000400_shopping_lists.sql`
+13. `supabase/migrations/20261021000100_ingredient_categories.sql`
 
 La migración de seguridad conserva los datos y reemplaza todas las políticas de las tablas del recetario enumeradas en ella. Crea el grupo privado de editores, configura lectura pública y escritura autorizada, restringe las RPC de guardado y protege las escrituras de fotos. El grupo empieza vacío: nadie podrá editar hasta que añadas al primer miembro. No vuelvas a aplicar las migraciones antiguas por separado después de configurar la seguridad, porque contienen permisos de escritura anónima.
 
@@ -128,3 +135,19 @@ La RPC guarda un día de forma atómica y conserva las demás fechas. Recibe sol
 La migración bloquea las escrituras antiguas mientras transfiere los datos. Para cada propietario y fecha elige el registro anterior actualizado más recientemente, incluidos los huecos vacíos, mantiene comensales y preparación y quita duplicados del mismo hueco. Los favoritos no se convierten en comidas fechadas. `meal_plans` se conserva como archivo, pero se revocan sus permisos de navegador. No se borran los datos antiguos ni se necesitan claves nuevas.
 
 Comprueba con sesiones reales de dos editores que puedan consultar y guardar sus propias comidas, sin acceder a las del otro. Verifica que anónimos y cuentas sin permiso no puedan leer o escribir, que la RPC no permita elegir otro propietario, que guardar un día no cambie el siguiente, que quitar la última receta lo vacíe y que se rechacen duplicados, seis recetas por hueco y modos no válidos. Comprueba también que la antigua API `meal_plans` ya no permita lecturas desde el navegador. Usa la clave pública y las sesiones correspondientes: SQL Editor como administrador omite RLS.
+
+## Lista de la compra
+
+Antes de desplegar la página **Compra**, ejecuta [20261020000400_shopping_lists.sql](supabase/migrations/20261020000400_shopping_lists.sql) en **SQL Editor → New query**, después de las anteriores. Si ya están aplicadas, solo necesitas esta nueva migración. No se ha ejecutado contra Supabase remoto desde el repositorio.
+
+Crea `shopping_lists`, con una fila privada por usuario, y las RPC `save_shopping_list(jsonb,bigint)` y `shopping_ingredients_from_plan(date,date)`. Ambas requieren sesión y permiso de editor y usan `SECURITY INVOKER`; no reciben un propietario arbitrario. RLS impide consultar o modificar listas ajenas. El guardado valida los elementos y compara la versión esperada para evitar reemplazar cambios de otra pestaña o dispositivo.
+
+El cálculo usa únicamente las comidas guardadas del usuario entre ambas fechas incluidas. Cuenta ingredientes directos por aparición de receta, sin calcular cantidades ni expandir elaboraciones. La lista guardada conserva una instantánea de nombres y categorías. Compartir envía texto desde el navegador, sin hacer pública la tabla.
+
+Las diez pruebas SQL locales validan las migraciones reales de compra y categorías en PostgreSQL/WASM con identidades de prueba. Tras aplicarlas, comprueba con dos sesiones reales que cada editor conserva su propia lista y que anónimos o usuarios sin permiso no pueden acceder. Si falta la migración inicial de compra, la página mostrará el archivo que debe aplicarse.
+
+## Categorías Líquidos y Frutos secos
+
+Ejecuta [20261021000100_ingredient_categories.sql](supabase/migrations/20261021000100_ingredient_categories.sql) en **SQL Editor → New query**, después de las anteriores y antes de publicar este frontend. En una instalación ya actualizada solo necesitas esta nueva migración. No se ha aplicado al proyecto remoto desde el repositorio.
+
+Permite los valores internos `Liquidos` y `FrutosSecos` en `ingredients.category` y en las listas de compra guardadas. Las etiquetas visibles son **Líquidos** y **Frutos secos**. Actualiza `ingredients_category_check` y `valid_shopping_items(jsonb)` dentro de una transacción; conserva los ingredientes, las listas existentes, RLS y la ejecución restringida de la validación. Puede ejecutarse de nuevo. No basta con ampliar únicamente el CHECK de ingredientes: también debe actualizarse la función para poder guardar las categorías nuevas en Compra.

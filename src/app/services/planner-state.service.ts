@@ -26,7 +26,6 @@ export class PlannerStateService {
   private owner: string | undefined;
   private revision = 0;
   private filters = defaultFilters();
-  pickerFiltersExpanded = false;
   private readonly summaries = new Map<string, { value: RecipeSummary | undefined; expires: number }>();
   private readonly cards = new Map<string, { value: RecipeCard | undefined; expires: number }>();
   private readonly pages = new Map<string, { value: PickerSnapshot; expires: number }>();
@@ -39,7 +38,7 @@ export class PlannerStateService {
   private syncOwner(): string | undefined {
     const owner = this.auth.canEdit() ? this.auth.user()?.id : undefined;
     if (owner !== this.owner) {
-      this.owner = owner; this.filters = defaultFilters(); this.pickerFiltersExpanded = false; this.invalidateRecipes();
+      this.owner = owner; this.filters = defaultFilters(); this.invalidateRecipes();
     }
     return owner;
   }

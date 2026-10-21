@@ -19,5 +19,7 @@ export function mealPhotoClass(mealType: MealType | undefined): string {
 export function ingredientCategoryLabel(category: IngredientCategory): string {
   if (category === 'Lacteo') return 'Lácteo';
   if (category === 'Elaboracion') return 'Elaboración';
+  if (category === 'Liquidos') return 'Líquidos';
+  if (category === 'FrutosSecos') return 'Frutos secos';
   return category;
 }
