@@ -2,7 +2,13 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "angular",
   "outputDirectory": "dist/recetario/browser",
+  "functions": {
+    "api/recipe-preview.js": {
+      "includeFiles": "{dist/recetario/browser/index.html,src/environments/environment.production.ts}"
+    }
+  },
   "rewrites": [
+    { "source": "/recipes/:id", "destination": "/api/recipe-preview?id=:id" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

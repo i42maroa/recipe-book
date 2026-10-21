@@ -51,5 +51,5 @@ export function shoppingGroups(items: ShoppingItem[]): { category: IngredientCat
 
 export function shoppingShareText(items: ShoppingItem[]): string {
   return ['Lista de la compra · Laurel', ...shoppingGroups(items).map(group =>
-    `\n${group.label}\n${group.items.map(item => `• ${item.name} ×${item.occurrences}`).join('\n')}`)].join('\n');
+    `\n${group.label}\n${group.items.map(item => `• ${item.name}${item.occurrences > 1 ? ` ×${item.occurrences}` : ''}`).join('\n')}`)].join('\n');
 }
