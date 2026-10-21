@@ -99,7 +99,8 @@ test('dirty comparison ignores ordering but includes counts and names; sharing g
   assert.notEqual(utils.shoppingFingerprint([tomato]), utils.shoppingFingerprint([{ ...tomato, occurrences: 2 }]));
   assert.notEqual(utils.shoppingFingerprint([tomato]), utils.shoppingFingerprint([{ ...tomato, name: 'Nuevo' }]));
   const text = utils.shoppingShareText([tomato, rice]);
-  assert.match(text, /Lista de la compra · Laurel/); assert.match(text, /Tomate ×3/); assert.match(text, /Arroz ×1/);
+  assert.match(text, /Lista de la compra · Laurel/); assert.match(text, /Tomate ×3/); assert.match(text, /• Arroz\n/);
+  assert.doesNotMatch(text, /×1\b/);
 });
 
 test('new personal list loads empty; manual draft is reused until explicit save', async () => {

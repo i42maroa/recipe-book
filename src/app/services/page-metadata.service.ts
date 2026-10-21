@@ -18,7 +18,7 @@ export class PageMetadataService {
       const segments = router.parseUrl(router.url).root.children['primary']?.segments ?? [];
       const path = segments.length ? `/${segments.map((segment) => encodeURIComponent(segment.path)).join('/')}` : '/recipes';
       const url = new URL(path, environment.publicSiteUrl).href;
-      // Only the URL changes: the shared title, description and image stay static.
+      // Recipe previews are delivered in the initial HTML by the Vercel function.
       meta.updateTag({ property: 'og:url', content: url });
       const notFound = router.routerState.snapshot.root.firstChild?.routeConfig?.path === '**';
       meta.updateTag({ name: 'robots', content: path === '/login' || path === '/shopping' || path === '/planner' || path.startsWith('/planner/') || notFound ? 'noindex, nofollow' : 'index, follow' });

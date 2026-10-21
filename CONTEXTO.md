@@ -19,7 +19,7 @@ La aplicación incluye consulta pública, creación, edición y eliminación aut
 - **Alojamiento configurado:** Vercel, con salida estática en `dist/recetario/browser` y reescritura SPA en `vercel.json`.
 - **Comprobaciones:** Angular CLI, ESLint y pruebas de servicios con `node:test`.
 
-**Decisión vigente:** mantener Angular conectado directamente a Supabase. No se ha añadido una API intermedia propia, funciones de backend en Vercel, Spring Boot, Redis ni una pasarela con límites por IP o usuario. La API propia queda como una posible evolución, aplazada por decisión del usuario.
+**Decisión vigente:** mantener Angular conectado directamente a Supabase. No se ha añadido una API intermedia de datos, Spring Boot, Redis ni una pasarela con límites por IP o usuario. Vercel incorpora únicamente una función de lectura pública para entregar los metadatos de las recetas compartidas en el HTML inicial. La API propia queda como una posible evolución, aplazada por decisión del usuario.
 
 ## Convenciones de desarrollo
 
@@ -123,6 +123,8 @@ Se comparte la URL del detalle mediante `navigator.share` cuando está disponibl
 
 El enlace se construye siempre con `publicSiteUrl`, actualmente `https://recipe-book-neon-two.vercel.app`, y el ID de la receta. No utiliza el origen de localhost ni las URLs alternativas de preview de Vercel. El dominio público debe permitir la consulta sin autenticación de Vercel.
 
+En Vercel, las URLs `/recipes/:id` entregan el HTML compilado de Angular con metadatos Open Graph y Twitter específicos: nombre, tiempo, comensales y dificultad cuando existen, y primera foto según su posición. Sin foto se utiliza la imagen de Laurel. `api/recipe-preview.js` consulta datos públicos con la clave publishable de producción, sin sesión de usuario, y conserva los scripts de Angular. Los éxitos se cachean 60 segundos en Vercel; errores, recetas ausentes o IDs inválidos sirven la aplicación sin caché compartida. No requiere migraciones ni variables adicionales. Requiere desplegar; los clientes de mensajería pueden conservar sus propias tarjetas en caché. Véase [PREVIEWS.md](PREVIEWS.md).
+
 ### Fotografías
 
 - Se admiten hasta tres fotos por receta, con orden y texto alternativo. Hay carrusel en tarjetas y detalle, y visor ampliado con flechas de teclado y cierre con Escape.
@@ -224,7 +226,7 @@ La nueva migración debe aplicarse después de las anteriores y antes de despleg
 
 ### Compartir y requisitos de base de datos
 
-- **Compartir** usa la lista actual, incluidos cambios aún no guardados, con categorías, nombres y contadores. Prueba `navigator.share`, después copia al portapapeles y ofrece un texto seleccionable si la copia falla. Compartir no guarda, publica una URL ni concede acceso a la tabla privada.
+- **Compartir** usa la lista actual, incluidos cambios aún no guardados, con categorías y nombres. El texto omite **×1** y muestra el contador solo desde **×2**, tanto al compartir como al copiar o seleccionar manualmente. Los contadores visibles de la aplicación se conservan. Prueba `navigator.share`, después copia al portapapeles y ofrece un texto seleccionable si la copia falla. Compartir no guarda, publica una URL ni concede acceso a la tabla privada.
 - Requiere `20261020000400_shopping_lists.sql` para tabla, permisos y RPC, y `20261021000100_ingredient_categories.sql` para admitir Líquidos y Frutos secos también en las instantáneas guardadas. Si faltan la tabla o las RPC, se identifica la migración inicial de compra sin permitir editar una lista cuya carga ha fallado. No se han aplicado al proyecto remoto desde estas tareas.
 
 ## Funcionalidades de ingredientes y elaboraciones
@@ -301,9 +303,9 @@ Detalles de implementación, llamadas esperadas y pruebas: [OPTIMIZACION.md](OPT
 
 - La identidad visible es **Laurel**, con variables visuales compartidas, tipografías y componentes adaptados a las distintas resoluciones.
 - Se incluyen favicon SVG, PNG e ICO y un icono para dispositivos Apple.
-- Las previsualizaciones compartidas utilizan una **tarjeta genérica estática** con imagen, título y descripción comunes para toda la web. No se genera una tarjeta por receta ni hay funciones de servidor que consulten Supabase para las previsualizaciones.
+- Las recetas compartidas utilizan metadatos específicos entregados por `api/recipe-preview.js` en el HTML inicial. Las demás rutas conservan la tarjeta genérica estática de `src/index.html`.
 - `PageMetadataService` actualiza la URL canónica y `og:url` usando el dominio público, sin parámetros de navegación como `fromPlanner` o `plannerStart`. `/login`, `/shopping`, las tres rutas del planner y las páginas 404 utilizan `noindex, nofollow`.
-- `vercel.json` conserva el framework Angular, la carpeta de salida y una reescritura general a `index.html`. Las rutas de detalle, login y desconocidas pueden abrirse directamente en el navegador.
+- `vercel.json` conserva el framework Angular, la carpeta de salida y una reescritura general a `index.html`, precedida por la ruta `/recipes/:id` a la función de previsualización. La función incluye el HTML compilado y el entorno público de producción. Las rutas de detalle, login y desconocidas pueden abrirse directamente en el navegador.
 - El dominio público configurado es `https://recipe-book-neon-two.vercel.app`. Las URLs de preview pueden tener protección de Vercel, pero esa autenticación no debe exigirse a visitantes del dominio público.
 
 ## Base de datos y migraciones
@@ -338,6 +340,7 @@ Las migraciones necesarias deben aplicarse antes de desplegar la versión corres
 | `npm run test:session` | Caché, sesión, renovación, reanudación y permisos. |
 | `npm run test:optimization` | Consultas, listado conservado, concurrencia, guardados, valoraciones parciales e imágenes. |
 | `npm run test:assets` | Textos alternativos y dimensiones de los recursos de marca. |
+| `node --test tests/recipe-preview.test.cjs` | Metadatos por receta, foto ordenada, imagen alternativa, escape HTML, errores de lectura, IDs inválidos y configuración de rutas de Vercel. |
 | `npm run test:photos:sql` | Nueve pruebas SQL en PostgreSQL/WASM local de atomicidad, conflictos, borrado y permisos de fotos. Requiere instalar PGlite temporalmente como indica `OPTIMIZACION.md`. |
 | `npm run test:shopping` | Veintiséis pruebas de la lista, categorías, limpieza, incrementos y límites, fechas, agrupación, guardado, borradores, paginación y caché de intervalos, concurrencia, cancelación e invalidación por cambios de cuenta o datos. |
 | `npm run test:shopping:sql` | Diez pruebas de las migraciones reales de compra y categorías en PostgreSQL/WASM local: categorías nuevas, recuentos, límites inclusivos, privacidad, validación, reejecución y conflictos. Requiere PGlite temporal. |
@@ -345,6 +348,8 @@ Las migraciones necesarias deben aplicarse antes de desplegar la versión corres
 | `node --test tests/*.test.cjs` | Todas las pruebas del repositorio, incluidas las SQL locales cuando está disponible PGlite. |
 
 ### Última validación registrada
+
+Para los cambios de compartir se verificaron compilación de producción, lint y **35 pruebas** de compra, recursos y previsualización, además de ejecutar la función con el HTML compilado y Supabase simulado. No se ha desplegado ni verificado la tarjeta en una aplicación de mensajería desde esta tarea.
 
 La última ejecución completa tras las correcciones de Compra pasó **163 pruebas**, con compilación y lint correctos. Incluye doce nuevas regresiones sobre el alta sin recarga del catálogo, la conservación de un ingrediente creado durante cargas anteriores y la caché de intervalos: reutilización, consultas simultáneas, cancelación de consumidores, caducidad, límites, invalidación y aislamiento de cuentas. Esta actualización del documento no implica una nueva ejecución de esas pruebas.
 
