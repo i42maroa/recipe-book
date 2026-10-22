@@ -1,4 +1,4 @@
-﻿    <div class="modal-scrim" (click)="formType === 'ingredient' && requestCancel()">
+    <div class="modal-scrim" (click)="formType === 'ingredient' && requestCancel()">
       <section class="form-modal" [class.recipe-modal]="formType === 'recipe'" (click)="$event.stopPropagation()" aria-modal="true" role="dialog" [attr.aria-label]="formType === 'recipe' ? (recipeToEdit ? 'Modificar receta' : 'Nueva receta') : (ingredientToEdit ? 'Modificar ingrediente' : 'Nuevo ingrediente')">
         <header class="form-modal-header"><div><span class="eyebrow">{{ formType === 'recipe' ? (recipeToEdit ? 'EDITAR RECETA' : 'AÑADIR AL RECETARIO') : (ingredientToEdit ? 'EDITAR INGREDIENTE' : 'TU DESPENSA') }}</span><h2>{{ formType === 'recipe' ? (recipeToEdit ? 'Modificar receta' : 'Nueva receta') : (ingredientToEdit ? 'Modificar ingrediente' : 'Nuevo ingrediente') }}</h2></div><button class="icon-button" type="button" aria-label="Cerrar" [disabled]="busy()" (click)="requestCancel()"><app-icon name="close" /></button></header>
         @if (ingredientService.loading.isLoading('ingredients')) {
@@ -33,8 +33,8 @@
   <fieldset class="field-set cuisine-style-field"><legend>Estilo de cocina <span>(puedes elegir varios)</span></legend><div class="chip-options cuisine-options">@for (type of cuisineTypes; track type) { <label class="check-chip"><input type="checkbox" [checked]="hasCuisineType(type)" (change)="toggleCuisineType(type)"><span><i class="cuisine-chip-flag" aria-hidden="true">{{ cuisineFlag(type) }}</i>{{ type }}</span></label> }</div></fieldset>
   <div class="field-row recipe-number-row">
     <label class="field-label"><span class="field-label-title">Dificultad</span><select formControlName="difficulty">@for (difficulty of difficulties; track difficulty) { <option [value]="difficulty">{{ difficulty }}</option> }</select></label>
-    <label class="field-label duration-field"><span class="field-label-title">Elaboración</span><input type="number" min="1" formControlName="minutes" aria-label="Elaboración en minutos"><span class="input-suffix" aria-hidden="true">min</span></label>
-    <label class="field-label"><span class="field-label-title">Comensales</span><input type="number" min="1" step="1" formControlName="servings"></label>
+    <label class="field-label duration-field"><span class="field-label-title">Elaboración</span><input type="number" autocomplete="off" min="1" formControlName="minutes" aria-label="Elaboración en minutos"><span class="input-suffix" aria-hidden="true">min</span></label>
+    <label class="field-label"><span class="field-label-title">Comensales</span><input type="number" autocomplete="off" min="1" step="1" formControlName="servings"></label>
   </div>
   @if (recipeForm.controls.servings.touched && recipeForm.controls.servings.invalid) { <small class="error-text">Indica al menos un comensal.</small> }
   @if (recipeForm.controls.pending.value === 'no') {
@@ -97,7 +97,7 @@
             <select [value]="ingredientAmountKind(ingredient.id)" [attr.aria-label]="'Cantidad de ' + ingredient.name" (change)="setIngredientAmountKind(ingredient.id, $any($event.target).value)"><option value="none">Sin cantidad</option><option value="spoon">1 cucharada</option><option value="glass">1 vaso</option><option value="specific">Cantidad específica</option></select>
             @if (ingredientAmount(ingredient.id); as amount) {
               @if (amount.kind === 'specific') {
-                <input type="number" min="0.01" step="any" [value]="amount.value ?? ''" [attr.aria-label]="'Cantidad de ' + ingredient.name" placeholder="Cantidad" (input)="setSpecificAmountValue(ingredient.id, $any($event.target).value)">
+                <input type="number" autocomplete="off" min="0.01" step="any" [value]="amount.value ?? ''" [attr.aria-label]="'Cantidad de ' + ingredient.name" placeholder="Cantidad" (input)="setSpecificAmountValue(ingredient.id, $any($event.target).value)">
                 <select [value]="amount.unit" [attr.aria-label]="'Unidad de ' + ingredient.name" (change)="setSpecificAmountUnit(ingredient.id, $any($event.target).value)"><option value="g">g</option><option value="ml">ml</option><option value="pieza">pieza</option></select>
               }
             }
@@ -196,7 +196,7 @@
                               <select [value]="compositionAmountKind(component.id)" [attr.aria-label]="'Cantidad de ' + component.name" (change)="setCompositionAmountKind(component.id, $any($event.target).value)"><option value="none">Sin cantidad</option><option value="spoon">1 cucharada</option><option value="glass">1 vaso</option><option value="specific">Cantidad específica</option></select>
                               @if (compositionAmount(component.id); as amount) {
                                 @if (amount.kind === 'specific') {
-                                  <input type="number" min="0.01" step="any" [value]="amount.value ?? ''" [attr.aria-label]="'Cantidad de ' + component.name" placeholder="Cantidad" (input)="setCompositionAmountValue(component.id, $any($event.target).value)">
+                                  <input type="number" autocomplete="off" min="0.01" step="any" [value]="amount.value ?? ''" [attr.aria-label]="'Cantidad de ' + component.name" placeholder="Cantidad" (input)="setCompositionAmountValue(component.id, $any($event.target).value)">
                                   <select [value]="amount.unit" [attr.aria-label]="'Unidad de ' + component.name" (change)="setCompositionAmountUnit(component.id, $any($event.target).value)"><option value="g">g</option><option value="ml">ml</option><option value="pieza">pieza</option></select>
                                 }
                               }

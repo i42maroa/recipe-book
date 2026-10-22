@@ -5,4 +5,5 @@ export interface RecipeCard extends Pick<Recipe,
   'id' | 'name' | 'minutes' | 'servings' | 'pending' | 'mealTypes' |
   'cuisineTypes' | 'rating' | 'fitness' | 'difficulty' | 'photos'> {
   ingredientCount: number;
+  matchedIngredients?: { id: string; name: string }[];
 }

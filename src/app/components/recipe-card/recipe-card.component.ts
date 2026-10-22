@@ -1,13 +1,14 @@
 ﻿import { cuisineFlag, mealPhotoClass } from '../../utils/recipe-display.utils';
-import { Component, input, output } from '@angular/core';
+import { Component, computed, input, output } from '@angular/core';
 import { CuisineType, RecipePhoto } from '../../models/recipe.model';
 import { RecipeCard } from '../../models/recipe-card.model';
 import { MealIconComponent } from '../shared/meal-icon/meal-icon.component';
 import { IconComponent } from '../shared/icon/icon.component';
 import { DifficultyTonePipe } from '../../pipes/difficulty-tone.pipe';
+import { IngredientTagComponent } from '../shared/ingredient-tag/ingredient-tag.component';
 
 @Component({
-  selector: 'app-recipe-card', standalone: true, imports: [MealIconComponent, IconComponent, DifficultyTonePipe],
+  selector: 'app-recipe-card', standalone: true, imports: [MealIconComponent, IconComponent, DifficultyTonePipe, IngredientTagComponent],
   templateUrl: './recipe-card.component.html',
   styleUrl: './recipe-card.component.css'
 })
@@ -16,6 +17,12 @@ export class RecipeCardComponent {
   readonly selected = output<RecipeCard>();
   readonly priority = input(false);
   readonly disabled = input(false);
+  readonly ingredientFilterIds = input<string[]>([]);
+  readonly matchedIngredients = computed(() => {
+    const ingredients = new Map((this.recipe().matchedIngredients ?? []).map(ingredient => [ingredient.id.toLowerCase(), ingredient]));
+    return [...new Set(this.ingredientFilterIds().map(id => id.toLowerCase()))]
+      .flatMap(id => ingredients.has(id) ? [ingredients.get(id)!] : []);
+  });
   activePhotoIndex = 0;
   currentPhoto(): RecipePhoto | undefined {
     const photos = this.recipe().photos ?? [];

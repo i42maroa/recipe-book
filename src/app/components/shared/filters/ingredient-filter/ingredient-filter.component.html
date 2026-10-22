@@ -31,7 +31,7 @@
   @if (selectedIds().length && showSelected()) {
     <div class="ingredient-tags" aria-label="Ingredientes seleccionados">
       @for (ingredient of selected(); track ingredient.id) {
-        <button type="button" class="ingredient-tag" [attr.aria-label]="'Quitar ' + ingredient.name" (click)="remove(ingredient.id)">{{ ingredient.name }} <app-icon name="close" /></button>
+        <app-ingredient-tag [name]="ingredient.name" [removable]="true" (removed)="remove(ingredient.id)" />
       }
     </div>
     @if (purpose() === 'recipe-filter') { <p>Con al menos uno de estos ingredientes. Primero, las recetas con más coincidencias.</p> }

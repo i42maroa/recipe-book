@@ -9,7 +9,7 @@
     @else {
       <div class="recipe-grid">
         @for (recipe of results(); track recipe.id; let index = $index) {
-          <div class="picker-option"><app-recipe-card [recipe]="recipe" [priority]="index < 2" [disabled]="isAdded(recipe.id)" (selected)="select($event)" />
+          <div class="picker-option"><app-recipe-card [recipe]="recipe" [priority]="index < 2" [ingredientFilterIds]="ingredientIds.value" [disabled]="isAdded(recipe.id)" (selected)="select($event)" />
             @if (isAdded(recipe.id)) { <span class="already-added">Ya añadida a este hueco</span> }
           </div>
         }

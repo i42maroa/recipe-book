@@ -24,6 +24,13 @@
     </span>
     <span class="recipe-title">{{ recipe().name }}</span>
     <span class="recipe-ingredient-count">{{ recipe().ingredientCount }} {{ recipe().ingredientCount === 1 ? 'ingrediente' : 'ingredientes' }}</span>
+    @if (matchedIngredients().length) {
+      <span class="matched-ingredients" role="group" aria-label="Ingredientes que coinciden con el filtro">
+        @for (ingredient of matchedIngredients(); track ingredient.id) {
+          <app-ingredient-tag class="card-tag" [name]="ingredient.name" />
+        }
+      </span>
+    }
     <span class="recipe-card-bottom-row">
       <span class="recipe-card-meta">
         @if (recipe().minutes) { <span><app-icon class="meta-icon" name="clock" />{{ recipe().minutes }} min</span> }
