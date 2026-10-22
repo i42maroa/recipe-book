@@ -1,0 +1,5 @@
+@if (removable()) {
+  <button type="button" class="ingredient-tag" [attr.aria-label]="'Quitar ' + name()" (click)="removed.emit()">{{ name() }} <app-icon name="close" /></button>
+} @else {
+  <span class="ingredient-tag">{{ name() }}</span>
+}

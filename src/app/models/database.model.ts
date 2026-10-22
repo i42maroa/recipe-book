@@ -35,4 +35,5 @@ export interface RecipeCardRow extends Pick<RecipeRow,
   'id' | 'name' | 'minutes' | 'servings' | 'pending' | 'meal_types' |
   'rating' | 'fitness' | 'difficulty' | 'recipe_cuisine_types' | 'recipe_photos'> {
   recipe_ingredients: { count: number }[];
+  matched_ingredients?: { ingredient_id: string; ingredients: { name: string } | null }[];
 }

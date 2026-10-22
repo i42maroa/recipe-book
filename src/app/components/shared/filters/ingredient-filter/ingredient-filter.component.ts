@@ -12,12 +12,13 @@ import { SelectFilterComponent } from '../select-filter/select-filter.component'
 import { SelectFilterOption } from '../select-filter-options';
 import { AuthService } from '../../../../services/auth.service';
 import { NotificationService } from '../../../../services/notification.service';
+import { IngredientTagComponent } from '../../ingredient-tag/ingredient-tag.component';
 import { distinctUntilChanged, startWith } from 'rxjs';
 
 @Component({
   selector: 'app-ingredient-filter',
   standalone: true,
-  imports: [ReactiveFormsModule, SearchFilterComponent, SelectFilterComponent, IconComponent],
+  imports: [ReactiveFormsModule, SearchFilterComponent, SelectFilterComponent, IconComponent, IngredientTagComponent],
   templateUrl: './ingredient-filter.component.html',
   styleUrl: './ingredient-filter.component.css',
 })

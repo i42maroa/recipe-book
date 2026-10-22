@@ -13,7 +13,7 @@
   } @else {
     @if (loading()) { <p class="loading-status" role="status">Cargando las comidas de hoy…</p> }
     <section class="day saved-day" [attr.aria-busy]="loading()">
-      <header class="day-heading"><h2>{{ day.label }}</h2>@if (!loading() && sections().length) { <a class="edit-day" routerLink="/planner/day">Editar</a> }</header>
+      <header class="day-heading"><h2>{{ day.label }}</h2>@if (!loading() && sections().length) { <div class="day-actions"><a class="plan-week" routerLink="/planner/week">Planificar Semana</a><a class="edit-day" routerLink="/planner/day">Editar</a></div> }</header>
       @if (loading()) {
         @for (slot of slots; track slot.id) {
           <section class="meal" [attr.aria-label]="slot.label"><div class="meal-heading"><h3>{{ slot.label }}</h3></div><div class="meal-entries"><div class="loading-entry"><app-skeleton variant="paragraph" /></div></div></section>

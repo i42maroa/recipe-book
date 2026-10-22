@@ -11,15 +11,31 @@ test('ingredient search preserves server ranking, pagination, other filters and 
   const calls = [];
   const signal = new AbortController().signal;
   const builder = {
-    select(value) { assert.ok(value.includes('recipe_ingredients(count)')); return this; },
+    select(value) {
+      assert.ok(value.includes('recipe_ingredients(count)'));
+      assert.ok(value.includes('matched_ingredients:recipe_ingredients(ingredient_id,ingredients(name))'));
+      return this;
+    },
     returns() { return this; },
+    in() { assert.fail('Embedded filters on this RPC produce PostgreSQL error 42703; match tags locally'); },
     ilike(...args) { calls.push(['ilike', ...args]); return this; },
     eq(...args) { calls.push(['eq', ...args]); return this; },
     contains(...args) { calls.push(['contains', ...args]); return this; },
     abortSignal(value) { assert.equal(value, signal); return this; },
     range(...args) { calls.push(['range', ...args]); return this; },
     order() { assert.fail('The client must preserve the ranking returned by SQL'); },
-    then(resolve) { resolve({ data: [], count: 25, error: null }); },
+    then(resolve) { resolve({ data: [
+      { id: 'first', recipe_ingredients: [{ count: 7 }], matched_ingredients: [
+        { ingredient_id: 'tomato', ingredients: { name: 'Tomate' } },
+        { ingredient_id: 'rice', ingredients: { name: 'Arroz' } },
+      ] },
+      { id: 'second', recipe_ingredients: [{ count: 5 }], matched_ingredients: [
+        { ingredient_id: 'tomato', ingredients: { name: 'Tomate' } },
+        { ingredient_id: 'lettuce', ingredients: { name: 'Lechuga' } },
+        { ingredient_id: 'salt', ingredients: { name: 'Sal' } },
+        { ingredient_id: 'missing', ingredients: null },
+      ] },
+    ], count: 25, error: null }); },
   };
   const client = {
     rpc(name, args, options) { calls.push(['rpc', name, args, options]); return builder; },
@@ -33,6 +49,10 @@ test('ingredient search preserves server ranking, pagination, other filters and 
   const batch = await service.getBatch({ ...filters, ingredientIds: ['tomato', 'lettuce', 'tomato'], sort: 'rating', search: '100%', pending: 'pending', mealType: 'Plato', difficulty: 'Fácil' }, 20, 10, signal);
   assert.equal(batch.total, 25);
   assert.equal(batch.offset, 20);
+  assert.deepEqual(JSON.parse(JSON.stringify(batch.items.map(card => ({ count: card.ingredientCount, matches: card.matchedIngredients })))), [
+    { count: 7, matches: [{ id: 'tomato', name: 'Tomate' }] },
+    { count: 5, matches: [{ id: 'tomato', name: 'Tomate' }, { id: 'lettuce', name: 'Lechuga' }] },
+  ]);
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
     ['rpc', 'search_recipes_by_ingredients', { p_ingredient_ids: ['tomato', 'lettuce'], p_sort: 'rating' }, { count: 'exact' }],
     ['ilike', 'name', '%100\\%%'], ['eq', 'pending', true], ['contains', 'meal_types', ['Plato']], ['eq', 'difficulty', 'Fácil'], ['range', 20, 29],

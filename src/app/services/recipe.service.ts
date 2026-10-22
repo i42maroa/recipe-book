@@ -102,7 +102,8 @@ export class RecipeService {
     const batchSize = Math.max(1, Math.floor(limit));
     const ingredientIds = [...new Set(filters.ingredientIds ?? [])];
     let query = ingredientIds.length
-      ? client.rpc('search_recipes_by_ingredients', { p_ingredient_ids: ingredientIds, p_sort: filters.sort }, { count: 'exact' }).returns<RecipeCardRow[]>().select(RECIPE_CARD_SELECT)
+      ? client.rpc('search_recipes_by_ingredients', { p_ingredient_ids: ingredientIds, p_sort: filters.sort }, { count: 'exact' }).returns<RecipeCardRow[]>()
+        .select(`${RECIPE_CARD_SELECT},matched_ingredients:recipe_ingredients(ingredient_id,ingredients(name))`)
       : client.from('recipes').select(RECIPE_CARD_SELECT, { count: 'exact' });
     const search = filters.search.trim();
     if (search.length >= MIN_SEARCH_LENGTH) {
@@ -134,7 +135,7 @@ export class RecipeService {
     }
     const total = count ?? 0;
     if (data && !Array.isArray(data)) throw new Error('La consulta de recetas no devolvió una lista.');
-    const items = this.mapCardRows(data ?? []);
+    const items = this.mapCardRows(data ?? [], ingredientIds);
     return { items, total, offset: from };
   }
 
@@ -212,12 +213,16 @@ export class RecipeService {
     this.recipesSubject.next([...cache.values()]);
   }
 
-  private mapCardRows(rows: RecipeCardRow[]): RecipeCard[] {
+  private mapCardRows(rows: RecipeCardRow[], ingredientIds: string[] = []): RecipeCard[] {
+    const selectedIds = new Set(ingredientIds.map(id => id.toLowerCase()));
     return rows.map((row) => ({
       id: row.id, name: row.name, minutes: row.minutes, servings: row.servings,
       pending: row.pending, mealTypes: row.meal_types ?? [], rating: row.rating,
       fitness: row.fitness, difficulty: row.difficulty ?? undefined,
       ingredientCount: row.recipe_ingredients?.[0]?.count ?? 0,
+      ...(row.matched_ingredients ? { matchedIngredients: row.matched_ingredients.flatMap(item =>
+        item.ingredients && selectedIds.has(item.ingredient_id.toLowerCase())
+          ? [{ id: item.ingredient_id, name: item.ingredients.name }] : []) } : {}),
       cuisineTypes: (row.recipe_cuisine_types ?? []).flatMap((item) => item.cuisine_types ? [item.cuisine_types.name] : []),
       photos: [...(row.recipe_photos ?? [])].sort((a, b) => a.position - b.position).map((photo) => ({
         id: photo.id, storagePath: photo.storage_path, url: this.photoService.publicUrl(photo.storage_path),

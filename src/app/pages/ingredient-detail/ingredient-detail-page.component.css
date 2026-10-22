@@ -173,3 +173,14 @@
   }
 }
 
+@media (max-width: 1120px) {
+  .ingredient-category, .ingredient-components li small, .recipe-count,
+  .ingredient-recipes li small { font-size: 14px; }
+  .ingredient-components li, .ingredient-recipes li a, .no-recipes { font-size: 16px; line-height: 1.7; }
+  .ingredient-component-group h3, .ingredient-components > .eyebrow { font-size: 12px; }
+  .ingredient-recipes h2 { font-size: 22px; }
+  .ingredient-recipes header { flex-wrap: wrap; align-items: baseline; }
+  .ingredient-components li a, .ingredient-recipes li a span { min-width: 0; overflow-wrap: anywhere; }
+  .ingredient-components li small, .ingredient-recipes li small { flex-shrink: 0; }
+}
+

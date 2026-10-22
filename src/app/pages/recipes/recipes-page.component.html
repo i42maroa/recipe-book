@@ -29,7 +29,7 @@
   @if (page.loading) { <p class="loading-status" role="status">Cargando recetas…</p> }
   <div class="recipe-grid" [attr.aria-busy]="page.loading" id="recipe-results">
     @for (recipe of page.items; track recipe.id; let index = $index) {
-      <app-recipe-card [recipe]="recipe" [priority]="index < 2" (selected)="showRecipe($event)"></app-recipe-card>
+      <app-recipe-card [recipe]="recipe" [priority]="index < 2" [ingredientFilterIds]="ingredientFilter.value" (selected)="showRecipe($event)"></app-recipe-card>
     }
     @if (page.loading) {
       @for (placeholder of [0, 1, 2, 3, 4, 5]; track placeholder) { <app-skeleton variant="recipe-card" /> }
