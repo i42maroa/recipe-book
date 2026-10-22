@@ -2,7 +2,7 @@ import { MealType, RecipeDifficulty } from '../../../models/recipe.model';
 import { SelectFilterOption } from './select-filter-options';
 
 export const RECIPE_STATUS_OPTIONS: SelectFilterOption[] = [
-  { value: 'all', label: 'Todas' }, { value: 'pending', label: 'Por probar' }, { value: 'done', label: 'Ya preparadas' },
+  { value: 'all', label: 'Todas' }, { value: 'done', label: 'Hechas' }, { value: 'pending', label: 'Pendientes' },
 ];
 export const RECIPE_SORT_OPTIONS: SelectFilterOption[] = [
   { value: 'recent', label: 'Más recientes' }, { value: 'name', label: 'Nombre A–Z' },

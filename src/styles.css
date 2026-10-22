@@ -55,6 +55,9 @@ p {
   letter-spacing: .7px;
   text-transform: uppercase;
 }
+.difficulty-badge.difficulty-easy { background: var(--color-info-soft); color: var(--color-info); }
+.difficulty-badge.difficulty-medium { background: var(--color-warning-soft); color: var(--color-warning-dark); }
+.difficulty-badge.difficulty-hard { background: var(--color-danger-soft); color: var(--color-danger); }
 .pending-badge {
   display: inline-flex;
   align-items: center;
@@ -75,6 +78,7 @@ p {
 .fitness-badge {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   padding: 4px 7px;
   border-radius: 10px;
   background: var(--color-success-soft);
@@ -83,6 +87,7 @@ p {
   font-weight: 600;
   white-space: nowrap;
 }
+.fitness-icon { flex-shrink: 0; font-size: 1.35em; line-height: 1; }
 .rating {
   color: var(--color-danger);
   font-size: 10px;

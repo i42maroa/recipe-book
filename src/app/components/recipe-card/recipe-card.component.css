@@ -136,9 +136,6 @@
   border-radius: 12px;
   font-size: 10px;
 }
-.difficulty-easy { background: var(--color-success-soft); color: var(--color-primary-dark); }
-.difficulty-medium { background: var(--color-warning-soft); color: #8a6a1d; }
-.difficulty-hard { background: var(--color-danger-soft); color: var(--color-danger); }
 .recipe-title {
   min-height: 40px;
   margin: 0;

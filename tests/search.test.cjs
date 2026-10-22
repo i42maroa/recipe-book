@@ -14,6 +14,23 @@ function control(value) {
 }
 function controls() { return { search: control(''), sort: control('recent'), mealType: control(''), difficulty: control(''), ingredientIds: control([]) }; }
 
+test('status selection switches between all, done and pending without clearing other filters', () => {
+  const c = controls();
+  c.ingredientIds.value = ['tomato'];
+  c.difficulty.value = 'Fácil';
+  const pending = new BehaviorSubject('all');
+  const seen = [];
+  const subscription = recipe.recipeFilterChanges(c, { pending }).subscribe(value => seen.push(value));
+  for (const status of ['done', 'pending', 'all']) pending.next(status);
+  assert.deepEqual(seen.map(value => value.pending), ['all', 'done', 'pending', 'all']);
+  for (const value of seen) {
+    assert.equal(value.difficulty, 'Fácil');
+    assert.deepEqual(Array.from(value.ingredientIds), ['tomato']);
+  }
+  assert.notEqual(recipe.recipeFilterKey(seen[0]), recipe.recipeFilterKey(seen[1]));
+  subscription.unsubscribe();
+});
+
 test('search normalization and minimum length treat whitespace, accents and casing consistently', () => {
   assert.equal(search.normalizeSearch('  PÍMÍENTO  '), 'pimiento');
   assert.equal(search.isCompleteSearch(' a '), false);

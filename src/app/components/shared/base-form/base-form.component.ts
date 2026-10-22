@@ -306,7 +306,9 @@ export class BaseFormComponent implements OnInit {
     this.recipeForm.controls.cuisineTypes.setValue(selected.includes(type) ? selected.filter((value) => value !== type) : [...selected, type]);
   }
   addRecipeIngredient(id: string): void {
-    if (!this.isSelected(id)) this.toggleIngredient(id);
+    if (this.isSelected(id)) return;
+    this.toggleIngredient(id);
+    this.ingredientSearch.setValue('');
   }
   createRecipeIngredient(): Promise<void> { return this.createPickerIngredient('recipe'); }
   createCompositionIngredient(): Promise<void> { return this.createPickerIngredient('composition'); }

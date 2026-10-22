@@ -67,7 +67,7 @@
       @if (recipe.pending || recipe.fitness) {
         <div class="recipe-detail-tags">
           @if (recipe.pending) { <span class="pending-badge"><i></i> Por probar</span> }
-          @if (recipe.fitness) { <span class="fitness-badge">Fitness</span> }
+          @if (recipe.fitness) { <span class="fitness-badge"><span class="fitness-icon" aria-hidden="true">💪</span>Fitness</span> }
         </div>
       }
       <div class="recipe-detail-columns">

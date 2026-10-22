@@ -18,7 +18,10 @@
 
   /* Estados */
   --color-success-soft: #edf3ec;
+  --color-info: #245c9b;
+  --color-info-soft: #eaf2fc;
   --color-warning: #ad8d46;
+  --color-warning-dark: #8a6a1d;
   --color-warning-soft: #f7f1e2;
   --color-danger: #a85e4e;
   --color-danger-soft: #faeee9;
