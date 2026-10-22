@@ -51,7 +51,7 @@ export class RecipesPageComponent {
     const filters = this.list.filters;
     return !!(filters.search || filters.pending !== 'all' || filters.mealType || filters.difficulty || filters.ingredientIds?.length);
   }
-  readonly pendingOnly = this.fb.nonNullable.control(this.list.filters.pending === 'pending');
+  readonly statusFilter = this.fb.nonNullable.control(this.list.filters.pending);
   readonly sortFilter = this.fb.nonNullable.control(this.list.filters.sort);
   readonly mealTypeFilter = this.fb.nonNullable.control<MealType | ''>(this.list.filters.mealType);
   readonly difficultyFilter = this.fb.nonNullable.control<RecipeDifficulty | ''>(this.list.filters.difficulty);
@@ -65,7 +65,7 @@ export class RecipesPageComponent {
       search: this.search, sort: this.sortFilter, mealType: this.mealTypeFilter,
       difficulty: this.difficultyFilter, ingredientIds: this.ingredientFilter,
     }, {
-      pending: controlValues(this.pendingOnly).pipe(map(checked => checked ? 'pending' : 'all')),
+      pending: controlValues(this.statusFilter),
       initialSearch: isCompleteSearch(this.search.value) ? this.search.value.trim() : this.list.filters.search,
       ignoreIncomplete: true,
     })),
@@ -108,13 +108,13 @@ export class RecipesPageComponent {
   }
 
   showPendingRecipes(): void {
-    this.pendingOnly.setValue(true);
+    this.statusFilter.setValue('pending');
   }
 
   showAllRecipes(): void {
     this.search.setValue('', { emitEvent: false });
     this.list.searchInput = '';
-    this.pendingOnly.setValue(false, { emitEvent: false });
+    this.statusFilter.setValue('all', { emitEvent: false });
     this.mealTypeFilter.setValue('', { emitEvent: false });
     this.difficultyFilter.setValue('', { emitEvent: false });
     this.ingredientFilter.setValue([], { emitEvent: false });

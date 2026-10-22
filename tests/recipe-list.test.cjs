@@ -7,6 +7,18 @@ const filterUtils = loadService('src/app/utils/recipe-filters.utils.ts', {}, {},
 const ready = (page) => !page.loading;
 const gate = () => { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; };
 
+test('the recipe collection initially requests prepared recipes and allows choosing all', async () => {
+  const { list, state, connect, settled } = setup();
+  assert.equal(list.filters.pending, 'done');
+  const connection = connect();
+  await settled();
+  assert.equal(state.calls[0].filters.pending, 'done');
+  list.setFilters({ ...list.filters, pending: 'all' });
+  await settled();
+  assert.equal(state.calls.at(-1).filters.pending, 'all');
+  connection.subscription.unsubscribe();
+});
+
 test('ingredient selections reset pagination, survive navigation and clear as one update', async () => {
   const { list, state, connect, settled } = setup();
   const first = connect(); await settled();

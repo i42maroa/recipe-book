@@ -10,6 +10,7 @@ const card = { id: 'recipe-a', name: 'Arroz', servings: 2, pending: true, mealTy
 
 test('picker cache distinguishes ingredient sets and preserves isolated selections', () => {
   const { service } = setup();
+  assert.equal(service.pickerFilters.pending, 'all');
   const selected = { ...filters, ingredientIds: ['tomato', 'lettuce'] };
   service.pickerFilters = selected;
   selected.ingredientIds.push('onion');

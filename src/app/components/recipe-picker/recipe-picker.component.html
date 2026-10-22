@@ -1,7 +1,7 @@
 <dialog #dialog class="recipe-picker" aria-labelledby="recipe-picker-title" (cancel)="$event.preventDefault(); closed.emit()" (click)="backdrop($event)">
   <header class="picker-heading"><div><p>AÑADIR AL PLAN</p><h2 id="recipe-picker-title">{{ dayLabel() }} · {{ slotLabel() }}</h2><span>Selecciona una receta para añadirla a este hueco.</span></div><button type="button" class="close" aria-label="Cerrar selector de recetas" (click)="closed.emit()">✕</button></header>
   <div class="picker-filters">
-    <app-recipe-filters [search]="search" [sort]="sort" [mealType]="mealType" [difficulty]="difficulty" [ingredientIds]="ingredientIds" />
+    <app-recipe-filters [search]="search" [sort]="sort" [mealType]="mealType" [difficulty]="difficulty" [status]="status" [ingredientIds]="ingredientIds" />
   </div>
   <section class="picker-results" aria-label="Recetas disponibles" [attr.aria-busy]="loading()">
     @if (loading() && !results().length) { <p class="status" role="status">Cargando recetas…</p> }

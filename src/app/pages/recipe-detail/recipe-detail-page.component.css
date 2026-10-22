@@ -107,13 +107,8 @@
 .difficulty-badge {
   padding: 5px 9px;
   border-radius: 12px;
-  background: var(--color-border);
-  color: var(--color-secondary);
   font-size: 9px;
 }
-.difficulty-easy { background: var(--color-success-soft); color: var(--color-primary-dark); }
-.difficulty-medium { background: var(--color-warning-soft); color: #8a6a1d; }
-.difficulty-hard { background: var(--color-danger-soft); color: var(--color-danger); }
 .recipe-title-row {
   display: flex;
   align-items: center;

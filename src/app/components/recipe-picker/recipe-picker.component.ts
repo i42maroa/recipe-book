@@ -6,7 +6,7 @@ import { skip } from 'rxjs';
 import { RecipeCard } from '../../models/recipe-card.model';
 import { MealType, RecipeDifficulty } from '../../models/recipe.model';
 import { RecipeFilters, RecipeService } from '../../services/recipe.service';
-import { isCompleteSearch } from '../../utils/search.utils';
+import { controlValues, isCompleteSearch } from '../../utils/search.utils';
 import { recipeFilterChanges } from '../../utils/recipe-filters.utils';
 import { PlannerStateService } from '../../services/planner-state.service';
 import { RecipeCardComponent } from '../recipe-card/recipe-card.component';
@@ -27,7 +27,7 @@ export class RecipePickerComponent {
   readonly closed = output<void>();
   private readonly recipes = inject(RecipeService);
   private readonly state = inject(PlannerStateService);
-  private readonly initialFilters = { ...this.state.pickerFilters, pending: 'all' };
+  private readonly initialFilters = this.state.pickerFilters;
   private readonly document = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
@@ -35,6 +35,7 @@ export class RecipePickerComponent {
   readonly sort = new FormControl(this.initialFilters.sort, { nonNullable: true });
   readonly mealType = new FormControl<MealType | ''>(this.initialFilters.mealType, { nonNullable: true });
   readonly difficulty = new FormControl<RecipeDifficulty | ''>(this.initialFilters.difficulty, { nonNullable: true });
+  readonly status = new FormControl(this.initialFilters.pending, { nonNullable: true });
   readonly ingredientIds = new FormControl<string[]>(this.initialFilters.ingredientIds ?? [], { nonNullable: true });
   readonly results = signal<RecipeCard[]>([]);
   readonly loading = signal(false);
@@ -66,7 +67,7 @@ export class RecipePickerComponent {
     });
     recipeFilterChanges({ search: this.search, sort: this.sort, mealType: this.mealType,
       difficulty: this.difficulty, ingredientIds: this.ingredientIds,
-    }, { deduplicate: false }).pipe(takeUntilDestroyed()).subscribe(filters => {
+    }, { pending: controlValues(this.status), deduplicate: false }).pipe(takeUntilDestroyed()).subscribe(filters => {
       if (this.search.value.trim() !== filters.search) return;
       this.filters = filters;
       this.state.pickerFilters = filters;

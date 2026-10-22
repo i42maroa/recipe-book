@@ -11,7 +11,7 @@
 
   <div class="recipe-stats" [attr.aria-busy]="loading.isLoading('recipe-stats')">
     <article class="saved-stat" role="button" tabindex="0" (click)="showAllRecipes()" (keydown.enter)="showAllRecipes()" (keydown.space)="$event.preventDefault(); showAllRecipes()" aria-label="Mostrar todas las recetas"><span class="stat-icon stat-green"><app-icon name="recipes" /></span><div>@if (loading.isLoading('recipe-stats')) { <app-skeleton class="stat-skeleton" variant="title" /> } @else { <strong>{{ statsError() ? '—' : (recipeCount$ | async) }}</strong> }<small>Recetas guardadas</small></div></article>
-    <article class="pending-stat" [attr.aria-pressed]="pendingOnly.value" role="button" tabindex="0" (click)="showPendingRecipes()" (keydown.enter)="showPendingRecipes()" (keydown.space)="$event.preventDefault(); showPendingRecipes()" aria-label="Filtrar las recetas por probar"><span class="stat-icon stat-peach"><app-icon name="pending" /></span><div>@if (loading.isLoading('recipe-stats')) { <app-skeleton class="stat-skeleton" variant="title" /> } @else { <strong>{{ statsError() ? '—' : (pendingCount$ | async) }}</strong> }<small>Por probar</small></div></article>
+    <article class="pending-stat" [attr.aria-pressed]="statusFilter.value === 'pending'" role="button" tabindex="0" (click)="showPendingRecipes()" (keydown.enter)="showPendingRecipes()" (keydown.space)="$event.preventDefault(); showPendingRecipes()" aria-label="Filtrar las recetas por probar"><span class="stat-icon stat-peach"><app-icon name="pending" /></span><div>@if (loading.isLoading('recipe-stats')) { <app-skeleton class="stat-skeleton" variant="title" /> } @else { <strong>{{ statsError() ? '—' : (pendingCount$ | async) }}</strong> }<small>Por probar</small></div></article>
   </div>
   @if (loading.isLoading('recipe-stats')) { <p class="loading-status" role="status">Cargando los contadores de recetas…</p> }
 
@@ -20,7 +20,7 @@
     <h2>Tu colección</h2>     
   </div>
 
-  <app-recipe-filters [search]="search" [sort]="sortFilter" [mealType]="mealTypeFilter" [difficulty]="difficultyFilter" [ingredientIds]="ingredientFilter" />
+  <app-recipe-filters [search]="search" [sort]="sortFilter" [mealType]="mealTypeFilter" [difficulty]="difficultyFilter" [status]="statusFilter" [ingredientIds]="ingredientFilter" />
 
   @if (page$ | async; as page) {
   @if (page.error && page.items.length === 0) {

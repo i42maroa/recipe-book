@@ -25,7 +25,7 @@ export class RecipeListService {
   private readonly recipes = inject(RecipeService);
   private readonly notifications = inject(NotificationService);
   private readonly filtersSubject = new BehaviorSubject<RecipeFilters>({
-    search: '', pending: 'all', sort: 'recent', mealType: '', difficulty: '',
+    search: '', pending: 'done', sort: 'recent', mealType: '', difficulty: '',
   });
   private readonly requests = new Subject<void>();
   private snapshot: Snapshot | null = null;
