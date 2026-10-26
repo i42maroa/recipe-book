@@ -29,6 +29,9 @@ Para instalar desde cero, aplica una vez estos archivos, en este orden:
 11. `supabase/migrations/20261020000300_atomic_recipe_photos.sql`
 12. `supabase/migrations/20261020000400_shopping_lists.sql`
 13. `supabase/migrations/20261021000100_ingredient_categories.sql`
+14. `supabase/migrations/20261026000100_freezer_inventories.sql`
+15. `supabase/migrations/20261026000200_freezer_entries.sql`
+16. `supabase/migrations/20261026000300_add_scheduled_recipe.sql`
 
 La migración de seguridad conserva los datos y reemplaza todas las políticas de las tablas del recetario enumeradas en ella. Crea el grupo privado de editores, configura lectura pública y escritura autorizada, restringe las RPC de guardado y protege las escrituras de fotos. El grupo empieza vacío: nadie podrá editar hasta que añadas al primer miembro. No vuelvas a aplicar las migraciones antiguas por separado después de configurar la seguridad, porque contienen permisos de escritura anónima.
 
@@ -146,8 +149,28 @@ El cálculo usa únicamente las comidas guardadas del usuario entre ambas fechas
 
 Las diez pruebas SQL locales validan las migraciones reales de compra y categorías en PostgreSQL/WASM con identidades de prueba. Tras aplicarlas, comprueba con dos sesiones reales que cada editor conserva su propia lista y que anónimos o usuarios sin permiso no pueden acceder. Si falta la migración inicial de compra, la página mostrará el archivo que debe aplicarse.
 
+## Añadir una receta a Planificación desde su detalle
+
+Antes de publicar esta acción, ejecuta [20261026000300_add_scheduled_recipe.sql](supabase/migrations/20261026000300_add_scheduled_recipe.sql) en un proyecto con las migraciones anteriores aplicadas. No se ha ejecutado contra Supabase remoto desde este cambio. No necesita nuevas tablas ni modifica las comidas existentes al instalarse.
+
+La RPC `add_scheduled_recipe(date,text,integer,uuid,text)` recibe fecha, comida, comensales, receta y modo de preparación. Usa `SECURITY INVOKER`, las políticas existentes de `scheduled_meals` y el mismo bloqueo por propietario/fecha de `save_scheduled_day`. El propietario se obtiene de `auth.uid()`; exige pertenecer al grupo de editores y comprueba que la receta exista.
+
+Si la comida está vacía, la crea. Si existe, conserva sus comensales, recetas y preparaciones y añade únicamente la nueva receta. Comprueba el máximo de cinco recetas y los duplicados sin distinguir mayúsculas del UUID. Si una petición se repite después de haberse aplicado, devuelve la comida existente sin duplicar ni cambiar la preparación. Si los comensales de una comida existente difieren de los mostrados al confirmar, devuelve un conflicto para actualizar la vista previa. La respuesta indica si se añadió la receta e incluye el hueco guardado, no el día entero.
+
+`npm run test:planner:sql` ejecuta nueve pruebas de las migraciones reales en PostgreSQL/WASM local. Comprueba conservación de otras recetas, comidas y fechas, reintentos, límites, validación, conflictos y aislamiento entre usuarios. No confirma los permisos ni el estado del proyecto remoto.
+
 ## Categorías Líquidos y Frutos secos
 
 Ejecuta [20261021000100_ingredient_categories.sql](supabase/migrations/20261021000100_ingredient_categories.sql) en **SQL Editor → New query**, después de las anteriores y antes de publicar este frontend. En una instalación ya actualizada solo necesitas esta nueva migración. No se ha aplicado al proyecto remoto desde el repositorio.
 
 Permite los valores internos `Liquidos` y `FrutosSecos` en `ingredients.category` y en las listas de compra guardadas. Las etiquetas visibles son **Líquidos** y **Frutos secos**. Actualiza `ingredients_category_check` y `valid_shopping_items(jsonb)` dentro de una transacción; conserva los ingredientes, las listas existentes, RLS y la ejecución restringida de la validación. Puede ejecutarse de nuevo. No basta con ampliar únicamente el CHECK de ingredientes: también debe actualizarse la función para poder guardar las categorías nuevas en Compra.
+
+## Congelador: guardado por lote
+
+Antes de publicar el frontend con guardado parcial, aplica [20261026000200_freezer_entries.sql](supabase/migrations/20261026000200_freezer_entries.sql) después de [20261026000100_freezer_inventories.sql](supabase/migrations/20261026000100_freezer_inventories.sql). Si ya utilizas Congelador y tienes aplicada la primera migración, solo necesitas la segunda. No se han ejecutado contra Supabase remoto desde este cambio.
+
+La nueva migración crea `freezers` y `freezer_entries`, con RLS privada por propietario y permiso de editor. Copia todos los congeladores y lotes existentes, manteniendo nombres, cantidades, fechas y orden. Conserva la tabla antigua como archivo y revoca su acceso y la ejecución de `save_freezer_inventory`, para evitar que clientes antiguos escriban en una copia diferente. Las pestañas abiertas con el frontend anterior deben recargarse después de publicar la nueva versión.
+
+`get_freezer_inventory()` obtiene la colección privada. `apply_freezer_changes(jsonb)` recibe únicamente las filas modificadas y compara sus valores anteriores dentro de una transacción. Modificar otro lote o congelador no invalida el guardado por una versión global; un cambio concurrente sobre la misma fila se rechaza sin sobrescribirlo. Repetir una operación cuyo resultado ya existe no duplica entradas ni repite retiradas. Ambas RPC utilizan `SECURITY INVOKER` y obtienen el propietario de la sesión.
+
+`npm run test:freezer:sql` comprueba las dos migraciones reales en PostgreSQL/WASM local, incluida la conservación del inventario anterior, privacidad, validaciones, conflictos, atomicidad y reintentos. No confirma el estado del proyecto remoto.

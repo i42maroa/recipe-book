@@ -39,3 +39,4 @@ li strong { flex-shrink: 0; font-weight: 500; }
 footer { display: flex; justify-content: flex-end; margin-top: 20px; }
 .primary { background: var(--color-primary); color: var(--color-surface); border-color: var(--color-primary); }
 @media (max-width: 760px) { .week-days { gap: 4px; padding: 6px; } .week-days button { padding: 11px 0; font-size: 11px; } .week-days span { font-size: 8px; } .selected-range { gap: 8px; } .range-field { padding: 10px; } .selected-range strong { font-size: 12px; } }
+@media (max-width: 460px) { .week-days { grid-template-columns: repeat(4, minmax(0, 1fr)); } .week-days button { font-size: 12px; } .week-days span { font-size: 10px; } }

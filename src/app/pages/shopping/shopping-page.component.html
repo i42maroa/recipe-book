@@ -1,14 +1,22 @@
 <section class="shopping-page">
-  <header class="page-heading"><div><p class="eyebrow">DE LA COCINA A TU CESTA</p><h1>Compra</h1></div></header>
+  <header class="page-heading">
+    <div><p class="eyebrow">DE LA COCINA A TU CESTA</p><h1>Compra</h1></div>
+    <button class="primary add-button" type="button" aria-haspopup="dialog" [disabled]="!list.ready() || list.loading() || list.saving()" (click)="openAdd()"><app-icon name="plus" /> Añadir ingredientes</button>
+  </header>
+  <button class="floating-add-button" type="button" aria-label="Añadir ingredientes" title="Añadir ingredientes" aria-haspopup="dialog" [disabled]="!list.ready() || list.loading() || list.saving()" (click)="openAdd()"><app-icon name="plus" /></button>
 
   @if (list.loading()) { <p class="loading-status" role="status">Cargando tu lista de la compra…</p> }
   @if (list.error()) { <div class="notice" role="alert"><p>{{ list.error() }}</p><button type="button" [disabled]="list.loading()" (click)="reload()">Reintentar carga</button></div> }
 
-  <fieldset class="add-panel" [disabled]="!list.ready() || list.loading() || list.saving()">
-    <legend class="loading-status">Añadir ingredientes a la lista de la compra</legend>
-    <h2 class="add-heading"><button class="add-toggle" type="button" [attr.aria-expanded]="addExpanded()" aria-controls="shopping-add-content" (click)="addExpanded.set(!addExpanded())">Añadir ingredientes<app-icon name="chevron-down" [class.expanded]="addExpanded()" /></button></h2>
-    <div id="shopping-add-content" class="add-content" [hidden]="!addExpanded()">
-    @defer (when addExpanded()) {
+  <dialog #addDialog class="add-dialog" aria-labelledby="shopping-add-title" (cancel)="closeAdd($event)" (keydown.escape)="creatingIngredient() ? $event.preventDefault() : null" (close)="!addDialog.open && addOpen.set(false)">
+    <header class="dialog-heading">
+      <h2 id="shopping-add-title">Añadir ingredientes</h2>
+      <button class="close-dialog" type="button" aria-label="Cerrar" [disabled]="creatingIngredient()" (click)="closeAdd()"><app-icon name="close" /></button>
+    </header>
+    <p class="dialog-summary" role="status" aria-live="polite">{{ list.items().length }} ingredientes en tu lista</p>
+    <fieldset class="add-panel" [disabled]="!list.ready() || list.loading() || list.saving()">
+      <legend class="loading-status">Cómo añadir ingredientes a la lista de la compra</legend>
+    @defer (when addOpen()) {
     <div class="add-tabs" role="tablist" aria-label="Cómo añadir ingredientes">
       <button #manualTab id="shopping-tab-manual" type="button" role="tab" aria-controls="shopping-panel-manual" [disabled]="creatingIngredient()" [attr.aria-selected]="addMode() === 'manual'" [attr.tabindex]="addMode() === 'manual' ? 0 : -1" (click)="addMode.set('manual')" (keydown)="tabKeydown($event)">Manual</button>
       <button id="shopping-tab-planning" type="button" role="tab" aria-controls="shopping-panel-planning" [disabled]="creatingIngredient()" [attr.aria-selected]="addMode() === 'planning'" [attr.tabindex]="addMode() === 'planning' ? 0 : -1" (click)="addMode.set('planning')" (keydown)="tabKeydown($event)">Según planning</button>
@@ -20,8 +28,9 @@
       @if (list.ready() && addMode() === 'planning') { <app-shopping-plan-picker [disabled]="list.loading() || list.saving()" (selected)="requestReplacement($event)" /> }
     </div>
     }
-    </div>
-  </fieldset>
+    </fieldset>
+    <footer class="add-dialog-footer"><p>Guarda la lista después para conservar los cambios.</p><button class="primary" type="button" [disabled]="creatingIngredient()" (click)="closeAdd()">Listo</button></footer>
+  </dialog>
 
   <dialog #replacementDialog class="replacement-dialog" aria-labelledby="replacement-title" aria-describedby="replacement-description" (cancel)="$event.preventDefault(); cancelReplacement()">
     <h2 id="replacement-title">¿Sobrescribir la lista de la compra?</h2>

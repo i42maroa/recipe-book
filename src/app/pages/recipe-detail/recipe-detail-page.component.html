@@ -1,13 +1,17 @@
-﻿@if (view$ | async; as view) {
+@if (view(); as view) {
 @if (view.loading) {
   <p class="loading-status" role="status">Cargando receta…</p>
   <article class="recipe-detail-page" aria-busy="true">
     <div class="recipe-detail-hero skeleton-hero"><app-skeleton variant="hero" /></div>
     <div class="recipe-detail-content">
-      <div class="recipe-title-row"><h1 class="loading-title" aria-hidden="true"><app-skeleton variant="title" /></h1><app-button class="recipe-share-button" variant="ghost" [disabled]="true"><app-icon name="share" />Compartir</app-button></div>
-      <div class="recipe-facts-row" aria-hidden="true"><app-skeleton class="facts-skeleton" /><app-skeleton class="facts-skeleton" /></div>
+      <header class="recipe-header">
+        <div class="recipe-title-row" aria-hidden="true"><h1 class="loading-title"><app-skeleton variant="title" /></h1><app-skeleton class="facts-skeleton" /></div>
+        <div class="recipe-facts-row"><div class="recipe-facts-primary" aria-hidden="true"><app-skeleton class="facts-skeleton" /></div><app-button class="recipe-share-button" variant="ghost" [disabled]="true"><app-icon name="share" />Compartir</app-button></div>
+        <div class="recipe-detail-tags" aria-hidden="true"><app-skeleton class="facts-skeleton" /></div>
+        <div class="recipe-rating-row" aria-hidden="true"><app-skeleton class="rating-skeleton" /></div>
+      </header>
       <div class="recipe-detail-columns">
-        <section><div class="ingredients-heading"><h2>Ingredientes</h2></div><app-skeleton variant="rows" /></section>
+        <section class="recipe-ingredients"><div class="ingredients-heading"><h2>Ingredientes</h2></div><app-skeleton variant="rows" /></section>
         <section><h2>Preparación</h2><div class="loading-steps">@for (step of [0, 1, 2]; track step) { <app-skeleton variant="paragraph" /> }</div></section>
       </div>
     </div>
@@ -17,6 +21,7 @@
 } @else if (view.recipe; as recipe) {
   @let recipeIngredients = ingredientsFor(recipe, ingredients$ | async);
   @let ingredientGroups = ingredientGroupsFor(recipeIngredients);
+  @let steps = preparationSteps();
   <article class="recipe-detail-page">
 
     <div [class]="'recipe-detail-hero ' + photoClass(recipe)" [class.has-photo]="!!currentPhoto(recipe)">
@@ -33,6 +38,7 @@
     </div>
 
     <div class="recipe-detail-content has-recipe">
+      <header class="recipe-header">
       <div class="recipe-title-row">
         <h1>{{ recipe.name }}</h1>
         <div class="recipe-meal-types">
@@ -40,12 +46,7 @@
             <span class="meal-label">{{ type }}</span>
           }
         </div>
-        <app-button class="recipe-share-button" variant="ghost" [disabled]="sharing()" (clicked)="shareRecipe(recipe)">
-          <app-icon name="share" />
-          {{ sharing() ? 'Compartiendo…' : 'Compartir' }}
-        </app-button>
       </div>
-      @if (recipe.difficulty || recipe.minutes !== null || (recipe.cuisineTypes?.length ?? 0) > 0) {
         <div class="recipe-facts-row">
           <div class="recipe-facts-primary">
           @if (recipe.difficulty) {
@@ -55,6 +56,13 @@
             <span class="recipe-duration"><app-icon name="clock" /> {{ durationLabel(recipe.minutes) }}</span>
           }
           </div>
+          <app-button class="recipe-share-button" variant="ghost" [disabled]="sharing()" (clicked)="shareRecipe(recipe)">
+            <app-icon name="share" />
+            {{ sharing() ? 'Compartiendo…' : 'Compartir' }}
+          </app-button>
+        </div>
+      @if ((recipe.cuisineTypes?.length ?? 0) > 0 || recipe.pending || recipe.fitness) {
+        <div class="recipe-detail-tags">
           @if ((recipe.cuisineTypes?.length ?? 0) > 0) {
             <div class="recipe-cuisine-types">
               @for (cuisine of recipe.cuisineTypes ?? []; track cuisine) {
@@ -62,16 +70,34 @@
               }
             </div>
           }
-        </div>
-      }
-      @if (recipe.pending || recipe.fitness) {
-        <div class="recipe-detail-tags">
           @if (recipe.pending) { <span class="pending-badge"><i></i> Por probar</span> }
           @if (recipe.fitness) { <span class="fitness-badge"><span class="fitness-icon" aria-hidden="true">💪</span>Fitness</span> }
         </div>
       }
-      <div class="recipe-detail-columns">
-        <section>
+      <div class="recipe-rating-row">
+        <span class="rating-display" [attr.aria-label]="!recipe.pending && recipe.rating !== null ? 'Valoración: ' + recipe.rating + ' de 10' : 'Receta sin valoración'">
+          @if (!recipe.pending && recipe.rating !== null) { <app-icon class="rating-icon" name="star" /> <strong>{{ recipe.rating }} / 10</strong> } @else { <small>Sin valorar</small> }
+        </span>
+      </div>
+      @if (auth.canEdit() && isRating()) {
+        <div #ratingForm class="rating-form" role="group" aria-label="Puntuar receta" tabindex="-1" [attr.aria-busy]="savingRating()">
+          <span class="rating-prompt">{{ recipe.pending ? '¿Qué te ha parecido?' : 'Tu puntuación' }}</span>
+          <div class="rating-picker" role="group" aria-label="Selecciona de una a diez estrellas">
+            @for (score of ratingOptions; track score) {
+              <button type="button" class="rating-star" [disabled]="savingRating()" [class.active]="ratingControl.value >= score" [attr.aria-label]="score + ' de 10 estrellas'" [attr.aria-pressed]="ratingControl.value === score" (click)="setRating(score)">★</button>
+            }
+            <span class="rating-value">{{ ratingControl.value || 0 }}/10</span>
+          </div>
+          <app-button type="button" [disabled]="savingRating()" (clicked)="saveRating(recipe)">{{ savingRating() ? 'Guardando…' : 'Guardar' }}</app-button>
+          <app-button variant="ghost" type="button" [disabled]="savingRating()" (clicked)="isRating.set(false)">Cancelar</app-button>
+        </div>
+      }
+      </header>
+      @if (lastPlanned(); as planned) {
+        <div class="recipe-planning-notice" role="status"><p>{{ planningMessage() }}</p><a routerLink="/planner/week" [queryParams]="{ start: planned.meal.date }">Ver planificación<app-icon name="arrow-right" /></a></div>
+      }
+      <div class="recipe-detail-columns" [class.ingredients-only]="!steps.length">
+        <section class="recipe-ingredients">
           <div class="ingredients-heading">
             <h2>Ingredientes <span>({{ recipe.ingredientIds.length }})</span></h2>
             @if (recipe.servings) {
@@ -96,48 +122,20 @@
           }
         </section>
 
-        <section>
+        @if (steps.length) {
+        <section class="recipe-preparation">
           <h2>Preparación</h2>
           <ol class="detail-steps">
-            @for (step of recipe.steps; track $index) {
+            @for (step of steps; track $index) {
               <li><span>{{ $index + 1 }}</span><p>{{ step }}</p></li>
-            } @empty {
-              <li class="no-steps">Sin pasos.</li>
             }
           </ol>
         </section>
+        }
       </div>
 
       @if (recipe.annotations?.trim()) {
         <section class="recipe-annotations"><h2>Anotaciones</h2><p>{{ recipe.annotations }}</p></section>
-      }
-
-      <div class="recipe-row recipe-rating-row">
-        <div class="recipe-detail-meta">
-          @if (!recipe.pending) {
-            <span class="rating-display" [attr.aria-label]="recipe.rating ? 'Valoración: ' + recipe.rating + ' de 10' : 'Receta probada sin valoración'">
-              @if (recipe.rating !== null) { <app-icon class="rating-icon" name="star" /> <strong>{{ recipe.rating }} / 10</strong> } @else { <small>Sin valorar</small> }
-            </span>
-          }
-          @if (auth.canEdit()) {
-            <app-button variant="soft" customClass="rate-button" (clicked)="openRating(recipe)">{{ recipe.pending ? 'Probar' : 'Puntuar' }}</app-button>
-          }
-        </div>
-
-
-      </div>
-      @if (auth.canEdit() && isRating) {
-        <div class="rating-form">
-          <span class="rating-prompt">{{ recipe.pending ? '¿Qué te ha parecido?' : 'Tu puntuación' }}</span>
-          <div class="rating-picker" role="group" aria-label="Selecciona de una a diez estrellas">
-            @for (score of ratingOptions; track score) {
-              <button type="button" class="rating-star" [class.active]="ratingControl.value >= score" [attr.aria-label]="score + ' de 10 estrellas'" [attr.aria-pressed]="ratingControl.value === score" (click)="setRating(score)">★</button>
-            }
-            <span class="rating-value">{{ ratingControl.value || 0 }}/10</span>
-          </div>
-          <app-button type="button" [disabled]="savingRating()" (clicked)="saveRating(recipe)">{{ savingRating() ? 'Guardando…' : 'Guardar' }}</app-button>
-          <app-button variant="ghost" type="button" [disabled]="savingRating()" (clicked)="isRating = false">Cancelar</app-button>
-        </div>
       }
 
       @if (recipe.sourceUrl) {
@@ -145,6 +143,7 @@
       }
     </div>
   </article>
+  @if (planningOpen() && auth.canEdit()) { <app-recipe-planning-dialog [recipe]="recipe" (saved)="recipePlanned($event)" (closed)="planningOpen.set(false)" /> }
   @defer (when lightboxOpen) { @if (lightboxOpen) { <app-photo-lightbox [photos]="recipe.photos ?? []" [recipeName]="recipe.name" [initialIndex]="activePhotoIndex" (closed)="lightboxOpen = false" /> } }
 } @else {
   <app-not-found-page resource="recipe" />

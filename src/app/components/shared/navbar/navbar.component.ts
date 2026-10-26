@@ -8,6 +8,9 @@ import { FormService } from '../../../services/form.service';
 import { IngredientService } from '../../../services/ingredient.service';
 import { NotificationService } from '../../../services/notification.service';
 import { RecipeService } from '../../../services/recipe.service';
+import { RecipeDetailActionsService } from '../../../services/recipe-detail-actions.service';
+import { FreezerService } from '../../../services/freezer.service';
+import { FreezerNavigationAction, FreezerNavigationService } from '../../../services/freezer-navigation.service';
 import { IconComponent } from '../icon/icon.component';
 import { UserSessionComponent } from '../user-session/user-session.component';
 
@@ -22,6 +25,9 @@ type Detail = { kind: 'recipe'; item: Recipe } | { kind: 'ingredient'; item: Ing
 })
 export class NavbarComponent {
   readonly auth = inject(AuthService);
+  readonly recipeActions = inject(RecipeDetailActionsService);
+  readonly freezerInventory = inject(FreezerService);
+  readonly freezerNavigation = inject(FreezerNavigationService);
   private readonly router = inject(Router);
   private readonly recipes = inject(RecipeService);
   private readonly ingredients = inject(IngredientService);
@@ -31,6 +37,14 @@ export class NavbarComponent {
   private readonly sidebar = viewChild<ElementRef<HTMLElement>>('sidebar');
   readonly menuOpen = signal(false);
   readonly deleting = signal(false);
+  readonly isPlannerPage = toSignal(this.router.events.pipe(
+    filter(event => event instanceof NavigationEnd), startWith(null),
+    map(() => ['planner', 'planner/day', 'planner/week'].includes(this.router.parseUrl(this.router.url).root.children['primary']?.segments.map(segment => segment.path).join('/') ?? '')),
+  ), { initialValue: false });
+  readonly isFreezerPage = toSignal(this.router.events.pipe(
+    filter(event => event instanceof NavigationEnd), startWith(null),
+    map(() => this.router.parseUrl(this.router.url).root.children['primary']?.segments.map(segment => segment.path).join('/') === 'freezer'),
+  ), { initialValue: false });
   readonly detail = toSignal(combineLatest([
     this.router.events.pipe(filter((event) => event instanceof NavigationEnd), startWith(null)),
     this.recipes.recipes$,
@@ -64,7 +78,7 @@ export class NavbarComponent {
 
   containFocus(event: Event): void {
     if (!(event instanceof KeyboardEvent) || !this.menuOpen() || !window.matchMedia('(max-width: 1120px)').matches) return;
-    const controls = this.sidebar()?.nativeElement.querySelectorAll<HTMLElement>('a[href], button:not([disabled])');
+    const controls = this.sidebar()?.nativeElement.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), select:not([disabled])');
     if (!controls?.length) return;
     const first = controls[0];
     const last = controls[controls.length - 1];
@@ -80,6 +94,24 @@ export class NavbarComponent {
   edit(detail: Detail): void {
     this.closeMenu(true);
     this.forms.openForm(detail.kind, detail.item);
+  }
+
+  rate(recipe: Recipe): void {
+    if (!this.auth.canEdit() || this.deleting() || this.recipeActions.busy() || this.recipeActions.recipeId() !== recipe.id) return;
+    this.closeMenu(true);
+    this.recipeActions.requestRating(recipe.id);
+  }
+
+  plan(recipe: Recipe): void {
+    if (!this.auth.canEdit() || this.deleting() || this.recipeActions.busy() || this.recipeActions.recipeId() !== recipe.id) return;
+    this.closeMenu(true);
+    this.recipeActions.requestPlanning(recipe.id);
+  }
+
+  freezerAction(action: FreezerNavigationAction): void {
+    if (!this.auth.canEdit() || !this.isFreezerPage() || this.freezerNavigation.blocked()) return;
+    this.closeMenu(true);
+    this.freezerNavigation.request(action);
   }
 
   async remove(detail: Detail): Promise<void> {

@@ -1,6 +1,6 @@
 import { Injectable, effect, inject } from '@angular/core';
 import { Subject } from 'rxjs';
-import { MealSelection, RecipeSummary, ScheduledMeal } from '../models/scheduled-meal.model';
+import { MealSelection, MealSlot, PortionMode, RecipeSummary, ScheduledMeal, ScheduledRecipeAddition } from '../models/scheduled-meal.model';
 import { calendarWeek, dateNumber, shiftDate, validateDay } from '../utils/scheduled-meal.utils';
 import { AuthService } from './auth.service';
 import { SupabaseService } from './supabase.service';
@@ -33,9 +33,9 @@ export class ScheduledMealService {
     return this.getRange(start, shiftDate(start, 6), signal);
   }
 
-  getDay(date: string, signal?: AbortSignal): Promise<ScheduledMeal[]> { return this.getRange(date, date, signal); }
+  getDay(date: string, signal?: AbortSignal, force = false): Promise<ScheduledMeal[]> { return this.getRange(date, date, signal, force); }
 
-  private async getRange(start: string, end: string, signal?: AbortSignal): Promise<ScheduledMeal[]> {
+  private async getRange(start: string, end: string, signal?: AbortSignal, force = false): Promise<ScheduledMeal[]> {
     if (!Number.isFinite(dateNumber(start)) || !Number.isFinite(dateNumber(end))) throw new Error('La fecha no es válida.');
     await this.auth.requireEditor();
     const owner = this.auth.user()!.id;
@@ -43,7 +43,7 @@ export class ScheduledMealService {
     const generation = this.generation;
     signal?.throwIfAborted();
     const dates = calendarWeek(start).map(day => day.date).filter(date => date <= end);
-    if (dates.every(date => (this.days.get(date)?.expires ?? 0) > Date.now())) {
+    if (!force && dates.every(date => (this.days.get(date)?.expires ?? 0) > Date.now())) {
       return structuredClone(dates.flatMap(date => this.days.get(date)!.meals));
     }
     let query = this.supabase.requireClient().from('scheduled_meals')
@@ -74,6 +74,43 @@ export class ScheduledMealService {
     if (this.auth.user()?.id !== owner || !this.auth.canEdit()) throw new Error('La sesión ha cambiado.');
     this.changesSubject.next();
     this.remember(date, meals.filter(meal => meal.recipes.length).map(meal => ({ ...meal, date })));
+  }
+
+  async addRecipe(date: string, slot: MealSlot, servings: number, recipeId: string, mode: PortionMode): Promise<ScheduledRecipeAddition> {
+    const validation = validateDay(date, [{ slot, servings, recipes: [{ recipeId, mode }] }]);
+    if (validation) throw new Error(validation);
+    const owner = this.syncOwner();
+    await this.auth.requireEditor();
+    if (!owner || this.syncOwner() !== owner) throw new Error('La sesión ha cambiado.');
+    this.invalidateDate(date);
+    try {
+      const { data, error } = await this.supabase.requireClient().rpc('add_scheduled_recipe', {
+        p_date: date, p_slot: slot, p_servings: servings, p_recipe_id: recipeId, p_mode: mode,
+      });
+      if (this.auth.user()?.id !== owner || !this.auth.canEdit()) throw new Error('La sesión ha cambiado.');
+      if (error) {
+        if (['PGRST202', '42883'].includes(error.code)) throw new Error('Falta actualizar Planificación en Supabase. Aplica la migración 20261026000300_add_scheduled_recipe.sql.');
+        throw error;
+      }
+      const result = data as ScheduledRecipeAddition | null;
+      const meal = result?.meal;
+      if (typeof result?.added !== 'boolean' || !meal || meal.date !== date || meal.slot !== slot
+        || !Array.isArray(meal.recipes) || meal.recipes.some(item => !item || typeof item.recipeId !== 'string')
+        || validateDay(date, [meal]) || !meal.recipes.some(item => item.recipeId.toLowerCase() === recipeId.toLowerCase())) {
+        throw new Error('No se pudo confirmar que la receta esté planificada. Vuelve a intentarlo.');
+      }
+      return structuredClone(result);
+    } finally {
+      // The response contains one slot, so never cache it as if it were the whole day.
+      // Also invalidate reads started during the write, including a lost response.
+      if (this.auth.user()?.id === owner && this.auth.canEdit() && this.cacheOwner === owner) this.invalidateDate(date);
+    }
+  }
+
+  private invalidateDate(date: string): void {
+    this.generation++;
+    this.days.delete(date);
+    this.changesSubject.next();
   }
 
   async recipeSummaries(ids: string[], signal?: AbortSignal): Promise<Record<string, RecipeSummary>> {

@@ -29,7 +29,7 @@ export class IngredientFilterComponent {
   private readonly destroyRef = inject(DestroyRef);
   readonly selectedIds = input<string[]>([]);
   readonly selectedIdsChange = output<string[]>();
-  readonly purpose = input<'recipe-filter' | 'shopping'>('recipe-filter');
+  readonly purpose = input<'recipe-filter' | 'shopping' | 'freezer'>('recipe-filter');
   readonly showSelected = input(true);
   readonly disabled = input(false);
   readonly addingIngredient = signal(false);
@@ -47,7 +47,7 @@ export class IngredientFilterComponent {
   readonly selectedCategory = toSignal(this.category.valueChanges, { initialValue: this.category.value });
   private readonly catalog = toSignal(this.ingredients.ingredientIndex$, { initialValue: indexIngredients([]) });
   readonly newName = computed(() => this.query().trim());
-  readonly canCreate = computed(() => this.purpose() === 'shopping' && this.auth.canEdit() && this.ingredients.loaded()
+  readonly canCreate = computed(() => this.purpose() !== 'recipe-filter' && this.auth.canEdit() && this.ingredients.loaded()
     && !this.ingredients.error() && normalizeSearch(this.newName()).length >= MIN_SEARCH_LENGTH
     && !this.catalog().byName.has(normalizeSearch(this.newName())));
   private readonly selectedSet = computed(() => new Set(this.selectedIds()));

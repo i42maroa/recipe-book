@@ -1,21 +1,21 @@
 import { Component, DestroyRef, HostListener, Injector, afterNextRender, computed, effect, inject, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { FormControl } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
 import { RecipePickerComponent } from '../../components/recipe-picker/recipe-picker.component';
-import { IconComponent } from '../../components/shared/icon/icon.component';
+import { PlannerDayComponent } from '../../components/planner-day/planner-day.component';
 import { RecipeCard } from '../../models/recipe-card.model';
 import { MEAL_SLOTS, MealSlot, PortionMode, RecipeSummary, ScheduledRecipe } from '../../models/scheduled-meal.model';
 import { AuthService } from '../../services/auth.service';
 import { NotificationService } from '../../services/notification.service';
 import { ScheduledMealService } from '../../services/scheduled-meal.service';
 import { PlannerStateService } from '../../services/planner-state.service';
-import { calendarPeriodLabel, calendarWeek, dateNumber, dayFingerprint, localDate, portionSummary, shiftDate } from '../../utils/scheduled-meal.utils';
+import { calendarPeriodLabel, calendarWeek, dateNumber, dayFingerprint, localDate, shiftDate } from '../../utils/scheduled-meal.utils';
 
 interface EditableRecipe extends ScheduledRecipe { date: string; slot: MealSlot; key: number; control: FormControl<PortionMode> }
 
 @Component({
   selector: 'app-planner-editor-page', standalone: true,
-  imports: [ReactiveFormsModule, RecipePickerComponent, IconComponent, RouterLink],
+  imports: [RecipePickerComponent, PlannerDayComponent],
   templateUrl: './planner-editor-page.component.html', styleUrl: './planner-editor-page.component.css',
 })
 export class PlannerEditorPageComponent {
@@ -56,6 +56,9 @@ export class PlannerEditorPageComponent {
   });
   readonly summaries = signal<Record<string, RecipeSummary>>({});
   private readonly servings = signal<Record<string, number>>({});
+  readonly dayViews = computed(() => this.days().map(day => ({ ...day,
+    meals: this.slots.map(slot => ({ slot: slot.id, servings: this.mealServings(day.date, slot.id), recipes: this.forSlot(day.date, slot.id) })),
+  })));
   readonly loading = signal(true);
   readonly error = signal(false);
   readonly savingDate = signal<string | null>(null);
@@ -123,9 +126,7 @@ export class PlannerEditorPageComponent {
   forSlot(date: string, slot: MealSlot): EditableRecipe[] { return this.groupedEntries().slots[`${date}:${slot}`] ?? []; }
   dayRecipeCount(date: string): number { return this.groupedEntries().counts[date] ?? 0; }
   recipeIdsForSlot(date: string, slot: MealSlot): string[] { return this.groupedEntries().ids[`${date}:${slot}`] ?? []; }
-  recipe(entry: ScheduledRecipe): RecipeSummary | undefined { return this.summaries()[entry.recipeId]; }
   mealServings(date: string, slot: MealSlot): number { return this.servings()[`${date}:${slot}`] ?? 2; }
-  summary(entry: EditableRecipe): string { return portionSummary(this.recipe(entry)?.servings ?? null, this.mealServings(entry.date, entry.slot), entry.control.value); }
   private dayMeals(date: string) {
     return this.slots.map(slot => ({ slot: slot.id, servings: this.mealServings(date, slot.id), recipes: this.forSlot(date, slot.id).map(entry => ({ recipeId: entry.recipeId, mode: entry.control.value })) }));
   }
@@ -153,9 +154,11 @@ export class PlannerEditorPageComponent {
     this.entries.update(rows => [...rows, { date: target.date, slot: target.slot, recipeId: recipe.id, mode: 'scale', key: this.key++, control: new FormControl<PortionMode>('scale', { nonNullable: true }) }]);
     this.markDirty(target.date); this.closePicker();
   }
-  removeEntry(entry: EditableRecipe): void {
+  removeEntry(entry: { key: string | number }): void {
     if (this.busy()) return;
-    this.entries.update(rows => rows.filter(row => row.key !== entry.key)); this.markDirty(entry.date);
+    const current = this.entries().find(row => row.key === entry.key);
+    if (!current) return;
+    this.entries.update(rows => rows.filter(row => row.key !== entry.key)); this.markDirty(current.date);
   }
   async saveDay(date: string): Promise<void> {
     if (this.busy() || this.loading() || !this.dirtyDates().has(date)) return;

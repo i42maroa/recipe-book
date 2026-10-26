@@ -374,6 +374,14 @@ Mantener la base de datos detrás de una capa de acceso para no acoplar componen
 
 Las claves públicas configuradas en el frontend no son secretos. La seguridad efectiva debe proceder de RLS, permisos y políticas correctamente configuradas.
 
+## Inventario de congeladores implementado
+
+La migración `supabase/migrations/20261026000100_freezer_inventories.sql` añade `freezer_inventories`: una fila por `owner_id`, con `freezers` JSONB, `version` y `updated_at`. Cada congelador contiene `id`, `name` e `items`; cada lote contiene `id`, `ingredientId` opcional representado como null, nombre y categoría como instantánea, cantidad en el formato de recetas y `enteredOn` como fecha de calendario.
+
+Los productos libres llevan `ingredientId: null` y `category: null`, sin escribir en el catálogo. Cada alta conserva su propio lote, aunque repita ingrediente. Los identificadores de ingredientes son referencias informativas sin clave foránea: cambiar o eliminar el ingrediente no elimina un lote guardado. No se conservan movimientos ni historial de lotes consumidos.
+
+RLS limita lecturas y escrituras al propietario autenticado con permiso de editor. `valid_freezer_inventory(jsonb)` valida la estructura completa y `save_freezer_inventory(jsonb,bigint)` guarda atómicamente, comparando la versión anterior para rechazar sobrescrituras desde borradores antiguos. El frontend guarda automáticamente el conjunto de congeladores del usuario al confirmar cada alta, edición, retirada o cambio de congelador. Se bloquean las modificaciones durante la escritura y los cambios fallidos se conservan en memoria para reintentar o cargar la versión guardada. Búsqueda y ordenación no escriben en la base de datos. Esta descripción corresponde al código del repositorio, sin confirmar la aplicación de la migración remota.
+
 ## Buenas prácticas de evolución
 
 1. Crear migraciones SQL para todo cambio de esquema y conservarlas en el repositorio.

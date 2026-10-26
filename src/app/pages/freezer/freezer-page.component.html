@@ -1,0 +1,67 @@
+<section class="freezer-page">
+  <header class="page-heading"><div><p class="eyebrow">TU COCINA, ORGANIZADA</p><h1>Congelador</h1></div></header>
+  @if (inventory.loading()) { <p role="status">Cargando tus congeladores…</p> }
+  @if (inventory.error()) { <div class="notice" role="alert"><p>{{ inventory.error() }}</p><button type="button" [disabled]="inventory.loading()" (click)="reload()">Reintentar carga</button></div> }
+
+  <fieldset class="inventory-controls" [disabled]="busy()">
+    <section class="inventory-list" aria-labelledby="inventory-title" [attr.aria-busy]="inventory.loading()">
+      <header class="list-heading">
+        <div><h2 id="inventory-title">{{ selected()?.name ?? 'Tus congeladores' }}</h2>
+          @if (inventory.ready() && !inventory.loading() && selected(); as freezer) { <p>{{ freezer.items.length }} {{ freezer.items.length === 1 ? 'entrada' : 'entradas' }}</p> }
+        </div>
+        @if (selected()) {
+          <div class="list-actions"><button type="button" class="primary add-button" (click)="openEntries()"><app-icon name="plus" /> Añadir</button></div>
+        }
+      </header>
+      @if (inventory.loading()) { <app-skeleton variant="rows" /> }
+      @else if (inventory.ready() && !inventory.error()) {
+        @if (!selected()) { <p class="empty">Crea un congelador desde el menú para empezar, por ejemplo «Casa» o «Casa alquilada».</p> }
+        @else {
+          @if (selected()?.items.length) {
+            <div class="freezer-filters">
+              <app-search-filter placeholder="Buscar ingrediente o producto…" ariaLabel="Buscar en este congelador" [formControl]="search" />
+              <app-select-filter label="Orden" ariaLabel="Ordenar entradas del congelador" filterType="order" [compact]="true" [options]="sortOptions" [formControl]="sort" />
+            </div>
+          }
+          <ul>
+            @for (item of items(); track item.id) {
+              <li>
+                <div class="item-info"><strong>{{ item.name }}</strong><p>{{ item.category ? categoryLabel(item.category) : 'Producto libre' }}</p><p>Entrada: <time [attr.datetime]="item.enteredOn">{{ dateLabel(item.enteredOn) }}</time></p></div>
+                <span class="amount">{{ amountLabel(item.amount) }}</span>
+                <div class="item-actions">
+                  <button type="button" class="icon-button" [attr.aria-label]="'Editar ' + item.name + ' del ' + dateLabel(item.enteredOn)" title="Editar entrada" (click)="openEntries(item)"><app-icon name="edit" /></button>
+                  <button type="button" class="primary withdraw-button" (click)="openAction({ kind: 'withdraw', item })" [attr.aria-label]="'Retirar ' + item.name + ' del ' + dateLabel(item.enteredOn)">Retirar</button>
+                </div>
+              </li>
+            } @empty { <p class="empty">{{ search.value ? 'No hay resultados para esta búsqueda.' : 'Todavía no has añadido ingredientes ni productos a este congelador.' }}</p> }
+          </ul>
+        }
+      }
+    </section>
+  </fieldset>
+
+  @if (inventory.saving()) { <p class="saving-status" role="status">Guardando cambios…</p> }
+  @if (inventory.saveError()) { <div class="notice" role="alert"><p>{{ inventory.saveError() }}</p><p>Hay cambios pendientes de guardar.</p><div class="retry-actions"><button type="button" [disabled]="busy() || inventory.saving()" (click)="retrySave()">Reintentar guardado</button><button type="button" [disabled]="busy() || inventory.saving()" (click)="reload()">Cargar versión guardada</button></div></div> }
+  @if (selected()) {
+    <button class="floating-add-button" type="button" aria-label="Añadir al congelador" title="Añadir al congelador" [disabled]="busy()" (click)="openEntries()"><app-icon name="plus" /></button>
+  }
+</section>
+
+@if (entryOpen() && selected(); as freezer) {
+  <app-freezer-entry-dialog [freezerName]="freezer.name" [initialItem]="editingItem()" (confirmed)="confirmEntries($event)" (closed)="entryOpen.set(false)" />
+}
+
+<dialog #actionDialog aria-labelledby="inventory-action-title" class="action-dialog" (cancel)="closeAction()">
+  <h2 id="inventory-action-title">{{ actionTitle() }}</h2>
+  <form (submit)="applyAction($event)">
+    @if (withdrawing(); as item) {
+      <p>{{ item.name }} · Disponible: {{ amountLabel(item.amount) }}</p>
+      @if (item.amount?.kind === 'specific') {
+        <label class="checkbox-label"><input type="checkbox" [formControl]="withdrawAll"> Retirar todo el lote</label>
+        @if (!withdrawAll.value) { <label>Cantidad que retiras<input type="number" autocomplete="off" min="0" step="any" [formControl]="withdrawQuantity" required></label> }
+      } @else { <p class="withdraw-notice">Se retirará toda esta entrada del congelador.</p> }
+    } @else { <label>Nombre del congelador<input [formControl]="freezerName" placeholder="Ej. Casa alquilada" required></label> }
+    @if (actionError()) { <p class="error" role="alert">{{ actionError() }}</p> }
+    <footer><button type="button" (click)="closeAction()">Cancelar</button><button type="submit" class="primary">{{ action()?.kind === 'withdraw' ? 'Retirar' : 'Aplicar' }}</button></footer>
+  </form>
+</dialog>

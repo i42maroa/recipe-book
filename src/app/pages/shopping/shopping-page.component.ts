@@ -26,11 +26,12 @@ export class ShoppingPageComponent {
   private readonly router = inject(Router);
   private readonly owner = this.auth.user()?.id;
   private readonly document = inject(DOCUMENT);
+  private readonly addDialog = viewChild<ElementRef<HTMLDialogElement>>('addDialog');
   private readonly replacementDialog = viewChild<ElementRef<HTMLDialogElement>>('replacementDialog');
   private readonly manualTab = viewChild<ElementRef<HTMLButtonElement>>('manualTab');
   private readonly ingredientPicker = viewChild(IngredientFilterComponent);
   readonly creatingIngredient = computed(() => this.ingredientPicker()?.addingIngredient() ?? false);
-  readonly addExpanded = signal(false);
+  readonly addOpen = signal(false);
   readonly addMode = signal<'manual' | 'planning'>('manual');
   readonly pendingReplacement = signal<ShoppingItem[] | null>(null);
   readonly sharing = signal(false);
@@ -42,11 +43,12 @@ export class ShoppingPageComponent {
     effect(() => {
       if (!this.auth.canEdit() || this.auth.user()?.id !== this.owner) {
         this.cancelReplacement();
+        this.addOpen.set(false); this.addDialog()?.nativeElement.close();
         this.addMode.set('manual'); this.manualShareText.set(''); void this.router.navigate(['/login']);
       }
     });
     effect(onCleanup => {
-      if (!this.pendingReplacement()) return;
+      if (!this.addOpen() && !this.pendingReplacement()) return;
       const previousOverflow = this.document.body.style.overflow;
       this.document.body.style.overflow = 'hidden';
       onCleanup(() => { this.document.body.style.overflow = previousOverflow; });
@@ -56,6 +58,18 @@ export class ShoppingPageComponent {
 
   @HostListener('window:beforeunload', ['$event'])
   beforeUnload(event: BeforeUnloadEvent): void { if (this.list.dirty() || this.list.saving() || this.creatingIngredient()) event.preventDefault(); }
+
+  openAdd(): void {
+    const dialog = this.addDialog()?.nativeElement;
+    if (!dialog || dialog.open || !this.list.ready() || this.list.loading() || this.list.saving() || this.creatingIngredient()) return;
+    this.addOpen.set(true); dialog.showModal();
+  }
+
+  closeAdd(event?: Event): void {
+    event?.preventDefault();
+    if (this.creatingIngredient() || this.pendingReplacement()) return;
+    this.addOpen.set(false); this.addDialog()?.nativeElement.close();
+  }
 
   add(ids: string[]): void {
     const additions = ids.flatMap(id => {
