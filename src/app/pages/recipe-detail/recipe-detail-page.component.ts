@@ -3,13 +3,15 @@ import { environment } from '../../../environments/environment';
 ﻿import { cuisineFlag, mealPhotoClass } from '../../utils/recipe-display.utils';
 import { AsyncPipe } from '@angular/common';
 import { FormBuilder } from '@angular/forms';
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { catchError, combineLatest, distinctUntilChanged, from, map, of, shareReplay, startWith, Subject, switchMap } from 'rxjs';
 import { ButtonComponent } from '../../components/shared/button/button.component';
 import { CuisineType, Ingredient, Recipe, RecipePhoto } from '../../models/recipe.model';
 import { IngredientService } from '../../services/ingredient.service';
 import { RecipeService } from '../../services/recipe.service';
+import { RecipeDetailActionsService } from '../../services/recipe-detail-actions.service';
 import { NotificationService } from '../../services/notification.service';
 import { MealIconComponent } from '../../components/shared/meal-icon/meal-icon.component';
 import { IconComponent } from '../../components/shared/icon/icon.component';
@@ -34,10 +36,13 @@ export class RecipeDetailPageComponent {
   readonly savingRating = signal(false);
   private readonly route = inject(ActivatedRoute);
   private readonly recipeService = inject(RecipeService);
+  private readonly actions = inject(RecipeDetailActionsService);
+  private readonly injector = inject(Injector);
+  private readonly ratingForm = viewChild<ElementRef<HTMLElement>>('ratingForm');
   readonly ingredientService = inject(IngredientService);
   private readonly notifications = inject(NotificationService);
   readonly auth = inject(AuthService);
-  isRating = false;
+  readonly isRating = signal(false);
   private readonly fb = inject(FormBuilder);
   readonly ratingControl = this.fb.nonNullable.control(0);
   readonly ratingOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -51,7 +56,7 @@ export class RecipeDetailPageComponent {
     switchMap(([id]) => {
       this.activePhotoIndex = 0;
       this.lightboxOpen = false;
-      this.isRating = false;
+      this.isRating.set(false);
       return isUuid(id) ? from(this.recipeService.loadRecipe(id)).pipe(
         map(() => ({ id, loading: false, error: false })),
         catchError(() => of({ id, loading: false, error: true })),
@@ -63,8 +68,24 @@ export class RecipeDetailPageComponent {
     map(([state, recipes]) => ({ ...state, recipe: recipes.find((recipe) => recipe.id === state.id) ?? null })),
     shareReplay({ bufferSize: 1, refCount: true }),
   );
+  readonly view = toSignal(this.view$, { initialValue: null });
+  readonly preparationSteps = computed(() => this.view()?.recipe?.steps.filter(step => step.trim()) ?? []);
 
-  constructor() { void this.ingredientService.ensureLoaded().catch(() => undefined); }
+  constructor() {
+    const destroyRef = inject(DestroyRef);
+    effect(() => {
+      const view = this.view();
+      this.actions.recipeId.set(view && !view.loading && !view.error ? view.recipe?.id ?? null : null);
+      this.actions.busy.set(this.savingRating());
+      if (!this.auth.canEdit()) this.isRating.set(false);
+    });
+    this.actions.ratings$.pipe(takeUntilDestroyed()).subscribe(id => {
+      const view = this.view();
+      if (view?.recipe?.id === id && !view.loading && !view.error) this.openRating(view.recipe);
+    });
+    destroyRef.onDestroy(() => { this.actions.recipeId.set(null); this.actions.busy.set(false); });
+    void this.ingredientService.ensureLoaded().catch(() => undefined);
+  }
 
   retry(): void { this.retries.next(); }
   retryIngredients(): void { void this.ingredientService.refresh().catch(() => undefined); }
@@ -94,14 +115,20 @@ export class RecipeDetailPageComponent {
   }
 
   openRating(recipe: Recipe): void {
+    if (!this.auth.canEdit() || this.savingRating()) return;
     this.ratingControl.setValue(recipe.rating ?? 0);
-    this.isRating = true;
+    this.isRating.set(true);
+    afterNextRender(() => {
+      const form = this.ratingForm()?.nativeElement;
+      form?.focus({ preventScroll: true });
+      form?.scrollIntoView({ block: 'center' });
+    }, { injector: this.injector });
   }
 
-  setRating(value: number): void { this.ratingControl.setValue(value); }
+  setRating(value: number): void { if (!this.savingRating()) this.ratingControl.setValue(value); }
 
   async saveRating(recipe: Recipe): Promise<void> {
-    if (this.savingRating()) return;
+    if (this.savingRating() || !this.auth.canEdit()) return;
     const rating = this.ratingControl.value;
     if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
       this.notifications.error('Selecciona de una a diez estrellas.');
@@ -110,7 +137,7 @@ export class RecipeDetailPageComponent {
     this.savingRating.set(true);
     try {
       await this.recipeService.rate(recipe.id, rating);
-      this.isRating = false;
+      this.isRating.set(false);
       this.notifications.success('Valoración guardada.');
     } catch (error) {
       this.notifications.error(error instanceof Error ? error.message : 'No se pudo guardar la valoración.');
