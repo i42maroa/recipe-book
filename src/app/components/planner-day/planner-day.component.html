@@ -1,0 +1,53 @@
+<section class="day" [class.selection-day]="mode() === 'select'" [class.is-disabled]="disabled() || loading()" [attr.id]="dayId() || null" [attr.aria-busy]="loading()">
+  <header class="day-heading"><h2>{{ label() }}</h2>
+    @if (mode() === 'edit') {
+      @if (loading()) { <button class="loading-add" type="button" disabled [attr.aria-label]="'Añadir comida al ' + label()">+</button> }
+      @else {
+        <details class="meal-actions header-actions"><summary [id]="'day-add-' + date()" [attr.aria-label]="'Añadir comida al ' + label()" [attr.aria-disabled]="disabled()" [attr.tabindex]="disabled() ? -1 : 0">+</summary>
+          <div class="meal-menu">@for (meal of sections(); track meal.id) { <button type="button" [disabled]="disabled() || meal.recipes.length >= 5" (click)="choose(meal.id)">{{ meal.label }}<small>{{ meal.recipes.length }}/5</small></button> }</div>
+        </details>
+      }
+    }
+  </header>
+  <div class="meals">
+    @for (meal of sections(); track meal.id) {
+      @if (loading()) {
+        <section class="meal" [attr.aria-label]="label() + ', ' + meal.label">
+          <div class="meal-heading"><h3>{{ meal.label }}</h3></div>
+          <div class="meal-entries" aria-hidden="true"><div class="entry loading-entry"><span class="skeleton skeleton-title"></span><span class="skeleton skeleton-meta"></span></div></div>
+        </section>
+      } @else if (meal.recipes.length || mode() === 'select') {
+        <section class="meal" [class.is-selected]="mode() === 'select' && selectedSlot() === meal.id" [attr.data-slot]="meal.id" [attr.aria-label]="label() + ', ' + meal.label">
+          <div class="meal-heading"><h3>{{ meal.label }}</h3>
+            <button type="button" class="slot-add" [disabled]="disabled() || meal.recipes.length >= 5 || meal.duplicate" [attr.aria-pressed]="mode() === 'select' ? selectedSlot() === meal.id : null" [attr.aria-label]="'Añadir receta a ' + meal.label" (click)="choose(meal.id)">
+              @if (mode() === 'select' && selectedSlot() === meal.id) { <app-icon name="check" /> } @else { <span aria-hidden="true">+</span> } <small>{{ meal.recipes.length }}/5</small>
+            </button>
+          </div>
+          <div class="meal-entries">
+            @for (entry of meal.recipes; track entry.key) {
+              <article class="entry">
+                @if (recipe(entry); as recipe) {
+                  <a class="entry-title" [routerLink]="['/recipes', recipe.id]" [queryParams]="recipeQueryParams()">{{ recipe.name }}</a>
+                  <div class="entry-meta"><span class="entry-servings" [attr.aria-label]="recipe.servings ? recipe.servings + ' comensales' : 'Sin comensales indicados'"><app-icon name="person" /> {{ recipe.servings ?? '—' }}</span><span class="entry-types">{{ recipe.mealTypes.join(' · ') || 'Sin tipo de plato' }}</span>@if (recipe.pending) { <span class="entry-new">Nueva</span> }</div>
+                  @if (recipe.servings !== meal.servings) {
+                    @if (mode() === 'edit' && entry.control; as control) {
+                      <label>Preparación<select [formControl]="control" [attr.disabled]="disabled() ? '' : null" (change)="modeChanged.emit()" [attr.aria-label]="'Preparación de ' + recipe.name"><option value="scale">Ajustar proporción</option><option value="leftovers">Receta completa y sobras</option></select></label>
+                    }
+                    <p class="portion">{{ summary(entry, meal.servings) }}</p>
+                  }
+                } @else { <strong class="entry-title">Receta no disponible</strong> }
+                @if (mode() === 'edit') { <button class="entry-remove" type="button" [disabled]="disabled()" [attr.aria-label]="'Quitar ' + (recipe(entry)?.name ?? 'receta no disponible') + ' de esta comida'" title="Quitar receta" (click)="remove(entry)"><app-icon name="close" /></button> }
+              </article>
+            }
+          </div>
+          @if (mode() === 'select') {
+            @if (meal.duplicate) { <p class="slot-notice" role="status">Esta receta ya está planificada en esta comida.</p> }
+            @else if (meal.recipes.length >= 5) { <p class="slot-notice" role="status">Esta comida ya contiene cinco recetas.</p> }
+            @else if (selectedSlot() === meal.id) { <p class="selection-status" role="status">Comida seleccionada para añadir esta receta.</p> }
+          }
+        </section>
+      }
+    }
+  </div>
+  <ng-content select="[day-footer]" />
+</section>

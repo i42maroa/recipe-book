@@ -139,6 +139,12 @@
   border-top: 1px solid var(--color-border);
 }
 .recipe-detail-columns.ingredients-only { grid-template-columns: minmax(0, 1fr); }
+.recipe-ingredients { min-width: 0; }
+.recipe-ingredients .detail-ingredients { padding-inline: 16px; }
+.recipe-planning-notice { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 20px; padding: 14px 16px; border-radius: 8px; background: var(--color-success-soft); }
+.recipe-planning-notice p { margin: 0; color: var(--color-text-secondary); font-size: 13px; line-height: 1.6; }
+.recipe-planning-notice a { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; color: var(--color-primary); font-size: 13px; }
+.recipe-planning-notice app-icon { width: 16px; height: 16px; }
 .recipe-detail-columns h2 {
   margin: 0 0 13px;
   color: var(--color-text);

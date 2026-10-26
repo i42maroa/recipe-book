@@ -21,11 +21,13 @@ import { groupIngredients } from '../../utils/ingredients.utils';
 import { NotFoundPageComponent } from '../not-found/not-found-page.component';
 import { isUuid } from '../../utils/uuid.utils';
 import { SkeletonComponent } from '../../components/shared/skeleton/skeleton.component';
+import { RecipePlanningDialogComponent } from '../../components/recipe-planning-dialog/recipe-planning-dialog.component';
+import { MEAL_SLOTS, ScheduledRecipeAddition } from '../../models/scheduled-meal.model';
 
 @Component({
   selector: 'app-recipe-detail-page',
   standalone: true,
-  imports: [AsyncPipe, RouterLink, ButtonComponent, MealIconComponent, IconComponent, DifficultyTonePipe, PhotoLightboxComponent, NotFoundPageComponent, SkeletonComponent],
+  imports: [AsyncPipe, RouterLink, ButtonComponent, MealIconComponent, IconComponent, DifficultyTonePipe, PhotoLightboxComponent, NotFoundPageComponent, SkeletonComponent, RecipePlanningDialogComponent],
   templateUrl: './recipe-detail-page.component.html',
   styleUrl: './recipe-detail-page.component.css',
 })
@@ -34,6 +36,16 @@ export class RecipeDetailPageComponent {
   lightboxOpen = false;
   readonly sharing = signal(false);
   readonly savingRating = signal(false);
+  readonly planningOpen = signal(false);
+  readonly lastPlanned = signal<ScheduledRecipeAddition | null>(null);
+  readonly planningMessage = computed(() => {
+    const result = this.lastPlanned();
+    if (!result) return '';
+    const slot = MEAL_SLOTS.find(item => item.id === result.meal.slot)?.label.toLowerCase();
+    const date = new Intl.DateTimeFormat('es', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })
+      .format(new Date(`${result.meal.date}T00:00:00Z`));
+    return `${result.added ? 'Receta añadida' : 'La receta ya estaba añadida'} ${slot === 'desayuno' ? 'al desayuno' : `a la ${slot}`} del ${date}.`;
+  });
   private readonly route = inject(ActivatedRoute);
   private readonly recipeService = inject(RecipeService);
   private readonly actions = inject(RecipeDetailActionsService);
@@ -57,6 +69,7 @@ export class RecipeDetailPageComponent {
       this.activePhotoIndex = 0;
       this.lightboxOpen = false;
       this.isRating.set(false);
+      this.planningOpen.set(false); this.lastPlanned.set(null);
       return isUuid(id) ? from(this.recipeService.loadRecipe(id)).pipe(
         map(() => ({ id, loading: false, error: false })),
         catchError(() => of({ id, loading: false, error: true })),
@@ -73,15 +86,24 @@ export class RecipeDetailPageComponent {
 
   constructor() {
     const destroyRef = inject(DestroyRef);
+    let planningOwner = this.auth.user()?.id;
     effect(() => {
       const view = this.view();
+      const owner = this.auth.user()?.id;
+      if (owner !== planningOwner) { planningOwner = owner; this.planningOpen.set(false); this.lastPlanned.set(null); }
       this.actions.recipeId.set(view && !view.loading && !view.error ? view.recipe?.id ?? null : null);
-      this.actions.busy.set(this.savingRating());
-      if (!this.auth.canEdit()) this.isRating.set(false);
+      this.actions.busy.set(this.savingRating() || this.planningOpen());
+      if (!this.auth.canEdit()) { this.isRating.set(false); this.planningOpen.set(false); this.lastPlanned.set(null); }
     });
     this.actions.ratings$.pipe(takeUntilDestroyed()).subscribe(id => {
       const view = this.view();
       if (view?.recipe?.id === id && !view.loading && !view.error) this.openRating(view.recipe);
+    });
+    this.actions.planning$.pipe(takeUntilDestroyed()).subscribe(id => {
+      const view = this.view();
+      if (this.auth.canEdit() && view?.recipe?.id === id && !view.loading && !view.error && !this.savingRating()) {
+        this.isRating.set(false); this.planningOpen.set(true);
+      }
     });
     destroyRef.onDestroy(() => { this.actions.recipeId.set(null); this.actions.busy.set(false); });
     void this.ingredientService.ensureLoaded().catch(() => undefined);
@@ -89,6 +111,11 @@ export class RecipeDetailPageComponent {
 
   retry(): void { this.retries.next(); }
   retryIngredients(): void { void this.ingredientService.refresh().catch(() => undefined); }
+
+  recipePlanned(result: ScheduledRecipeAddition): void {
+    this.lastPlanned.set(result); this.planningOpen.set(false);
+    this.notifications.success(this.planningMessage());
+  }
 
   async shareRecipe(recipe: Recipe): Promise<void> {
     if (this.sharing()) return;

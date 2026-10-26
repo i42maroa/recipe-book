@@ -31,6 +31,7 @@ Para instalar desde cero, aplica una vez estos archivos, en este orden:
 13. `supabase/migrations/20261021000100_ingredient_categories.sql`
 14. `supabase/migrations/20261026000100_freezer_inventories.sql`
 15. `supabase/migrations/20261026000200_freezer_entries.sql`
+16. `supabase/migrations/20261026000300_add_scheduled_recipe.sql`
 
 La migración de seguridad conserva los datos y reemplaza todas las políticas de las tablas del recetario enumeradas en ella. Crea el grupo privado de editores, configura lectura pública y escritura autorizada, restringe las RPC de guardado y protege las escrituras de fotos. El grupo empieza vacío: nadie podrá editar hasta que añadas al primer miembro. No vuelvas a aplicar las migraciones antiguas por separado después de configurar la seguridad, porque contienen permisos de escritura anónima.
 
@@ -147,6 +148,16 @@ Crea `shopping_lists`, con una fila privada por usuario, y las RPC `save_shoppin
 El cálculo usa únicamente las comidas guardadas del usuario entre ambas fechas incluidas. Cuenta ingredientes directos por aparición de receta, sin calcular cantidades ni expandir elaboraciones. La lista guardada conserva una instantánea de nombres y categorías. Compartir envía texto desde el navegador, sin hacer pública la tabla.
 
 Las diez pruebas SQL locales validan las migraciones reales de compra y categorías en PostgreSQL/WASM con identidades de prueba. Tras aplicarlas, comprueba con dos sesiones reales que cada editor conserva su propia lista y que anónimos o usuarios sin permiso no pueden acceder. Si falta la migración inicial de compra, la página mostrará el archivo que debe aplicarse.
+
+## Añadir una receta a Planificación desde su detalle
+
+Antes de publicar esta acción, ejecuta [20261026000300_add_scheduled_recipe.sql](supabase/migrations/20261026000300_add_scheduled_recipe.sql) en un proyecto con las migraciones anteriores aplicadas. No se ha ejecutado contra Supabase remoto desde este cambio. No necesita nuevas tablas ni modifica las comidas existentes al instalarse.
+
+La RPC `add_scheduled_recipe(date,text,integer,uuid,text)` recibe fecha, comida, comensales, receta y modo de preparación. Usa `SECURITY INVOKER`, las políticas existentes de `scheduled_meals` y el mismo bloqueo por propietario/fecha de `save_scheduled_day`. El propietario se obtiene de `auth.uid()`; exige pertenecer al grupo de editores y comprueba que la receta exista.
+
+Si la comida está vacía, la crea. Si existe, conserva sus comensales, recetas y preparaciones y añade únicamente la nueva receta. Comprueba el máximo de cinco recetas y los duplicados sin distinguir mayúsculas del UUID. Si una petición se repite después de haberse aplicado, devuelve la comida existente sin duplicar ni cambiar la preparación. Si los comensales de una comida existente difieren de los mostrados al confirmar, devuelve un conflicto para actualizar la vista previa. La respuesta indica si se añadió la receta e incluye el hueco guardado, no el día entero.
+
+`npm run test:planner:sql` ejecuta nueve pruebas de las migraciones reales en PostgreSQL/WASM local. Comprueba conservación de otras recetas, comidas y fechas, reintentos, límites, validación, conflictos y aislamiento entre usuarios. No confirma los permisos ni el estado del proyecto remoto.
 
 ## Categorías Líquidos y Frutos secos
 

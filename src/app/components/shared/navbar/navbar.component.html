@@ -23,6 +23,12 @@
       }
     </nav>
     @if (auth.canEdit()) {
+      @if (isPlannerPage()) {
+        <nav class="detail-nav planner-nav" aria-label="Acciones de planificación">
+          <a class="nav-item plan-day-action" routerLink="/planner/day"><app-icon class="nav-icon" name="edit" /> Planificar día</a>
+          <a class="nav-item plan-week-action" routerLink="/planner/week"><app-icon class="nav-icon" name="recipes" /> Planificar semana</a>
+        </nav>
+      }
       @if (isFreezerPage()) {
         <nav class="detail-nav freezer-nav" aria-label="Acciones del congelador">
           @if (freezerInventory.selected(); as freezer) {
@@ -44,6 +50,7 @@
           <p class="detail-name" [title]="current.item.name">{{ current.item.name }}</p>
           @if (current.kind === 'recipe') {
             <button class="nav-item rate-action" type="button" [disabled]="deleting() || recipeActions.busy() || recipeActions.recipeId() !== current.item.id" (click)="rate(current.item)"><app-icon class="nav-icon" name="star" /> Puntuar</button>
+            <button class="nav-item plan-action" type="button" [disabled]="deleting() || recipeActions.busy() || recipeActions.recipeId() !== current.item.id" (click)="plan(current.item)"><app-icon class="nav-icon" name="plus" /> Añadir a planificación</button>
           }
           <div class="detail-edit-actions" role="group" aria-label="Edición">
             <button class="nav-item" type="button" [disabled]="deleting() || recipeActions.busy()" (click)="edit(current)"><app-icon class="nav-icon" name="edit" /> Editar</button>

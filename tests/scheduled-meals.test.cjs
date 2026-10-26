@@ -62,13 +62,13 @@ function setup() {
   const state = { owner: 'user-a', allowed: true, calls: [], rows: [], error: null, hold: null, now: Date.now() };
   class Clock extends Date { static now() { return state.now; } }
   const auth = { user: () => state.owner ? { id: state.owner } : null, canEdit: () => state.allowed,
-    requireEditor: async () => { if (!state.owner || !state.allowed) throw Error('Access denied'); } };
+    requireEditor: async () => { if (state.authHold) await state.authHold; if (!state.owner || !state.allowed) throw Error('Access denied'); } };
   const query = {};
   for (const method of ['select', 'eq', 'gte', 'lte', 'order', 'in', 'abortSignal']) query[method] = (...args) => { state.calls.push([method, ...args]); return query; };
   query.returns = async () => { if (state.hold) await state.hold; return { data: state.rows, error: state.error }; };
   const client = {
     from: table => { state.calls.push(['from', table]); return query; },
-    rpc: async (...args) => { state.calls.push(['rpc', ...args]); if (state.hold) await state.hold; return { error: state.error }; },
+    rpc: async (...args) => { state.calls.push(['rpc', ...args]); if (state.hold) await state.hold; return { error: state.error, data: state.rpcData }; },
   };
   const { ScheduledMealService } = loadService('src/app/services/scheduled-meal.service.ts', {
     AuthService: auth, SupabaseService: { requireClient: () => client },
@@ -231,4 +231,89 @@ test('scheduling access remains restricted to authenticated editors', async () =
     });
     assert.equal(await editorGuard(), scenario === 'editor' ? true : '/login');
   }
+});
+
+test('quick planning sends just the selected recipe and returns the persisted meal', async () => {
+  const { service, state } = setup(); let invalidations = 0; service.changes$.subscribe(() => invalidations++);
+  state.rpcData = { added: true, meal: { ...meal(), date: '2026-10-26' } };
+  const result = await service.addRecipe('2026-10-26', 'lunch', 2, recipeId, 'scale');
+  assert.equal(result.added, true); assert.equal(invalidations, 2);
+  assert.equal(state.calls.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(state.calls[0])), ['rpc', 'add_scheduled_recipe', {
+    p_date: '2026-10-26', p_slot: 'lunch', p_servings: 2, p_recipe_id: recipeId, p_mode: 'scale',
+  }]);
+  result.meal.recipes.length = 0; assert.equal(state.rpcData.meal.recipes.length, 1);
+});
+
+test('quick planning invalidates the date instead of caching one meal as the entire day', async () => {
+  const { service, state } = setup();
+  state.rows = [{ meal_date: '2026-10-26', ...meal({ slot: 'breakfast' }) }]; await service.getDay('2026-10-26');
+  state.rpcData = { added: true, meal: { date: '2026-10-26', ...meal() } };
+  await service.addRecipe('2026-10-26', 'lunch', 2, recipeId, 'scale');
+  state.rows = [...state.rows, { meal_date: '2026-10-26', ...meal() }]; state.calls.length = 0;
+  assert.equal((await service.getDay('2026-10-26')).length, 2);
+  assert.ok(state.calls.some(call => call[0] === 'from'));
+});
+
+test('quick planning previews can force a fresh read even while the normal cache is valid', async () => {
+  const { service, state } = setup(); await service.getDay('2026-10-26'); state.calls.length = 0;
+  state.rows = [{ meal_date: '2026-10-26', ...meal() }];
+  assert.equal((await service.getDay('2026-10-26')).length, 0); assert.equal(state.calls.length, 0);
+  const controller = new AbortController();
+  assert.equal((await service.getDay('2026-10-26', controller.signal, true)).length, 1);
+  assert.equal(state.calls.find(call => call[0] === 'abortSignal')[1], controller.signal);
+});
+
+test('quick planning recognizes an already planned recipe without changing the saved meal', async () => {
+  const { service, state } = setup();
+  state.rpcData = { added: false, meal: { date: '2026-10-26', ...meal({ servings: 4, recipes: [recipe({ mode: 'leftovers' })] }) } };
+  const result = await service.addRecipe('2026-10-26', 'lunch', 2, recipeId, 'scale');
+  assert.equal(result.added, false); assert.equal(result.meal.servings, 4); assert.equal(result.meal.recipes[0].mode, 'leftovers');
+});
+
+test('quick planning validates inputs, permissions and missing migration errors', async () => {
+  const { service, state } = setup();
+  for (const args of [['bad', 'lunch', 2, recipeId, 'scale'], ['2026-10-26', 'snack', 2, recipeId, 'scale'],
+    ['2026-10-26', 'lunch', 1.5, recipeId, 'scale'], ['2026-10-26', 'lunch', 2, 'bad', 'scale']]) {
+    await assert.rejects(service.addRecipe(...args));
+  }
+  assert.equal(state.calls.length, 0); state.allowed = false;
+  await assert.rejects(service.addRecipe('2026-10-26', 'lunch', 2, recipeId, 'scale'), /Access denied/);
+  state.allowed = true; state.error = { code: 'PGRST202' };
+  await assert.rejects(service.addRecipe('2026-10-26', 'lunch', 2, recipeId, 'scale'), /20261026000300/);
+});
+
+test('malformed quick-planning acknowledgements never announce success', async () => {
+  const { service, state } = setup();
+  for (const result of [null, true, { added: true }, { added: true, meal: { date: '2026-10-26', ...meal({ recipes: [null] }) } },
+    { added: true, meal: { date: '2026-10-25', ...meal() } }, { added: true, meal: { date: '2026-10-26', ...meal({ recipes: [] }) } }]) {
+    state.rpcData = result; await assert.rejects(service.addRecipe('2026-10-26', 'lunch', 2, recipeId, 'scale'), /confirmar/);
+  }
+});
+
+test('quick-planning failures retain a retry path and invalidate potentially committed data', async () => {
+  const { service, state } = setup(); let invalidations = 0; service.changes$.subscribe(() => invalidations++);
+  await service.getDay('2026-10-26'); state.error = Error('Offline');
+  await assert.rejects(service.addRecipe('2026-10-26', 'lunch', 2, recipeId, 'scale'), /Offline/);
+  assert.equal(invalidations, 2); state.error = null;
+  state.rpcData = { added: false, meal: { date: '2026-10-26', ...meal() } };
+  assert.equal((await service.addRecipe('2026-10-26', 'lunch', 2, recipeId, 'scale')).added, false);
+  state.calls.length = 0; await service.getDay('2026-10-26'); assert.ok(state.calls.some(call => call[0] === 'from'));
+});
+
+test('an account change while verifying quick-planning permissions cannot start a write', async () => {
+  const { service, state } = setup(); let release;
+  state.authHold = new Promise(resolve => { release = resolve; });
+  const pending = service.addRecipe('2026-10-26', 'lunch', 2, recipeId, 'scale');
+  state.owner = 'user-b'; release(); await assert.rejects(pending, /sesión ha cambiado/);
+  assert.equal(state.calls.length, 0);
+});
+
+test('late quick-planning acknowledgements cannot populate a different account', async () => {
+  const { service, state } = setup(); let release;
+  state.hold = new Promise(resolve => { release = resolve; }); state.rpcData = { added: true, meal: { date: '2026-10-26', ...meal() } };
+  const pending = service.addRecipe('2026-10-26', 'lunch', 2, recipeId, 'scale');
+  await new Promise(setImmediate); state.owner = 'user-b'; release(); await assert.rejects(pending, /sesión ha cambiado/);
+  state.calls.length = 0; state.hold = null; await service.getDay('2026-10-26');
+  assert.ok(state.calls.some(call => call[0] === 'eq' && call[2] === 'user-b'));
 });

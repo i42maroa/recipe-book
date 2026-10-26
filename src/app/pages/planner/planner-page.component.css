@@ -3,9 +3,9 @@
 h1 { font: 500 clamp(28px, 3vw, 39px)/1.2 var(--font-serif); margin: 10px 0; }
 p { color: var(--color-text-secondary); line-height: 1.5; }
 .eyebrow { font-size: 10px; letter-spacing: 2px; color: var(--color-primary); }
-.edit-day, .plan-day, .plan-week, button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; box-sizing: border-box; padding: 10px 14px; border: 1px solid var(--color-border); border-radius: 7px; background: var(--color-surface); color: var(--color-primary); text-decoration: none; flex-shrink: 0; font: inherit; font-size: 13px; }
+.edit-day, .plan-day, button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; box-sizing: border-box; padding: 10px 14px; border: 1px solid var(--color-border); border-radius: 7px; background: var(--color-surface); color: var(--color-primary); text-decoration: none; flex-shrink: 0; font: inherit; font-size: 13px; }
 button { cursor: pointer; }
-.edit-day:hover, .plan-day:hover, .plan-week:hover, button:hover:not(:disabled) { background: var(--color-success-soft); }
+.edit-day:hover, .plan-day:hover, button:hover:not(:disabled) { background: var(--color-success-soft); }
 button:disabled { opacity: .55; cursor: default; }
 a:focus-visible, button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
 .day { margin-top: 16px; padding: 20px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; }

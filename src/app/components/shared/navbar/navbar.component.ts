@@ -37,6 +37,10 @@ export class NavbarComponent {
   private readonly sidebar = viewChild<ElementRef<HTMLElement>>('sidebar');
   readonly menuOpen = signal(false);
   readonly deleting = signal(false);
+  readonly isPlannerPage = toSignal(this.router.events.pipe(
+    filter(event => event instanceof NavigationEnd), startWith(null),
+    map(() => ['planner', 'planner/day', 'planner/week'].includes(this.router.parseUrl(this.router.url).root.children['primary']?.segments.map(segment => segment.path).join('/') ?? '')),
+  ), { initialValue: false });
   readonly isFreezerPage = toSignal(this.router.events.pipe(
     filter(event => event instanceof NavigationEnd), startWith(null),
     map(() => this.router.parseUrl(this.router.url).root.children['primary']?.segments.map(segment => segment.path).join('/') === 'freezer'),
@@ -96,6 +100,12 @@ export class NavbarComponent {
     if (!this.auth.canEdit() || this.deleting() || this.recipeActions.busy() || this.recipeActions.recipeId() !== recipe.id) return;
     this.closeMenu(true);
     this.recipeActions.requestRating(recipe.id);
+  }
+
+  plan(recipe: Recipe): void {
+    if (!this.auth.canEdit() || this.deleting() || this.recipeActions.busy() || this.recipeActions.recipeId() !== recipe.id) return;
+    this.closeMenu(true);
+    this.recipeActions.requestPlanning(recipe.id);
   }
 
   freezerAction(action: FreezerNavigationAction): void {

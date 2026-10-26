@@ -11,7 +11,7 @@
         <div class="recipe-rating-row" aria-hidden="true"><app-skeleton class="rating-skeleton" /></div>
       </header>
       <div class="recipe-detail-columns">
-        <section><div class="ingredients-heading"><h2>Ingredientes</h2></div><app-skeleton variant="rows" /></section>
+        <section class="recipe-ingredients"><div class="ingredients-heading"><h2>Ingredientes</h2></div><app-skeleton variant="rows" /></section>
         <section><h2>Preparación</h2><div class="loading-steps">@for (step of [0, 1, 2]; track step) { <app-skeleton variant="paragraph" /> }</div></section>
       </div>
     </div>
@@ -93,8 +93,11 @@
         </div>
       }
       </header>
+      @if (lastPlanned(); as planned) {
+        <div class="recipe-planning-notice" role="status"><p>{{ planningMessage() }}</p><a routerLink="/planner/week" [queryParams]="{ start: planned.meal.date }">Ver planificación<app-icon name="arrow-right" /></a></div>
+      }
       <div class="recipe-detail-columns" [class.ingredients-only]="!steps.length">
-        <section>
+        <section class="recipe-ingredients">
           <div class="ingredients-heading">
             <h2>Ingredientes <span>({{ recipe.ingredientIds.length }})</span></h2>
             @if (recipe.servings) {
@@ -140,6 +143,7 @@
       }
     </div>
   </article>
+  @if (planningOpen() && auth.canEdit()) { <app-recipe-planning-dialog [recipe]="recipe" (saved)="recipePlanned($event)" (closed)="planningOpen.set(false)" /> }
   @defer (when lightboxOpen) { @if (lightboxOpen) { <app-photo-lightbox [photos]="recipe.photos ?? []" [recipeName]="recipe.name" [initialIndex]="activePhotoIndex" (closed)="lightboxOpen = false" /> } }
 } @else {
   <app-not-found-page resource="recipe" />
