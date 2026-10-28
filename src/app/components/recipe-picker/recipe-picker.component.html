@@ -1,5 +1,24 @@
-<dialog #dialog class="recipe-picker" aria-labelledby="recipe-picker-title" (cancel)="$event.preventDefault(); closed.emit()" (click)="backdrop($event)">
-  <header class="picker-heading"><div><p>AÑADIR AL PLAN</p><h2 id="recipe-picker-title">{{ dayLabel() }} · {{ slotLabel() }}</h2><span>Selecciona una receta para añadirla a este hueco.</span></div><button type="button" class="close" aria-label="Cerrar selector de recetas" (click)="closed.emit()">✕</button></header>
+@if (embedded()) {
+  <section class="recipe-picker embedded" aria-label="Seleccionar recetas preparadas" (keydown.enter)="$any($event.target).tagName === 'INPUT' && $event.preventDefault()">
+    <ng-container [ngTemplateOutlet]="pickerContent" />
+  </section>
+} @else {
+  <dialog #dialog class="recipe-picker" aria-labelledby="recipe-picker-title" (cancel)="$event.preventDefault(); closed.emit()" (click)="backdrop($event)">
+    <ng-container [ngTemplateOutlet]="pickerContent" />
+  </dialog>
+}
+<ng-template #pickerContent>
+  @if (!embedded()) {
+  <header class="picker-heading"><div><p>{{ purpose() === 'inventory' ? 'RECETAS PREPARADAS' : 'AÑADIR AL PLAN' }}</p><h2 id="recipe-picker-title">{{ dayLabel() }} · {{ slotLabel() }}</h2><span>{{ purpose() === 'inventory' ? 'Selecciona una receta que ya tienes preparada.' : 'Selecciona una receta para añadirla a este hueco.' }}</span></div><button type="button" class="close" aria-label="Cerrar selector de recetas" (click)="closed.emit()">✕</button></header>
+  }
+  @if (purpose() === 'planner') {
+    <nav class="source-tabs" role="tablist" aria-label="Origen de las recetas">
+      @for (tab of sources; track tab.id) {
+        <button [id]="'picker-' + tab.id + '-tab'" type="button" role="tab" [attr.data-source]="tab.id" [attr.aria-controls]="'picker-' + tab.id + '-panel'" [attr.aria-selected]="source() === tab.id" [attr.tabindex]="source() === tab.id ? 0 : -1" (click)="chooseSource(tab.id)" (keydown)="sourceKey($event)">{{ tab.label }}</button>
+      }
+    </nav>
+  }
+  <div id="picker-recipes-panel" [hidden]="source() !== 'recipes'" [attr.role]="purpose() === 'planner' ? 'tabpanel' : null" [attr.aria-labelledby]="purpose() === 'planner' ? 'picker-recipes-tab' : null">
   <div class="picker-filters">
     <app-recipe-filters [search]="search" [sort]="sort" [mealType]="mealType" [difficulty]="difficulty" [status]="status" [ingredientIds]="ingredientIds" />
   </div>
@@ -9,8 +28,8 @@
     @else {
       <div class="recipe-grid">
         @for (recipe of results(); track recipe.id; let index = $index) {
-          <div class="picker-option"><app-recipe-card [recipe]="recipe" [priority]="index < 2" [ingredientFilterIds]="ingredientIds.value" [disabled]="isAdded(recipe.id)" (selected)="select($event)" />
-            @if (isAdded(recipe.id)) { <span class="already-added">Ya añadida a este hueco</span> }
+          <div class="picker-option"><app-recipe-card [recipe]="recipe" [compact]="purpose() === 'inventory'" [priority]="index < 2" [ingredientFilterIds]="ingredientIds.value" [disabled]="isAdded(recipe.id)" (selected)="select($event)" />
+            @if (isAdded(recipe.id)) { <span class="already-added">{{ purpose() === 'inventory' ? 'Ya seleccionada' : 'Ya añadida a este hueco' }}</span> }
           </div>
         }
         @empty { <p class="status">{{ search.value.trim().length === 1 ? 'Escribe al menos dos letras para buscar.' : 'No hay recetas con estos filtros.' }}</p> }
@@ -20,4 +39,15 @@
     }
   </section>
   <footer>{{ results().length }} de {{ total() }} recetas</footer>
-</dialog>
+  </div>
+  @if (purpose() === 'planner') {
+    <div id="picker-inventory-panel" role="tabpanel" aria-labelledby="picker-inventory-tab" [hidden]="source() !== 'inventory'">
+      <app-planner-inventory-picker [excludedRecipeIds]="excludedRecipeIds()" (selected)="selectInventory($event)" />
+    </div>
+  }
+  @if (purpose() === 'planner' && stockOpened()) {
+    <div id="picker-stock-panel" role="tabpanel" aria-labelledby="picker-stock-tab" [hidden]="source() !== 'stock'">
+      <app-planner-stock-recipes [excludedRecipeIds]="excludedRecipeIds()" (selected)="select($event)" />
+    </div>
+  }
+</ng-template>

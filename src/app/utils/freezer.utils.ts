@@ -2,10 +2,11 @@ import { Freezer, FreezerItem } from '../models/freezer.model';
 import { INGREDIENT_CATEGORIES, RecipeIngredientAmount } from '../models/recipe.model';
 import { dateNumber } from './scheduled-meal.utils';
 import { isUuid } from './uuid.utils';
+import { canonicalAmount, ingredientAmountLabel, validIngredientAmount } from './ingredient-measures.utils';
 
 export type FreezerSort = 'oldest' | 'newest' | 'name' | 'name-desc';
 
-export function sortFreezerItems(items: FreezerItem[], order: FreezerSort): FreezerItem[] {
+export function sortFreezerItems<T extends FreezerItem>(items: T[], order: FreezerSort): T[] {
   return items.slice().sort((a, b) => {
     const date = a.enteredOn.localeCompare(b.enteredOn);
     const name = a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
@@ -15,12 +16,7 @@ export function sortFreezerItems(items: FreezerItem[], order: FreezerSort): Free
 }
 
 export function validFreezerAmount(value: unknown): value is RecipeIngredientAmount | null {
-  if (value === null) return true;
-  if (!value || typeof value !== 'object') return false;
-  const amount = value as RecipeIngredientAmount;
-  return amount.kind === 'spoon' || amount.kind === 'glass' || (amount.kind === 'specific'
-    && typeof amount.value === 'number' && Number.isFinite(amount.value) && amount.value > 0
-    && ['g', 'ml', 'pieza'].includes(amount.unit));
+  return validIngredientAmount(value as RecipeIngredientAmount | null);
 }
 
 export function validFreezers(value: unknown): value is Freezer[] {
@@ -50,22 +46,23 @@ export function freezerFingerprint(freezers: Freezer[]): string {
     items: freezer.items.map(item => ({
       id: item.id.toLowerCase(), ingredientId: item.ingredientId?.toLowerCase() ?? null,
       name: item.name, category: item.category, enteredOn: item.enteredOn,
-      amount: item.amount?.kind === 'specific'
-        ? { kind: 'specific', value: item.amount.value, unit: item.amount.unit } : item.amount ? { kind: item.amount.kind } : null,
+      amount: canonicalAmount(item.amount),
     })).sort((a, b) => a.id.localeCompare(b.id)),
   })).sort((a, b) => a.id.localeCompare(b.id)));
 }
 
 export function freezerAmountLabel(amount: RecipeIngredientAmount | null): string {
-  if (!amount) return 'Sin cantidad';
-  if (amount.kind === 'spoon') return '1 cucharada';
-  if (amount.kind === 'glass') return '1 vaso';
-  return `${new Intl.NumberFormat('es', { maximumSignificantDigits: 15 }).format(amount.value ?? 0)} ${amount.unit === 'pieza' ? (amount.value === 1 ? 'pieza' : 'piezas') : amount.unit}`;
+  return ingredientAmountLabel(amount) ?? 'Sin cantidad';
 }
 
 /** A fully consumed lot disappears. Never merge lots with different entry dates. */
 export function withdrawFreezerItem(item: FreezerItem, quantity: number): FreezerItem | null {
   const amount = item.amount;
+  if (amount?.kind === 'spoon') {
+    const value = amount.value ?? 1;
+    if (!Number.isFinite(quantity) || quantity <= 0 || quantity > value) throw new Error('Revisa la cantidad de cucharadas que retiras.');
+    return quantity === value ? null : { ...item, amount: { kind: 'spoon', value: Number((value - quantity).toPrecision(15)) } };
+  }
   if (amount?.kind !== 'specific' || amount.value === null || !Number.isFinite(quantity) || quantity <= 0 || quantity > amount.value) {
     throw new Error('Indica una cantidad mayor que cero y no superior a la disponible.');
   }

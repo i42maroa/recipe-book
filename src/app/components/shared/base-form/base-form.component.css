@@ -307,12 +307,14 @@ input[type='number']::-webkit-outer-spin-button { margin: 0; -webkit-appearance:
 }
 .new-recipe-ingredient {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(135px, .8fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(135px, .8fr);
   align-items: center;
   gap: 12px;
   padding: 6px 2px 4px;
 }
 .new-recipe-ingredient .field-label { margin-top: 0; }
+.new-recipe-ingredient app-ingredient-measures { grid-column: 1 / -1; }
+.new-recipe-ingredient app-button { grid-column: 1 / -1; justify-self: end; }
 .ingredient-picker:has(.new-recipe-ingredient) { overflow: visible; max-height: none; }
 .ingredient-search-result {
   display: flex;

@@ -1,16 +1,16 @@
 import { Injectable, signal } from '@angular/core';
 import { Subject } from 'rxjs';
 
-export type FreezerNavigationAction = { kind: 'create' | 'rename' | 'remove' } | { kind: 'select'; id: string };
+export type InventoryNavigationAction = { kind: 'places' };
 
 /** Coordinates the contextual navbar with the mounted inventory page. */
 @Injectable({ providedIn: 'root' })
-export class FreezerNavigationService {
+export class InventoryNavigationService {
   readonly blocked = signal(true);
-  private readonly actions = new Subject<FreezerNavigationAction>();
+  private readonly actions = new Subject<InventoryNavigationAction>();
   readonly actions$ = this.actions.asObservable();
 
-  request(action: FreezerNavigationAction): void {
+  request(action: InventoryNavigationAction): void {
     if (!this.blocked()) this.actions.next(action);
   }
 }

@@ -1,14 +1,17 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { merge } from 'rxjs';
-import type { Ingredient } from '../models/recipe.model';
-import type { ShoppingItem } from '../models/shopping-list.model';
-import { addManualShoppingItems, shoppingFingerprint, validShoppingItems, validShoppingRange } from '../utils/shopping-list.utils';
+import type { Ingredient, RecipeIngredientAmount } from '../models/recipe.model';
+import type { ShoppingItem, ShoppingRequirementRow } from '../models/shopping-list.model';
+import { addManualShoppingItems, addPlannedShoppingItems, shoppingFingerprint, validShoppingItems, validShoppingRange } from '../utils/shopping-list.utils';
 import { AuthService } from './auth.service';
 import { SupabaseService } from './supabase.service';
 import { IngredientService } from './ingredient.service';
 import { RecipeService } from './recipe.service';
 import { ScheduledMealService } from './scheduled-meal.service';
+import { combineShoppingAmounts, shoppingDefaultQuantity, shoppingPurchaseReady, shoppingRequirements } from '../utils/shopping-quantities.utils';
+import { localDate } from '../utils/scheduled-meal.utils';
+import { isUuid } from '../utils/uuid.utils';
 
 const MIGRATION = '20261020000400_shopping_lists.sql';
 const PREVIEW_TTL = 300_000;
@@ -27,6 +30,9 @@ export class ShoppingListService {
   private owner: string | undefined;
   private generation = 0;
   private version = 0;
+  private purchaseAttempt: { operationId: string; placeId: string; date: string; items: ShoppingItem[]; version: number } | undefined;
+  readonly purchasePending = signal(false);
+  readonly pendingPurchasePlaceId = computed(() => this.purchasePending() ? this.purchaseAttempt?.placeId ?? '' : '');
   private savedFingerprint = signal(shoppingFingerprint([]));
   private readonly draft = signal<ShoppingItem[]>([]);
   readonly items = this.draft.asReadonly();
@@ -61,6 +67,7 @@ export class ShoppingListService {
       for (const request of this.previewRequests.values()) request.controller.abort();
       this.invalidatePreviews();
       this.owner = owner; this.generation++; this.version = 0;
+      this.purchaseAttempt = undefined; this.purchasePending.set(false);
       this.draft.set([]); this.savedFingerprint.set(shoppingFingerprint([]));
       this.ready.set(false); this.loading.set(false); this.saving.set(false); this.error.set(''); this.saveError.set('');
     }
@@ -75,7 +82,7 @@ export class ShoppingListService {
     const owner = this.syncOwner();
     if (!owner) throw new Error('Necesitas una sesión autorizada.');
     if (this.request?.generation === this.generation) return this.request.promise;
-    if ((this.ready() && !force) || this.saving()) return;
+    if ((this.ready() && !force) || this.saving() || this.purchasePending()) return;
     const generation = this.generation;
     const controller = new AbortController();
     this.loading.set(true); this.error.set('');
@@ -110,6 +117,11 @@ export class ShoppingListService {
     this.draft.set(addManualShoppingItems(this.items(), ingredients)); this.saveError.set('');
   }
 
+  addPlanning(items: ShoppingItem[]): boolean {
+    if (!this.editable()) return false;
+    this.draft.set(addPlannedShoppingItems(this.items(), items)); this.saveError.set(''); return true;
+  }
+
   remove(id: string): void {
     if (!this.editable()) return;
     this.draft.update(items => items.filter(item => item.id !== id)); this.saveError.set('');
@@ -120,21 +132,64 @@ export class ShoppingListService {
     this.draft.set([]); this.saveError.set('');
   }
 
-  increment(id: string): void {
-    if (!this.editable()) return;
-    this.draft.update(items => items.map(item => item.id === id && item.occurrences < 2147483647
-      ? { ...item, occurrences: item.occurrences + 1 } : item));
-    this.saveError.set('');
-  }
-
   replace(items: ShoppingItem[]): void {
     if (!this.editable()) return;
     if (!validShoppingItems(items)) throw new Error('La lista calculada no es válida.');
     this.draft.set(structuredClone(items)); this.saveError.set('');
   }
 
+  setAmounts(id: string, amounts: (RecipeIngredientAmount | null)[]): void {
+    if (!this.editable()) return;
+    const measured = combineShoppingAmounts(amounts.filter((amount): amount is RecipeIngredientAmount => amount !== null));
+    this.draft.update(items => items.map(item => item.id === id ? { ...item, amounts: measured, unquantified: amounts.some(amount => !amount) ? 1 : 0 } : item));
+    this.saveError.set('');
+  }
+
+  incrementUnit(id: string, index: number): void {
+    if (!this.editable()) return;
+    const original = this.items().find(item => item.id === id);
+    if (!original || !validShoppingItems([original])) return;
+    const item = shoppingDefaultQuantity(original); const amount = item.amounts?.[index];
+    if (!amount || amount.kind !== 'specific' || amount.unit !== 'pieza') return;
+    const value = amount.value! + 1;
+    if (!Number.isFinite(value) || value <= amount.value!) throw new Error('La cantidad está fuera de rango.');
+    this.draft.update(items => items.map(item => item.id === id ? { ...item,
+      amounts: shoppingDefaultQuantity(item).amounts!.map((amount, n) => n === index ? { ...amount, value } : amount), unquantified: 0,
+    } : item));
+    this.saveError.set('');
+  }
+
   private editable(): boolean {
-    return !!this.syncOwner() && this.ready() && !this.loading() && !this.saving();
+    return !!this.syncOwner() && this.ready() && !this.loading() && !this.saving() && !this.purchasePending();
+  }
+
+  async purchase(placeId: string): Promise<boolean> {
+    this.syncOwner();
+    if (!this.owner || !this.ready() || this.loading() || this.saving()) return false;
+    if (!this.purchaseAttempt) {
+      if (!isUuid(placeId) || !shoppingPurchaseReady(this.items())) { this.saveError.set('Indica todas las cantidades y el lugar antes de registrar la compra.'); return false; }
+      this.purchaseAttempt = { operationId: crypto.randomUUID(), placeId, date: localDate(), items: structuredClone(this.items().map(shoppingDefaultQuantity)), version: this.version };
+    }
+    const attempt = this.purchaseAttempt; const owner = this.owner; const generation = this.generation;
+    this.purchasePending.set(true); this.saving.set(true); this.saveError.set('');
+    try {
+      await this.auth.requireEditor(); if (!this.active(owner, generation)) return false;
+      const { data, error } = await this.supabase.requireClient().rpc('complete_shopping_purchase', {
+        p_operation_id: attempt.operationId, p_expected_version: attempt.version, p_items: attempt.items,
+        p_place_id: attempt.placeId, p_date: attempt.date,
+      });
+      if (!this.active(owner, generation)) return false;
+      if (error) {
+        if (['40001', '22023', '42501', 'PGRST202', '42883'].includes(error.code)) { this.purchaseAttempt = undefined; this.purchasePending.set(false); }
+        throw error;
+      }
+      const version = Number(data); if (!Number.isSafeInteger(version) || version < 1) throw new Error('No se pudo confirmar la compra. Reintenta para comprobarla sin duplicar existencias.');
+      this.version = version; this.draft.set([]); this.savedFingerprint.set(shoppingFingerprint([]));
+      this.purchaseAttempt = undefined; this.purchasePending.set(false); return true;
+    } catch (error) {
+      if (this.active(owner, generation)) this.saveError.set(this.message(error, 'No se pudo confirmar la compra. Reintenta sin cambiar el destino para evitar duplicados.'));
+      return false;
+    } finally { if (this.active(owner, generation)) this.saving.set(false); }
   }
 
   async save(): Promise<boolean> {
@@ -210,33 +265,36 @@ export class ShoppingListService {
 
   private async readPlanning(from: string, to: string, owner: string, generation: number, signal: AbortSignal): Promise<ShoppingItem[]> {
     await this.auth.requireEditor();
-    const items: ShoppingItem[] = [];
+    const rows: ShoppingRequirementRow[] = [];
     let total: number | null = null;
     for (;;) {
       signal.throwIfAborted();
       if (!this.active(owner, generation)) throw new Error('La sesión ha cambiado.');
-      const { data, count, error } = await this.supabase.requireClient().rpc('shopping_ingredients_from_plan', {
+      const { data, count, error } = await this.supabase.requireClient().rpc('shopping_plan_amounts', {
         p_from: from, p_to: to,
-      }, items.length === 0 ? { count: 'exact' } : {}).order('name').order('id')
-        .range(items.length, items.length + 199).abortSignal(signal);
+      }, rows.length === 0 ? { count: 'exact' } : {}).order('source')
+        .range(rows.length, rows.length + 199).abortSignal(signal);
       signal.throwIfAborted();
       if (!this.active(owner, generation)) throw new Error('La sesión ha cambiado.');
       if (error) throw new Error(this.message(error, 'No se pudieron calcular los ingredientes del planning.'));
-      if (items.length === 0) total = count ?? null;
+      if (rows.length === 0) total = count ?? null;
       if (!Array.isArray(data)) throw new Error('No se pudo interpretar la lista de ingredientes del planning.');
-      const batch = data.map(row => ({ id: row.id, name: row.name, category: row.category, occurrences: Number(row.occurrences) }));
-      if (!validShoppingItems(batch)) throw new Error('Los ingredientes calculados no son válidos.');
-      items.push(...batch);
-      if (!batch.length && total !== null && items.length < total) throw new Error('El planning ha cambiado durante el cálculo. Vuelve a intentarlo.');
-      if (!batch.length || (total !== null && items.length >= total)) break;
+      const batch: ShoppingRequirementRow[] = data.map(row => ({ ...row, factor: Number(row.factor), unit_quantity: row.unit_quantity === null ? null : Number(row.unit_quantity) }));
+      if (batch.some(row => typeof row.source !== 'string' || typeof row.id !== 'string' || !isUuid(row.id)
+        || typeof row.missing_servings !== 'boolean' || !['g', 'ml'].includes(row.base_unit) || !Number.isFinite(row.factor) || row.factor <= 0)) throw new Error('Las cantidades calculadas no son válidas.');
+      rows.push(...batch);
+      if (!batch.length && total !== null && rows.length < total) throw new Error('El planning ha cambiado durante el cálculo. Vuelve a intentarlo.');
+      if (!batch.length || (total !== null && rows.length >= total)) break;
     }
+    if (new Set(rows.map(row => row.source)).size !== rows.length) throw new Error('El planning ha cambiado durante el cálculo. Vuelve a intentarlo.');
+    const items = shoppingRequirements(rows);
     if (!validShoppingItems(items)) throw new Error('La lista calculada contiene ingredientes repetidos. Vuelve a intentarlo.');
     return items;
   }
 
   private message(error: unknown, fallback: string): string {
     const details = error as { code?: string; message?: string } | null;
-    if (details?.code === 'PGRST202' || details?.code === 'PGRST205') return `Falta configurar la lista de la compra en Supabase. Aplica la migración ${MIGRATION}.`;
+    if (details?.code === 'PGRST202' || details?.code === 'PGRST205') return `Falta actualizar la lista de la compra en Supabase. Aplica ${MIGRATION} y 20261027000600_shopping_quantities_purchase.sql.`;
     return details?.message || fallback;
   }
 }

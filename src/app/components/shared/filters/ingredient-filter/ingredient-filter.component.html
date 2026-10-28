@@ -1,6 +1,6 @@
 <div class="ingredient-filter">
   <div class="ingredient-controls">
-    <app-search-filter placeholder="Añade un ingrediente…" [ariaLabel]="purpose() === 'freezer' ? 'Buscar ingredientes para añadir al congelador' : purpose() === 'shopping' ? 'Buscar ingredientes para añadir a la compra' : 'Buscar ingredientes para filtrar recetas'" [formControl]="search" />
+    <app-search-filter placeholder="Añade un ingrediente…" [ariaLabel]="purpose() === 'inventory' ? 'Buscar ingredientes para añadir al inventario' : purpose() === 'freezer' ? 'Buscar ingredientes para añadir al congelador' : purpose() === 'shopping' ? 'Buscar ingredientes para añadir a la compra' : 'Buscar ingredientes para filtrar recetas'" [formControl]="search" />
     @if (purpose() !== 'recipe-filter') {
       <app-select-filter label="Categoría" filterType="ingredient-category" ariaLabel="Filtrar ingredientes por categoría" [options]="categoryOptions" [formControl]="category" />
     }
@@ -20,10 +20,11 @@
   }
   @if (canCreate()) {
     <div class="new-ingredient" role="group" aria-label="Crear un ingrediente que no existe">
-      <p>No existe un ingrediente llamado «{{ newName() }}». Puedes crearlo y añadirlo {{ purpose() === 'freezer' ? 'al congelador' : 'a tu lista' }}.</p>
+      <p>No existe un ingrediente llamado «{{ newName() }}». Puedes crearlo y añadirlo {{ purpose() === 'inventory' ? 'al inventario' : purpose() === 'freezer' ? 'al congelador' : 'a tu lista' }}.</p>
       <div class="new-ingredient-controls">
         <app-select-filter label="Categoría del nuevo ingrediente" placeholder="Elige una categoría" ariaLabel="Categoría del nuevo ingrediente" [options]="newCategoryOptions" [formControl]="newCategory" />
-        <button class="create-ingredient" type="button" [disabled]="disabled() || addingIngredient() || newCategory.invalid" (click)="createIngredient()"><app-icon name="plus" />{{ addingIngredient() ? 'Creando…' : 'Crear y añadir ingrediente' }}</button>
+        <app-ingredient-measures [form]="newMeasures" [category]="newCategory.value" />
+        <button class="create-ingredient" type="button" [disabled]="disabled() || addingIngredient() || newCategory.invalid || newMeasures.invalid" (click)="createIngredient()"><app-icon name="plus" />{{ addingIngredient() ? 'Creando…' : 'Crear y añadir ingrediente' }}</button>
       </div>
     </div>
   }
@@ -34,7 +35,7 @@
         <app-ingredient-tag [name]="ingredient.name" [removable]="true" (removed)="remove(ingredient.id)" />
       }
     </div>
-    @if (purpose() === 'recipe-filter') { <p>Con al menos uno de estos ingredientes. Primero, las recetas con más coincidencias.</p> }
+    @if (purpose() === 'recipe-filter') { <p>{{ requireAll() ? 'Con todos los ingredientes seleccionados.' : 'Con al menos uno de estos ingredientes. Primero, las recetas con más coincidencias.' }}</p> }
   } @else {
     <p>{{ selectedCategory() ? 'Selecciona un ingrediente de esta categoría o busca por nombre.' : 'Escribe al menos 2 caracteres y selecciona los ingredientes.' }}</p>
   }

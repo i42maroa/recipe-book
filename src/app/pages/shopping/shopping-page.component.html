@@ -1,9 +1,9 @@
 <section class="shopping-page">
   <header class="page-heading">
     <div><p class="eyebrow">DE LA COCINA A TU CESTA</p><h1>Compra</h1></div>
-    <button class="primary add-button" type="button" aria-haspopup="dialog" [disabled]="!list.ready() || list.loading() || list.saving()" (click)="openAdd()"><app-icon name="plus" /> Añadir ingredientes</button>
+    <button class="primary add-button" type="button" aria-haspopup="dialog" [disabled]="!list.ready() || locked()" (click)="openAdd()"><app-icon name="plus" /> Añadir ingredientes</button>
   </header>
-  <button class="floating-add-button" type="button" aria-label="Añadir ingredientes" title="Añadir ingredientes" aria-haspopup="dialog" [disabled]="!list.ready() || list.loading() || list.saving()" (click)="openAdd()"><app-icon name="plus" /></button>
+  <button class="floating-add-button" type="button" aria-label="Añadir ingredientes" title="Añadir ingredientes" aria-haspopup="dialog" [disabled]="!list.ready() || locked()" (click)="openAdd()"><app-icon name="plus" /></button>
 
   @if (list.loading()) { <p class="loading-status" role="status">Cargando tu lista de la compra…</p> }
   @if (list.error()) { <div class="notice" role="alert"><p>{{ list.error() }}</p><button type="button" [disabled]="list.loading()" (click)="reload()">Reintentar carga</button></div> }
@@ -14,28 +14,28 @@
       <button class="close-dialog" type="button" aria-label="Cerrar" [disabled]="creatingIngredient()" (click)="closeAdd()"><app-icon name="close" /></button>
     </header>
     <p class="dialog-summary" role="status" aria-live="polite">{{ list.items().length }} ingredientes en tu lista</p>
-    <fieldset class="add-panel" [disabled]="!list.ready() || list.loading() || list.saving()">
+    <fieldset class="add-panel" [disabled]="!list.ready() || locked()">
       <legend class="loading-status">Cómo añadir ingredientes a la lista de la compra</legend>
     @defer (when addOpen()) {
     <div class="add-tabs" role="tablist" aria-label="Cómo añadir ingredientes">
-      <button #manualTab id="shopping-tab-manual" type="button" role="tab" aria-controls="shopping-panel-manual" [disabled]="creatingIngredient()" [attr.aria-selected]="addMode() === 'manual'" [attr.tabindex]="addMode() === 'manual' ? 0 : -1" (click)="addMode.set('manual')" (keydown)="tabKeydown($event)">Manual</button>
+      <button id="shopping-tab-manual" type="button" role="tab" aria-controls="shopping-panel-manual" [disabled]="creatingIngredient()" [attr.aria-selected]="addMode() === 'manual'" [attr.tabindex]="addMode() === 'manual' ? 0 : -1" (click)="addMode.set('manual')" (keydown)="tabKeydown($event)">Manual</button>
       <button id="shopping-tab-planning" type="button" role="tab" aria-controls="shopping-panel-planning" [disabled]="creatingIngredient()" [attr.aria-selected]="addMode() === 'planning'" [attr.tabindex]="addMode() === 'planning' ? 0 : -1" (click)="addMode.set('planning')" (keydown)="tabKeydown($event)">Según planning</button>
     </div>
     <div id="shopping-panel-manual" role="tabpanel" aria-labelledby="shopping-tab-manual" [hidden]="addMode() !== 'manual'">
-      @if (list.ready()) { <app-ingredient-filter purpose="shopping" [disabled]="list.loading() || list.saving()" [showSelected]="false" [selectedIds]="selectedIds()" (selectedIdsChange)="add($event)" /> }
+      @if (list.ready()) { <app-ingredient-filter purpose="shopping" [disabled]="locked()" [showSelected]="false" [selectedIds]="selectedIds()" (selectedIdsChange)="add($event)" /> }
     </div>
     <div id="shopping-panel-planning" role="tabpanel" aria-labelledby="shopping-tab-planning" [hidden]="addMode() !== 'planning'">
-      @if (list.ready() && addMode() === 'planning') { <app-shopping-plan-picker [disabled]="list.loading() || list.saving()" (selected)="requestReplacement($event)" /> }
+      @if (list.ready() && addMode() === 'planning') { <app-shopping-plan-picker #planningPicker [disabled]="locked()" (selected)="addPlanning($event)" /> }
     </div>
     }
     </fieldset>
-    <footer class="add-dialog-footer"><p>Guarda la lista después para conservar los cambios.</p><button class="primary" type="button" [disabled]="creatingIngredient()" (click)="closeAdd()">Listo</button></footer>
-  </dialog>
-
-  <dialog #replacementDialog class="replacement-dialog" aria-labelledby="replacement-title" aria-describedby="replacement-description" (cancel)="$event.preventDefault(); cancelReplacement()">
-    <h2 id="replacement-title">¿Sobrescribir la lista de la compra?</h2>
-    <p id="replacement-description">Se reemplazarán todos los ingredientes de tu lista actual por los del intervalo seleccionado.</p>
-    <div class="dialog-actions"><button type="button" autofocus (click)="cancelReplacement()">Cancelar</button><button class="primary" type="button" [disabled]="!pendingReplacement() || list.loading() || list.saving()" (click)="confirmReplacement()">Sí, sobrescribir</button></div>
+    <footer class="add-dialog-footer">
+      <p>Guarda la lista después para conservar los cambios.</p>
+      @if (addMode() === 'manual') { <button class="primary" type="button" [disabled]="creatingIngredient()" (click)="closeAdd()">Listo</button> }
+      @else if (planningPicker(); as picker) {
+        @if (picker.previewReady()) { <button class="primary" type="button" [disabled]="!list.ready() || locked() || creatingIngredient()" (click)="picker.confirm()">Añadir</button> }
+      }
+    </footer>
   </dialog>
 
   <section class="shopping-list" aria-labelledby="shopping-list-heading" [attr.aria-busy]="list.loading()">
@@ -44,7 +44,8 @@
       @if (list.ready() && list.items().length) {
         <div class="list-actions">
           <button class="share-button" type="button" [disabled]="list.loading() || list.saving() || sharing()" (click)="share()"><app-icon name="share" />{{ sharing() ? 'Compartiendo…' : 'Compartir' }}</button>
-          <button class="clear-button" type="button" [disabled]="list.loading() || list.saving()" (click)="clear()"><app-icon name="trash" />Limpiar</button>
+          <button class="clear-button" type="button" [disabled]="locked()" (click)="clear()"><app-icon name="trash" />Limpiar</button>
+          <button class="purchase-button primary" type="button" [disabled]="list.loading() || list.saving() || purchaseBusy() || !purchaseReady()" (click)="openPurchase()"><app-icon name="inventory" />{{ list.purchasePending() ? 'Reintentar compra' : 'Añadir todo al inventario' }}</button>
         </div>
       }
     </div>
@@ -54,17 +55,40 @@
         @for (group of groups(); track group.category) {
           <section class="shopping-category" [attr.aria-label]="group.label"><h3>{{ group.label }}</h3><ul>
             @for (item of group.items; track item.id) {
-              <li><span class="ingredient-name">{{ item.name }}</span><button class="occurrence" type="button" [disabled]="list.loading() || list.saving() || item.occurrences >= 2147483647" [attr.aria-label]="'Aumentar ' + item.name + ' en uno. Contador actual: ' + item.occurrences" title="Aumentar en uno" (click)="increment(item.id)">×{{ item.occurrences }}</button><button class="remove-ingredient" type="button" [disabled]="list.loading() || list.saving()" [attr.aria-label]="'Eliminar ' + item.name + ' de la lista'" (click)="remove(item.id)"><app-icon name="close" /></button></li>
+              <li>
+                <span class="ingredient-name">{{ item.name }}@for (note of item.notes ?? []; track note) { <small>{{ note }}</small> }</span>
+                @if (hasUnits(item)) {
+                  <div class="quantity-controls">
+                    @for (amount of displayAmounts(item); track $index) {
+                      @if (amount.kind === 'specific' && amount.unit === 'pieza') {
+                        <button class="quantity-button unit-quantity" type="button" [disabled]="locked()" [attr.aria-label]="'Añadir una unidad de ' + item.name + '. Cantidad actual: ' + amountLabel(amount)" [title]="'Añadir una unidad · ' + amountLabel(amount)" (click)="incrementUnit(item, $index)">{{ unitLabel(amount.value) }}</button>
+                      } @else { <button class="quantity-button" type="button" [disabled]="locked()" [attr.aria-label]="'Editar cantidad de ' + item.name" (click)="editQuantity(item)">{{ amountLabel(amount) }}</button> }
+                    }
+                  </div>
+                } @else { <button class="quantity-button" type="button" [disabled]="locked()" [attr.aria-label]="'Editar cantidad de ' + item.name" (click)="editQuantity(item)">{{ quantityLabel(item) }}</button> }
+                <button class="remove-ingredient" type="button" [disabled]="locked()" [attr.aria-label]="'Eliminar ' + item.name + ' de la lista'" (click)="remove(item.id)"><app-icon name="close" /></button>
+              </li>
             }
           </ul></section>
         }
       } @else { <p class="empty-list" role="status">Todavía no has añadido ingredientes a tu lista de la compra.</p> }
     }
   </section>
+  @if (list.items().length && !purchaseReady()) { <p class="quantity-help">Indica las cantidades pendientes pulsando sobre cada cantidad antes de pasar la compra al inventario.</p> }
+  @if (editingQuantity(); as item) { <app-shopping-amount-dialog [item]="item" [ingredient]="ingredients.getById(item.id)" (confirmed)="applyQuantity($event)" (closed)="editingQuantity.set(null)" /> }
+  <dialog #purchaseDialog class="replacement-dialog purchase-dialog" aria-labelledby="purchase-title" (cancel)="closePurchase($event)">
+    <h2 id="purchase-title">Registrar la compra en la alacena</h2>
+    <p>Se añadirán todas las cantidades como existencias nuevas con la fecha de hoy ({{ today.split('-').reverse().join('/') }}). La lista se vaciará cuando se confirme el guardado.</p>
+    @if (inventory.places().length) {
+      <label class="purchase-destination">Lugar<select [formControl]="destination" [attr.disabled]="list.saving() || list.purchasePending() ? '' : null">@for (place of inventory.places(); track place.id) { <option [value]="place.id">{{ place.name }} · Alacena</option> }</select></label>
+    } @else { <p>No tienes lugares. <a routerLink="/inventory">Crea un lugar en Inventario</a> para guardar la compra.</p> }
+    @if (list.saveError()) { <p class="notice" role="alert">{{ list.saveError() }}</p> }
+    <div class="dialog-actions"><button type="button" [disabled]="list.saving() || purchaseBusy()" (click)="closePurchase()">Cancelar</button><button class="primary" type="button" [disabled]="!destination.value || list.saving() || purchaseBusy()" (click)="confirmPurchase()">{{ list.saving() || purchaseBusy() ? 'Registrando…' : list.purchasePending() ? 'Reintentar compra' : 'Confirmar compra' }}</button></div>
+  </dialog>
 
   @if (list.saveError()) { <div class="notice" role="alert"><p>{{ list.saveError() }}</p><button type="button" [disabled]="list.saving() || list.loading() || creatingIngredient()" (click)="reload()">Cargar lista guardada</button></div> }
   @if (list.ready() && (list.dirty() || list.saving())) {
-    <footer class="save-actions"><button class="primary" type="button" [disabled]="list.loading() || list.saving() || creatingIngredient()" (click)="save()">{{ list.saving() ? 'Guardando…' : 'Guardar lista de la compra' }}</button></footer>
+    <footer class="save-actions"><button class="primary" type="button" [disabled]="locked() || creatingIngredient()" (click)="save()">{{ list.saving() ? 'Guardando…' : 'Guardar lista de la compra' }}</button></footer>
   }
 
   @if (manualShareText()) { <section class="manual-share" aria-label="Copiar lista de la compra"><h2>Copia tu lista para compartirla</h2><textarea readonly rows="10" aria-label="Texto de la lista de la compra" [value]="manualShareText()" #shareText></textarea><button type="button" (click)="shareText.focus(); shareText.select()">Seleccionar texto</button></section> }

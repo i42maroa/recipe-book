@@ -2,16 +2,18 @@ import { LoadingService } from './loading.service';
 import { AuthService } from './auth.service';
 ﻿import { Injectable, inject, signal } from '@angular/core';
 import { BehaviorSubject, map } from 'rxjs';
-import { Ingredient, IngredientCategory } from '../models/recipe.model';
+import { Ingredient, IngredientCategory, IngredientMeasures } from '../models/recipe.model';
+import { validIngredientMeasures } from '../utils/ingredient-measures.utils';
 import { NotificationService } from './notification.service';
 import { IngredientRow } from '../models/database.model';
 import { mapIngredientAmounts } from '../utils/ingredient-amount.utils';
 import { SupabaseService } from './supabase.service';
 import { indexIngredients } from '../utils/ingredient-search.utils';
 
-const CATALOG_SELECT = 'id,name,category';
-const DETAIL_SELECT = 'id,name,category,ingredient_components!ingredient_components_parent_ingredient_id_fkey(component_ingredient_id,amount_kind,amount_value,amount_unit)';
-type CatalogRow = Pick<IngredientRow, 'id' | 'name' | 'category'>;
+const CATALOG_SELECT = 'id,name,category,base_unit,unit_quantity';
+const DETAIL_SELECT = `${CATALOG_SELECT},ingredient_components!ingredient_components_parent_ingredient_id_fkey(component_ingredient_id,amount_kind,amount_value,amount_unit,amount_base_unit,amount_unit_quantity)`;
+type CatalogRow = Pick<IngredientRow, 'id' | 'name' | 'category' | 'base_unit' | 'unit_quantity'>;
+const mapMeasures = (row: CatalogRow): IngredientMeasures => ({ baseUnit: row.base_unit ?? (row.category === 'Liquidos' ? 'ml' : 'g'), unitQuantity: row.unit_quantity == null ? null : Number(row.unit_quantity) });
 
 @Injectable({ providedIn: 'root' })
 export class IngredientService {
@@ -65,7 +67,7 @@ export class IngredientService {
         }
         if (offset === 0) total = count;
         const rows = data ?? [];
-        for (const row of rows) items.set(row.id, { id: row.id, name: row.name, category: row.category });
+        for (const row of rows) items.set(row.id, { id: row.id, name: row.name, category: row.category, ...mapMeasures(row) });
         offset += rows.length;
         // Use the actual response size: project limits can be smaller than 200.
         if (!rows.length || (total !== null && offset >= total)) break;
@@ -91,7 +93,7 @@ export class IngredientService {
       if (revision !== this.revision) return this.ensureDetails(id);
       if (error) { this.error.set(true); throw error; }
       const components = data?.ingredient_components ?? [];
-      const ingredient: Ingredient | null = data ? { id: data.id, name: data.name, category: data.category,
+      const ingredient: Ingredient | null = data ? { id: data.id, name: data.name, category: data.category, ...mapMeasures(data),
         derivedFromIds: components.map(component => component.component_ingredient_id),
         derivedFromAmounts: mapIngredientAmounts(components, component => component.component_ingredient_id),
       } : null;
@@ -112,26 +114,31 @@ export class IngredientService {
     if (this.catalogRequest) this.catalogWrites.set(ingredient.id, ingredient);
     this.publish([...this.indexSubject.value.ingredients.filter(item => item.id !== ingredient.id), ingredient]);
   }
-  async add(name: string, category: IngredientCategory, derivedFromIds: string[] = [], derivedFromAmounts: Ingredient['derivedFromAmounts'] = {}): Promise<Ingredient> {
+  async add(name: string, category: IngredientCategory, derivedFromIds: string[] = [], derivedFromAmounts: Ingredient['derivedFromAmounts'] = {}, measures?: IngredientMeasures): Promise<Ingredient> {
+    this.validateMeasures(measures, category);
     await this.auth.requireEditor();
     const id = crypto.randomUUID();
-    const ingredient: Ingredient = { id, name: name.trim(), category, derivedFromIds, derivedFromAmounts };
-    const { error } = await this.supabase.requireClient().rpc('save_ingredient', { p_id: id, p_name: ingredient.name, p_category: category, p_components: this.components(ingredient) });
+    const ingredient: Ingredient = { id, name: name.trim(), category, derivedFromIds, derivedFromAmounts, ...measures };
+    const { error } = await this.supabase.requireClient().rpc('save_ingredient', { p_id: id, p_name: ingredient.name, p_category: category, p_components: this.components(ingredient), p_base_unit: measures!.baseUnit, p_unit_quantity: measures!.unitQuantity });
     if (error) throw error;
     this.revision++;
     this.remember(ingredient);
     return ingredient;
   }
   getById(id: string): Ingredient | undefined { return this.indexSubject.value.byId.get(id); }
-  async update(id: string, changes: Pick<Ingredient, 'name' | 'category' | 'derivedFromIds' | 'derivedFromAmounts'>): Promise<void> {
+  async update(id: string, changes: Pick<Ingredient, 'name' | 'category' | 'derivedFromIds' | 'derivedFromAmounts' | 'baseUnit' | 'unitQuantity'>): Promise<void> {
+    this.validateMeasures(changes, changes.category);
     await this.auth.requireEditor();
-    const { error } = await this.supabase.requireClient().rpc('save_ingredient', { p_id: id, p_name: changes.name.trim(), p_category: changes.category, p_components: this.components({ id, ...changes }) });
+    const { error } = await this.supabase.requireClient().rpc('save_ingredient', { p_id: id, p_name: changes.name.trim(), p_category: changes.category, p_components: this.components({ id, ...changes }), p_base_unit: changes.baseUnit, p_unit_quantity: changes.unitQuantity });
     if (error) throw error;
     this.revision++;
     await this.refresh();
     this.remember({ id, ...changes, name: changes.name.trim() });
   }
   private components(ingredient: Ingredient): object[] { return (ingredient.derivedFromIds ?? []).map((componentId) => ({ ingredient_id: componentId, ...(ingredient.derivedFromAmounts?.[componentId] ?? { kind: 'none' }) })); }
+  private validateMeasures(measures: unknown, category: IngredientCategory): void {
+    if (!validIngredientMeasures(measures) || (category === 'Especia' && measures.baseUnit !== 'g')) throw new Error('Selecciona gramos o mililitros e indica una equivalencia positiva si permites unidades. Las especias utilizan gramos.');
+  }
   async remove(id: string): Promise<boolean> {
     try {
       await this.auth.requireEditor();

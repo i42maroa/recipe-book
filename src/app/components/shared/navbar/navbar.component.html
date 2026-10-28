@@ -19,7 +19,7 @@
       @if (auth.user() && auth.canEdit()) {
         <a class="nav-item" routerLink="/planner" routerLinkActive="active"><app-icon class="nav-icon" name="recipes" /> Planificación</a>
         <a class="nav-item" routerLink="/shopping" routerLinkActive="active"><app-icon class="nav-icon" name="shopping" /> Compra</a>
-        <a class="nav-item" routerLink="/freezer" routerLinkActive="active"><app-icon class="nav-icon" name="freezer" /> Congelador</a>
+        <a class="nav-item" routerLink="/inventory" routerLinkActive="active"><app-icon class="nav-icon" name="inventory" /> Inventario</a>
       }
     </nav>
     @if (auth.canEdit()) {
@@ -29,20 +29,9 @@
           <a class="nav-item plan-week-action" routerLink="/planner/week"><app-icon class="nav-icon" name="recipes" /> Planificar semana</a>
         </nav>
       }
-      @if (isFreezerPage()) {
-        <nav class="detail-nav freezer-nav" aria-label="Acciones del congelador">
-          @if (freezerInventory.selected(); as freezer) {
-            <label class="freezer-selector">Cambiar de congelador
-              <select [value]="freezer.id" [disabled]="freezerNavigation.blocked()" (change)="freezerAction({ kind: 'select', id: $any($event.target).value })">
-                @for (option of freezerInventory.freezers(); track option.id) { <option [value]="option.id">{{ option.name }}</option> }
-              </select>
-            </label>
-          }
-          <button class="nav-item" type="button" [disabled]="freezerNavigation.blocked()" (click)="freezerAction({ kind: 'create' })"><app-icon class="nav-icon" name="plus" /> Nuevo congelador</button>
-          @if (freezerInventory.selected(); as freezer) {
-            <button class="nav-item" type="button" [disabled]="freezerNavigation.blocked()" (click)="freezerAction({ kind: 'rename' })"><app-icon class="nav-icon" name="edit" /> Renombrar</button>
-            <button class="nav-item delete-action" type="button" [disabled]="freezerNavigation.blocked() || !!freezer.items.length" [title]="freezer.items.length ? 'Retira las entradas antes de eliminar el congelador' : 'Eliminar congelador'" (click)="freezerAction({ kind: 'remove' })"><app-icon class="nav-icon" name="trash" /> Eliminar congelador</button>
-          }
+      @if (isInventoryPage()) {
+        <nav class="detail-nav inventory-nav" aria-label="Acciones del inventario">
+          <button class="nav-item" type="button" aria-haspopup="dialog" [disabled]="inventoryNavigation.blocked()" (click)="inventoryAction({ kind: 'places' })"><app-icon class="nav-icon" name="inventory" /> Selección lugar</button>
         </nav>
       }
       @if (detail(); as current) {

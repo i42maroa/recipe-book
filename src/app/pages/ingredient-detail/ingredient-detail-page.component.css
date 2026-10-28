@@ -48,6 +48,7 @@
   border-radius: 8px;
   background: var(--color-surface);
 }
+.unit-equivalent { margin: 16px 0 0; color: var(--color-text-secondary); font-size: 13px; }
 .ingredient-components ul {
   display: flex;
   flex-wrap: wrap;
@@ -138,6 +139,7 @@
 }
 .ingredient-recipes li a {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   padding: 13px 2px;
@@ -145,6 +147,8 @@
   font-size: 12px;
   text-decoration: none;
 }
+.ingredient-recipes li a span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ingredient-recipes li small { max-width: 48%; flex-shrink: 0; text-align: right; overflow-wrap: anywhere; line-height: 1.5; }
 .ingredient-recipes li a:hover span {
   text-decoration: underline;
 }

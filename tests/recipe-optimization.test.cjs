@@ -7,6 +7,48 @@ const base = { name: 'Arroz', minutes: 20, servings: 2, pending: true, mealTypes
 const photo = { id: 'photo-1', storagePath: `${id}/one.jpg`, url: 'https://storage/one.jpg', position: 1, altText: 'Foto de arroz' };
 const filters = { search: '', pending: 'all', sort: 'recent', mealType: '', difficulty: '' };
 
+function ingredientUsageSetup() {
+  const state={rows:[],calls:[],cap:2,count:true,errorAt:null,emptyAt:null};
+  const amounts=loadService('src/app/utils/ingredient-amount.utils.ts',{});
+  const client={from(table){assert.equal(table,'recipes');const call={};state.calls.push(call);return {
+    select(columns,options){call.columns=columns;call.options=options;return this;},
+    eq(field,value){assert.equal(field,'recipe_ingredients.ingredient_id');call.ingredientId=value;return this;},
+    order(field){(call.order??=[]).push(field);return this;},range(from,to){call.range=[from,to];return this;},returns(){return this;},
+    then(resolve){const offset=call.range[0];resolve({data:state.emptyAt===offset?[]:state.rows.slice(offset,offset+state.cap),count:state.count&&call.options?.count==='exact'?state.rows.length:null,error:state.errorAt===offset?Error('Related recipes failed'):null});},
+  };}};
+  const {RecipeService}=loadService('src/app/services/recipe.service.ts',{}, {},{'../../environments/environment':{environment:{supabaseUrl:'test'}},'../utils/ingredient-amount.utils':amounts});
+  return {state,service:new RecipeService({configured:true,requireClient:()=>client},{},{})};
+}
+
+test('ingredient detail reads only recipe names and the exact saved ingredient amounts, preserving equivalents and missing quantities',async()=>{
+  const {state,service}=ingredientUsageSetup();const ingredientId=id;
+  state.rows=[{id:'grams',name:'Arroz',recipe_ingredients:[{ingredient_id:'other',amount_kind:'specific',amount_value:999,amount_unit:'ml'},{ingredient_id:ingredientId,amount_kind:'specific',amount_value:'250',amount_unit:'g'}]},
+    {id:'units',name:'Ensalada',recipe_ingredients:[{ingredient_id:ingredientId,amount_kind:'specific',amount_value:'2',amount_unit:'pieza',amount_base_unit:'g',amount_unit_quantity:'150'}]},
+    {id:'spice',name:'Salsa',recipe_ingredients:[{ingredient_id:ingredientId,amount_kind:'spoon',amount_value:'1.5'}]},
+    {id:'none',name:'Sin cantidad',recipe_ingredients:[{ingredient_id:ingredientId,amount_kind:'none',amount_value:null,amount_unit:null}]}];
+  const result=await service.getForIngredient(ingredientId.toUpperCase());
+  assert.deepEqual(JSON.parse(JSON.stringify(result)),[
+    {id:'grams',name:'Arroz',ingredientAmount:{kind:'specific',value:250,unit:'g'}},
+    {id:'units',name:'Ensalada',ingredientAmount:{kind:'specific',value:2,unit:'pieza',baseUnit:'g',unitQuantity:150}},
+    {id:'spice',name:'Salsa',ingredientAmount:{kind:'spoon',value:1.5}},
+    {id:'none',name:'Sin cantidad',ingredientAmount:null},
+  ]);
+  assert.ok(state.calls.every(call=>call.ingredientId===ingredientId&&call.columns.includes('amount_base_unit,amount_unit_quantity')&&!call.columns.includes('minutes')&&!call.columns.includes('*')));
+  assert.deepEqual(state.calls.map(call=>call.range),[[0,199],[2,201]]);assert.deepEqual(state.calls[0].order,['name','id']);
+});
+
+test('ingredient recipe usage traverses API caps without a count and does not return partial quantities on a later failure',async()=>{
+  const {state,service}=ingredientUsageSetup();state.count=false;
+  state.rows=Array.from({length:5},(_,index)=>({id:String(index),name:'Receta '+index,recipe_ingredients:[{ingredient_id:id,amount_kind:'specific',amount_value:100+index,amount_unit:'ml'}]}));
+  const result=await service.getForIngredient(id);assert.equal(result.length,5);assert.equal(result[4].ingredientAmount.value,104);assert.deepEqual(state.calls.map(call=>call.range[0]),[0,2,4,5]);
+  state.calls=[];state.errorAt=2;await assert.rejects(service.getForIngredient(id),/Related recipes failed/);
+  state.errorAt=null;state.count=true;state.emptyAt=2;await assert.rejects(service.getForIngredient(id),/han cambiado/);
+});
+
+test('an ingredient unused by any recipe returns an empty related list',async()=>{
+  const {state,service}=ingredientUsageSetup();assert.deepEqual(Array.from(await service.getForIngredient(id)),[]);assert.equal(state.calls.length,1);
+});
+
 test('ingredient search preserves server ranking, pagination, other filters and cancellation', async () => {
   const calls = [];
   const signal = new AbortController().signal;
@@ -59,6 +101,17 @@ test('ingredient search preserves server ranking, pagination, other filters and 
   ]);
 });
 const clone = (value) => JSON.parse(JSON.stringify(value));
+
+test('inventory all-ingredient searches use the dedicated server RPC with exact pagination and cancellation',async()=>{
+  const calls=[];const signal=new AbortController().signal;
+  const query={select(){return this;},returns(){return this;},range(...args){calls.push(['range',...args]);return this;},
+    abortSignal(value){assert.equal(value,signal);return this;},then(resolve){resolve({data:[],count:0,error:null});}};
+  const client={rpc(...args){calls.push(args);return query;},from(){assert.fail('Filter all ingredients before paging');}};
+  const {RecipeService}=loadService('src/app/services/recipe.service.ts',{}, {},{'../../environments/environment':{environment:{supabaseUrl:'test'}}});
+  const service=new RecipeService({configured:true,requireClient:()=>client},{},{});
+  await service.getBatch({...filters,ingredientIds:['a','b','a'],ingredientMatch:'all'},20,10,signal);
+  assert.deepEqual(clone(calls),[['search_recipes_with_all_ingredients',{p_ingredient_ids:['a','b'],p_sort:'recent'},{count:'exact'}],['range',20,29]]);
+});
 const deferred = () => { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; };
 
 const { LoadingService } = loadService('src/app/services/loading.service.ts', {});

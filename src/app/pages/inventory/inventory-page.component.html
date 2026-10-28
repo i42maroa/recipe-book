@@ -1,0 +1,91 @@
+<section class="inventory-page">
+  <header class="page-heading"><div><p class="eyebrow">TU COCINA, ORGANIZADA</p><h1>Inventario</h1></div></header>
+  @if (inventory.loading()) { <p role="status">Cargando tu inventario…</p> }
+  @if (inventory.error()) { <div class="notice" role="alert"><p>{{ inventory.error() }}</p><button type="button" [disabled]="inventory.loading()" (click)="reload()">Reintentar carga</button></div> }
+
+  <fieldset class="inventory-controls" [disabled]="busy()">
+    @if (selected(); as place) {
+      <h2 class="location-name">{{ place.name }}</h2>
+      <div class="space-tabs" role="tablist" aria-label="Espacios del lugar">
+        @for (space of spaces; track space.value) {
+          <button type="button" role="tab" [id]="'inventory-tab-' + space.value" aria-controls="inventory-panel" [attr.aria-selected]="inventory.selectedSpace() === space.value" [attr.tabindex]="inventory.selectedSpace() === space.value ? 0 : -1" (click)="chooseSpace(space.value)" (keydown)="spaceKey($event)">{{ space.label }}</button>
+        }
+      </div>
+    }
+    @if (selected() && inventory.ready() && !inventory.error() && spaceItems().length) {
+      <div class="inventory-filters">
+        <app-search-filter placeholder="Nombre…" ariaLabel="Buscar por nombre en este espacio" [formControl]="search" />
+        <app-select-filter class="planning-filter" label="Planificación" ariaLabel="Filtrar por planificación" filterType="status" [options]="planningOptions" [formControl]="planningFilter" />
+        <app-select-filter label="Orden" ariaLabel="Ordenar existencias" filterType="order" [options]="sortOptions" [formControl]="sort" />
+      </div>
+    }
+    <section id="inventory-panel" class="inventory-list" role="tabpanel" [attr.aria-labelledby]="selected() ? 'inventory-tab-' + inventory.selectedSpace() : 'inventory-title'" [attr.aria-busy]="inventory.loading()">
+      <header class="list-heading">
+        <div><h2 id="inventory-title">{{ selected() ? spaceLabel() : 'Tus lugares' }}</h2>
+        </div>
+        @if (selected()) { <div class="list-actions"><button type="button" class="primary add-button" (click)="openEntries()"><app-icon name="plus" /> Añadir</button></div> }
+      </header>
+      @if (inventory.loading()) { <app-skeleton variant="rows" /> }
+      @else if (inventory.ready() && !inventory.error()) {
+        @if (!selected()) { <p class="empty">Crea un lugar para organizar su alacena y su congelador.</p><button type="button" class="primary" (click)="openAction({ kind: 'create' })"><app-icon name="plus" /> Nuevo lugar</button> }
+        @else {
+          @if (planningFilterValue() !== 'all' && !planningReady()) {
+            <p class="empty" role="status">{{ ingredientPlanning.error() || planning.error() ? 'No se puede aplicar el filtro hasta comprobar la planificación. Reintenta la comprobación.' : 'Comprobando planificación…' }}</p>
+          } @else {
+          <div class="inventory-categories">
+            @for (category of categories(); track category.id) {
+              <section class="inventory-category" [attr.data-category]="category.id" [attr.aria-labelledby]="'inventory-category-' + category.id">
+                <h3 class="category-title" [id]="'inventory-category-' + category.id">{{ category.label }}</h3>
+                <ul class="inventory-groups">
+                  @for (group of category.groups; track group.id) {
+                    <li class="inventory-group">
+                      <button type="button" class="inventory-element" aria-haspopup="dialog" [attr.data-element-id]="group.id" (click)="openDetails(group)">
+                        <span class="element-info"><span class="element-name">{{ group.item.name }}</span><span class="element-total">{{ groupTotal(group.items) }}</span>@if (isPlanned(group)) { <span class="planned-badge">En planificación</span> }</span>
+                        <span class="record-count">{{ group.items.length }} {{ group.items.length === 1 ? 'registro' : 'registros' }}</span>
+                        <app-icon name="arrow-right" />
+                      </button>
+                    </li>
+                  }
+                </ul>
+              </section>
+            } @empty { <p class="empty">{{ planningFilterValue() !== 'all' && spaceItems().length ? 'No hay elementos ' + (planningFilterValue() === 'planned' ? 'planificados' : 'no planificados') + ' que coincidan con estos filtros.' : search.value ? 'No hay resultados para esta búsqueda.' : 'Todavía no has añadido ingredientes, recetas preparadas ni productos a este espacio.' }}</p> }
+          </div>
+          }
+        }
+      }
+    </section>
+  </fieldset>
+  @if (inventory.linksError()) { <p class="notice" role="alert">{{ inventory.linksError() }} <button type="button" (click)="inventory.refreshRecipeLinks(true)">Reintentar enlaces</button></p> }
+  @if (planning.loading()) { <p role="status" class="planning-status">Comprobando planificación…</p> }
+  @if (planning.error()) { <p class="notice" role="alert">{{ planning.error() }} <button type="button" (click)="planning.load(true)">Reintentar planificación</button></p> }
+  @if (ingredientPlanning.loading()) { <p role="status" class="planning-status">Comprobando ingredientes planificados…</p> }
+  @if (ingredientPlanning.error()) { <p class="notice" role="alert">{{ ingredientPlanning.error() }} <button type="button" (click)="ingredientPlanning.load(true)">Reintentar ingredientes planificados</button></p> }
+  @if (inventory.saving()) { <p class="saving-status" role="status">Guardando cambios…</p> }
+  @if (inventory.saveError()) { <div class="notice" role="alert"><p>{{ inventory.saveError() }}</p><p>Hay cambios pendientes de guardar.</p><div class="retry-actions"><button type="button" [disabled]="busy() || inventory.saving()" (click)="retrySave()">Reintentar guardado</button><button type="button" [disabled]="busy() || inventory.saving()" (click)="reload()">Cargar versión guardada</button></div></div> }
+  @if (selected()) { <button class="floating-add-button" type="button" aria-label="Añadir al inventario" title="Añadir al inventario" [disabled]="busy()" (click)="openEntries()"><app-icon name="plus" /></button> }
+</section>
+
+@if (placesOpen()) {
+  <app-inventory-place-dialog [disabled]="entryOpen() || !!action()" [returnFocus]="placesTrigger()"
+    (closed)="closePlaces()" (selected)="choose($event)" (createRequested)="openAction({ kind: 'create' })" (renameRequested)="renamePlace()"
+    (removeRequested)="removePlace()" (retryRequested)="retrySave()" (reloadRequested)="reload()" />
+}
+
+@if (detailGroup(); as group) {
+  <app-inventory-item-dialog [group]="group" [placeId]="selected()?.id ?? ''" [placeName]="selected()?.name ?? ''" [spaceLabel]="spaceLabel()" [disabled]="entryOpen() || !!action()" [returnFocus]="detailTrigger()"
+    (closed)="closeDetails()" (editRequested)="openEntries($event)"
+    (withdrawRequested)="withdraw($event)" (retryRequested)="retrySave()" (reloadRequested)="reload()" />
+}
+
+@if (entryOpen() && selected(); as place) {
+  <app-inventory-entry-dialog [placeName]="place.name" [space]="inventory.selectedSpace()" [initialItem]="editingItem()" [returnFocus]="entryTrigger()" (confirmed)="confirmEntries($event)" (closed)="entryOpen.set(false)" />
+}
+
+<dialog #actionDialog aria-labelledby="inventory-action-title" class="action-dialog" (cancel)="$event.preventDefault(); closeAction()">
+  <h2 id="inventory-action-title">{{ actionTitle() }}</h2>
+  <form (submit)="applyAction($event)">
+    <label>Nombre del lugar<input [formControl]="placeName" placeholder="Ej. Galaroza" required></label>
+    @if (actionError()) { <p class="error" role="alert">{{ actionError() }}</p> }
+    <footer><button type="button" (click)="closeAction()">Cancelar</button><button type="submit" class="primary">Aplicar</button></footer>
+  </form>
+</dialog>

@@ -5,6 +5,6 @@
     <app-select-filter label="Tipo de plato" filterType="meal-type" [options]="mealTypeOptions" [formControl]="mealType()" />
     <app-select-filter label="Dificultad" filterType="difficulty" [options]="difficultyOptions" [formControl]="difficulty()" />
     <app-select-filter label="Estado" filterType="status" [options]="statusOptions" [formControl]="status()" />
-    <app-ingredient-filter [selectedIds]="ingredientIds().value" (selectedIdsChange)="ingredientIds().setValue($event)" />
+    @if (showIngredientFilter()) { <app-ingredient-filter [selectedIds]="ingredientIds().value" [requireAll]="requireAllIngredients()" (selectedIdsChange)="ingredientIds().setValue($event)" /> }
   </div>
 </div>

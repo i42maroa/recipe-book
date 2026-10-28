@@ -32,6 +32,9 @@ Para instalar desde cero, aplica una vez estos archivos, en este orden:
 14. `supabase/migrations/20261026000100_freezer_inventories.sql`
 15. `supabase/migrations/20261026000200_freezer_entries.sql`
 16. `supabase/migrations/20261026000300_add_scheduled_recipe.sql`
+17. `supabase/migrations/20261027000100_inventory_places.sql`
+18. `supabase/migrations/20261027000200_ingredient_measures.sql`
+19. `supabase/migrations/20261027000300_inventory_empty_amounts.sql`
 
 La migración de seguridad conserva los datos y reemplaza todas las políticas de las tablas del recetario enumeradas en ella. Crea el grupo privado de editores, configura lectura pública y escritura autorizada, restringe las RPC de guardado y protege las escrituras de fotos. El grupo empieza vacío: nadie podrá editar hasta que añadas al primer miembro. No vuelvas a aplicar las migraciones antiguas por separado después de configurar la seguridad, porque contienen permisos de escritura anónima.
 
@@ -167,6 +170,8 @@ Permite los valores internos `Liquidos` y `FrutosSecos` en `ingredients.category
 
 ## Congelador: guardado por lote
 
+Esta sección describe la versión anterior a Inventario; la migración de lugares indicada a continuación reemplaza su acceso desde el frontend.
+
 Antes de publicar el frontend con guardado parcial, aplica [20261026000200_freezer_entries.sql](supabase/migrations/20261026000200_freezer_entries.sql) después de [20261026000100_freezer_inventories.sql](supabase/migrations/20261026000100_freezer_inventories.sql). Si ya utilizas Congelador y tienes aplicada la primera migración, solo necesitas la segunda. No se han ejecutado contra Supabase remoto desde este cambio.
 
 La nueva migración crea `freezers` y `freezer_entries`, con RLS privada por propietario y permiso de editor. Copia todos los congeladores y lotes existentes, manteniendo nombres, cantidades, fechas y orden. Conserva la tabla antigua como archivo y revoca su acceso y la ejecución de `save_freezer_inventory`, para evitar que clientes antiguos escriban en una copia diferente. Las pestañas abiertas con el frontend anterior deben recargarse después de publicar la nueva versión.
@@ -174,3 +179,65 @@ La nueva migración crea `freezers` y `freezer_entries`, con RLS privada por pro
 `get_freezer_inventory()` obtiene la colección privada. `apply_freezer_changes(jsonb)` recibe únicamente las filas modificadas y compara sus valores anteriores dentro de una transacción. Modificar otro lote o congelador no invalida el guardado por una versión global; un cambio concurrente sobre la misma fila se rechaza sin sobrescribirlo. Repetir una operación cuyo resultado ya existe no duplica entradas ni repite retiradas. Ambas RPC utilizan `SECURITY INVOKER` y obtienen el propietario de la sesión.
 
 `npm run test:freezer:sql` comprueba las dos migraciones reales en PostgreSQL/WASM local, incluida la conservación del inventario anterior, privacidad, validaciones, conflictos, atomicidad y reintentos. No confirma el estado del proyecto remoto.
+
+## Inventario por lugares: alacena, congelador y recetas preparadas
+
+Antes de publicar esta versión, aplica [20261027000100_inventory_places.sql](supabase/migrations/20261027000100_inventory_places.sql) después de las migraciones anteriores. No se ha aplicado al proyecto remoto desde esta tarea.
+
+La migración convierte cada congelador existente en un lugar con el mismo ID y nombre. Sus lotes se conservan en el espacio Congelador, con las cantidades, nombres, fechas y orden existentes; Alacena empieza vacía. Crea `inventory_places` e `inventory_entries`, protegidas por propietario y permiso de editor mediante RLS. Archiva las tablas anteriores sin acceso de navegador y revoca `get_freezer_inventory` y `apply_freezer_changes`, por lo que las pestañas antiguas deben recargarse tras publicar.
+
+`get_inventory()` recupera la colección privada. `apply_inventory_changes(jsonb)` compara solo las filas afectadas y guarda cada operación en una transacción; los reintentos no duplican lotes ni repiten retiradas. `valid_inventory_entry(jsonb)` valida los dos espacios fijos, cantidades, fechas y raciones enteras positivas. Las RPC utilizan `SECURITY INVOKER` y obtienen el propietario de la sesión. `inventory_recipe_ids(uuid[])` devuelve los IDs de las recetas todavía disponibles; borrar una receta no elimina las raciones ni sus nombres guardados. La aplicación ha eliminado la operativa Mover; conserva los lotes y fechas históricos sin cambios de esquema ni migración adicional.
+
+`npm run test:inventory` ejecuta cincuenta y cuatro pruebas de servicio, formularios, agrupación por elemento y categoría y SQL, incluidas diecisiete de esta migración real con PGlite local. No verifica las migraciones, permisos ni datos del proyecto remoto.
+
+## Medidas de ingredientes y equivalencias
+
+Después de la migración de medidas, aplica también [20261027000300_inventory_empty_amounts.sql](supabase/migrations/20261027000300_inventory_empty_amounts.sql). Corrige un error `cannot delete from scalar` al comparar cantidades JSON nulas en altas o modificaciones de entradas sin cantidad. Sustituye únicamente `apply_inventory_changes`, conservando permisos, privacidad y guardado atómico; no modifica datos existentes. Se verificó mediante once pruebas SQL de medidas y una comprobación de retirada directa en navegador con PostgreSQL/WASM local. No se ha aplicado a Supabase remoto desde esta tarea. El cambio de interfaz para retirar el lote completo no necesita cambios de esquema.
+
+Antes de publicar el frontend con las medidas configurables, aplica [20261027000200_ingredient_measures.sql](supabase/migrations/20261027000200_ingredient_measures.sql), después de todas las anteriores, incluida Inventario. Se ha validado en PostgreSQL/WASM local; no se ha aplicado a Supabase remoto desde esta tarea.
+
+Añade `ingredients.base_unit` (`g` o `ml`, obligatorio) y `unit_quantity` (contenido positivo de una unidad, opcional). Los ingredientes actuales reciben `g`, salvo la categoría `Liquidos`, que recibe `ml`; no se modifican cantidades existentes ni se inventan equivalencias. Estas se completan manualmente mediante la edición del ingrediente. Las especias requieren base `g` y admiten cucharadas de 5 g; sus cantidades pueden ser fraccionarias.
+
+Añade `amount_base_unit` y `amount_unit_quantity` a `recipe_ingredients` e `ingredient_components` para conservar la equivalencia usada al guardar unidades. El inventario conserva esos valores dentro del JSON de cada lote. Actualiza el guardado de recetas e inventario y sustituye la firma de ingredientes por `save_ingredient(uuid,text,text,jsonb,text,numeric)`; la firma anterior deja de estar disponible para el navegador. Los vasos y cantidades históricas incompatibles se conservan y pueden reducirse o trasladarse. Las pestañas con la versión anterior deben recargarse tras publicar el frontend.
+
+`npm run test:measures` comprueba la migración real, la configuración obligatoria, instantáneas, cucharadas, conservación de cantidades anteriores, traslados parciales, validaciones y permisos. Los totales del inventario se calculan en la interfaz por medida, sin fusionar lotes ni convertir unidades a peso.
+
+### Query opcional para completar las equivalencias del catálogo actual
+
+[20261027_ingredient_unit_equivalences.sql](supabase/queries/20261027_ingredient_unit_equivalences.sql) contiene una única sentencia preparada a partir de los 127 ingredientes consultados en Supabase el 27/10/2026. Propone equivalencias para 43 ingredientes y devuelve los registros actualizados con la definición de cada unidad. Los pesos son estimaciones netas listas para usar; Ajo significa un diente y Nueces una nuez pelada completa. Los yogures y bolas de queso utilizan formatos de referencia de 125 g. Leche pasa a ml con un envase de referencia de 1000 ml y Nata para cocinar a ml con uno de 200 ml; no convierte cantidades históricas.
+
+La query identifica cada ingrediente por UUID, nombre exacto y medida base anterior, y solo completa `unit_quantity` cuando está vacío. Conserva equivalencias configuradas, incluida Dorada a 250 g. No modifica recetas, componentes ni lotes. Es específica de este catálogo y queda fuera de las migraciones automáticas. Se comprobó con PostgreSQL/WASM local, incluida la repetición sin sobrescribir datos. No se ha ejecutado en Supabase remoto.
+
+## Vincular recetas preparadas a comidas planificadas
+
+Antes de publicar esta funcionalidad, aplica [20261027000400_inventory_planning.sql](supabase/migrations/20261027000400_inventory_planning.sql) después de las anteriores. No se ha aplicado al proyecto remoto desde esta tarea.
+
+Actualiza `valid_scheduled_recipes` y `save_scheduled_day` para aceptar y validar el origen opcional del inventario, comprobando el lote y la receta del propietario antes de guardar. Mantiene fuentes históricas previamente guardadas si se retira un lote. No modifica tablas ni datos de existencias: planificar conserva todas las raciones y no las reserva.
+
+Añade `get_inventory_planning_links(date)`, con `SECURITY INVOKER`, autenticación, permiso de editor y RLS. Devuelve un array JSON de los vínculos a lotes existentes desde la fecha solicitada, evitando el límite de filas de PostgREST. La interfaz consulta desde hoy para mostrar **En planificación** y el día/comida correspondientes. Al quitar una receta del plan y guardar se actualiza el indicador.
+
+`npm run test:planner` ejecuta 78 pruebas de dominio, servicios, selectores y editor; `npm run test:planner:sql` ejecuta 23 pruebas SQL, incluidas nueve de esta migración y cinco de la API de búsqueda con todos los ingredientes. Comprueban stock sin cambios, persistencia del lote elegido, eliminación de vínculos, fechas, fuentes históricas, marcas de ingredientes planificados, búsqueda automática OR por ingredientes libres, privacidad y validaciones. No verifican la configuración del proyecto remoto.
+
+## Buscar recetas con ingredientes del inventario
+
+[20261027000500_inventory_ingredient_search.sql](supabase/migrations/20261027000500_inventory_ingredient_search.sql), aplicada después de las anteriores, añade `search_recipes_with_all_ingredients(uuid[],text)` para exigir todos los ingredientes seleccionados antes de contar y paginar en SQL, conservando RLS, tarjetas, filtros y orden. Las selecciones vacías o con referencias nulas no devuelven todas las recetas. No modifica datos ni la RPC general de coincidencias; se ha probado en PostgreSQL/WASM local y no se ha ejecutado en Supabase remoto.
+
+La interfaz también funciona cuando esa función no está instalada: una selección de un ingrediente usa directamente la RPC anterior; con varios, un error de función ausente (`PGRST202` o `42883`) activa un recorrido completo de candidatos, manteniendo únicamente las recetas que contienen todos los ingredientes antes de entregar la página y el total. Mantiene filtros, orden y cancelación; no convierte errores de conexión o permisos en listas vacías. Instalar la migración evita ese recorrido adicional. Una comprobación pública de solo lectura confirmó que Boquerones sí corresponde a «Rollitos de boquerón» y detectó la ausencia de la RPC nueva. No se realizaron cambios remotos.
+
+El modal del planner tiene tres pestañas: Inventario con platos preparados, Recetas por ingredientes del inventario y Recetario. La segunda recoge automáticamente los ingredientes libres que el propietario tiene en cualquier lugar/espacio y utiliza **OR** mediante la RPC anterior `search_recipes_by_ingredients`; basta con la presencia del ingrediente, sin exigir cantidad suficiente. Una receta con ingredientes planificados puede aparecer si coincide con algún otro ingrediente libre. Sus filtros son independientes del Recetario. El inventario vacío o completamente planificado no se convierte en una consulta sin filtro. El primer recorrido conserva el vínculo al lote; las recetas de las otras dos pestañas se planifican sin vincularlas a comida ya preparada. Las tres pestañas reutilizan las migraciones existentes.
+
+`InventoryIngredientPlanningService` deriva las marcas de ingredientes consultando `scheduled_meals` del propietario desde la fecha local de hoy, con RLS y filtro explícito de propietario. Consulta `recipe_ingredients` y el nombre de las recetas en lotes de hasta 100 IDs únicos, con paginación de ambas lecturas. Omite los planes pasados y las recetas cuyo origen es un lote preparado. No escribe existencias ni duplica vínculos en otra tabla. Comparte lecturas simultáneas, reutiliza cinco minutos la comprobación e invalida al guardar planes o editar recetas; cambios de cuenta o permisos limpian los datos privados y cancelan lecturas anteriores. Un fallo bloquea las sugerencias por existencias hasta reintentar. No necesita una migración adicional.
+
+## Cantidades de compra y registro en la alacena
+
+Aplica [20261027000600_shopping_quantities_purchase.sql](supabase/migrations/20261027000600_shopping_quantities_purchase.sql) después de las anteriores y antes de publicar la versión correspondiente. No se ha ejecutado en el proyecto remoto desde esta tarea.
+
+Amplía la validación de `shopping_lists.items` con `amounts`, `unquantified` y avisos opcionales, conservando las listas antiguas. Los contadores anteriores no se convierten en unidades ni pesos. `shopping_plan_amounts(date,date)` consulta solo las comidas propias y devuelve cantidades y factores de proporción o recetas completas con sobras. Excluye platos procedentes de inventario; si no hay comensales originales lo señala para revisión. Al generar la lista, la interfaz asigna 1 unidad a cada aparición sin cantidad indicada, suma apariciones y medidas compatibles y usa la equivalencia por unidad si existe; el valor por defecto no se escala por comensales. Permite descontar existencias mediante equivalencias compatibles, sin modificar stock. Este valor por defecto no requiere otra migración.
+
+El botón Añadir del cálculo incorpora toda la vista previa al borrador existente: conserva ingredientes anteriores y suma cantidades compatibles de los repetidos. Cierra el modal directamente. La combinación se valida antes de modificar el borrador y conserva equivalencias, cantidades pendientes y avisos. El guardado explícito posterior utiliza la misma RPC y versión de `shopping_lists`; no requiere modificar SQL.
+
+La lista presenta las cantidades ausentes como ×1, también en altas manuales y datos antiguos. `shoppingDefaultQuantity` utiliza una unidad al compartir o generar el payload de compra; incrementar por primera vez guarda dos unidades. El valor por defecto no se obtiene del contador histórico. Se conservan cantidades conocidas y equivalencias y se envían medidas explícitas a `complete_shopping_purchase`, sin cambiar el contrato SQL ni necesitar otra migración.
+
+`complete_shopping_purchase(uuid,bigint,jsonb,uuid,date)` guarda el borrador comprado en la alacena del lugar elegido y vacía la lista en la misma transacción. Rechaza cantidades desconocidas, versiones antiguas o destinos ajenos sin efectos parciales. `shopping_purchases` almacena comprobantes privados por usuario/operación; los reintentos exactos no duplican existencias ni vacían una lista posterior. Todas las operaciones usan `SECURITY INVOKER`, RLS y el propietario de la sesión. Los permisos del historial se limitan a lectura e inserción propias para editores autenticados.
+
+`npm run test:shopping` ejecuta 41 pruebas de dominio y servicios; `npm run test:shopping:sql` ejecuta 20 pruebas SQL, incluidas diez de esta migración. Se verificaron en PostgreSQL/WASM local, sin escrituras remotas.

@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { loadService } = require('./helpers/load-service.cjs');
+const measures = loadService('src/app/utils/ingredient-measures.utils.ts', {});
 const search = loadService('src/app/utils/search.utils.ts', {});
 const index = loadService('src/app/utils/ingredient-search.utils.ts', {}, {}, { './search.utils': search });
 const amounts = loadService('src/app/utils/ingredient-amount.utils.ts', {});
@@ -16,7 +17,7 @@ function setup(size = 7) {
     async rpc(name, args) {
       assert.equal(name, 'save_ingredient');
       if (state.rpcError) return { error: state.rpcError };
-      const row = { id: args.p_id, name: args.p_name, category: args.p_category, ingredient_components: [] };
+      const row = { id: args.p_id, name: args.p_name, category: args.p_category, base_unit: args.p_base_unit, unit_quantity: args.p_unit_quantity, ingredient_components: [] };
       state.rows = [...state.rows.filter(item => item.id !== args.p_id), row];
       return { error: null };
     },
@@ -41,12 +42,12 @@ function setup(size = 7) {
       if (!detail && state.hold) { const held = state.hold; state.hold = null; await held; }
       if (detail) return state.failDetail ? { error: Error('Detail failed') } : { data: snapshot.find(row => row.id === call.id) ?? null, error: null };
       if (state.failOffset === call.offset) return { error: Error('Page failed') };
-      return { data: snapshot.slice(call.offset, Math.min(call.end + 1, call.offset + state.cap)).map(({ id, name, category }) => ({ id, name, category })),
+      return { data: snapshot.slice(call.offset, Math.min(call.end + 1, call.offset + state.cap)).map(({ id, name, category, base_unit, unit_quantity }) => ({ id, name, category, base_unit, unit_quantity })),
         count: state.count && call.options?.count === 'exact' ? snapshot.length : null, error: null };
     }
   } }) };
   const { IngredientService } = loadService('src/app/services/ingredient.service.ts', { AuthService: { requireEditor: async () => {} }, LoadingService: new LoadingService() }, { crypto: require('node:crypto').webcrypto }, {
-    '../utils/ingredient-search.utils': index, '../utils/ingredient-amount.utils': amounts,
+    '../utils/ingredient-measures.utils': measures, '../utils/ingredient-search.utils': index, '../utils/ingredient-amount.utils': amounts,
   });
   const service = new IngredientService(supabase, { error() {}, success() {} });
   return { service, state };
@@ -68,7 +69,7 @@ test('catalog paging loads every ingredient despite a smaller API response cap',
   assert.equal(service.getById('ingredient-1004').name, 'Ingrediente 1004');
   assert.equal(state.calls.length, 11);
   assert.deepEqual(state.calls.map(call => call.offset), Array.from({ length: 11 }, (_, n) => n * 100));
-  for (const call of state.calls) { assert.equal(call.selection, 'id,name,category'); assert.deepEqual(call.orders, ['id']); }
+  for (const call of state.calls) { assert.equal(call.selection, 'id,name,category,base_unit,unit_quantity'); assert.deepEqual(call.orders, ['id']); }
   assert.equal(state.calls.filter(call => call.options?.count === 'exact').length, 1);
   assert.equal(service.getById('ingredient-0000').derivedFromIds, undefined);
 });
@@ -153,7 +154,7 @@ test('an ingredient save during catalog loading restarts the stale scan and pres
   const { service, state } = setup();
   const held = gate(); state.hold = held.promise;
   const loading = service.ensureLoaded();
-  const updating = service.update('ingredient-0000', { name: 'Editado', category: 'Elaboracion', derivedFromIds: ['ingredient-0001'], derivedFromAmounts: {} });
+  const updating = service.update('ingredient-0000', { name: 'Editado', category: 'Elaboracion', baseUnit: 'g', unitQuantity: null, derivedFromIds: ['ingredient-0001'], derivedFromAmounts: {} });
   await new Promise(setImmediate); held.resolve();
   await Promise.all([loading, updating]);
   assert.equal(service.getById('ingredient-0000').name, 'Editado');
@@ -175,7 +176,7 @@ test('a detail request started before deletion cannot bring the ingredient back'
 test('creating an ingredient updates the local index without reloading the catalog', async () => {
   const { service, state } = setup(); await service.ensureLoaded();
   const reads = state.calls.length; state.failOffset = 0;
-  const saved = await service.add('  Sal fina  ', 'Especia');
+  const saved = await service.add('  Sal fina  ', 'Especia', [], {}, {baseUnit:'g',unitQuantity:null});
   assert.equal(service.getById(saved.id), saved);
   assert.equal(saved.name, 'Sal fina'); assert.equal(service.loaded(), true);
   assert.equal(service.error(), false); assert.equal(state.calls.length, reads);
@@ -187,7 +188,7 @@ test('a failed unrelated catalog refresh does not report a persisted ingredient 
   const { service, state } = setup(); await service.ensureLoaded();
   const held = gate(); state.hold = held.promise; state.failOffset = 0;
   const refresh = service.refresh(); const failedRefresh = assert.rejects(refresh, /Page failed/);
-  const saved = await service.add('Perejil', 'Especia');
+  const saved = await service.add('Perejil', 'Especia', [], {}, {baseUnit:'g',unitQuantity:null});
   held.resolve(); await failedRefresh;
   assert.equal(service.getById(saved.id), saved);
   assert.equal(service.error(), true);
@@ -198,7 +199,7 @@ test('a failed unrelated catalog refresh does not report a persisted ingredient 
 test('creation during an older catalog scan stays indexed with its complete composition', async () => {
   const { service, state } = setup();
   const held = gate(); state.hold = held.promise; const loading = service.ensureLoaded();
-  const saved = await service.add('Salsa', 'Elaboracion', ['ingredient-0001'], { 'ingredient-0001': { kind: 'specific', value: 5, unit: 'g' } });
+  const saved = await service.add('Salsa', 'Elaboracion', ['ingredient-0001'], { 'ingredient-0001': { kind: 'specific', value: 5, unit: 'g' } }, {baseUnit:'g',unitQuantity:null});
   held.resolve(); await loading;
   assert.equal(service.getById(saved.id), saved);
   assert.equal(service.getById(saved.id).derivedFromAmounts['ingredient-0001'].value, 5);
@@ -208,7 +209,7 @@ test('creation during an older catalog scan stays indexed with its complete comp
 test('a rejected ingredient write never publishes a local success', async () => {
   const { service, state } = setup(); await service.ensureLoaded();
   state.rpcError = Error('Write failed');
-  await assert.rejects(service.add('Perejil', 'Especia'), /Write failed/);
+  await assert.rejects(service.add('Perejil', 'Especia', [], {}, {baseUnit:'g',unitQuantity:null}), /Write failed/);
   assert.equal(state.rows.length, 7);
   assert.equal(service.getById('ingredient-0006').name, 'Ingrediente 6');
 });

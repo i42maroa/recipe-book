@@ -1,4 +1,13 @@
 import { MealSelection } from '../models/scheduled-meal.model';
+import { InventoryPlanningSource } from '../models/inventory-planning.model';
+
+export function validInventoryPlanningSource(value: unknown): value is InventoryPlanningSource {
+  if (!value || typeof value !== 'object') return false;
+  const source = value as InventoryPlanningSource;
+  const uuid = (id: unknown): boolean => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  return uuid(source.placeId) && uuid(source.itemId) && typeof source.placeName === 'string' && !!source.placeName.trim()
+    && ['pantry', 'freezer'].includes(source.space);
+}
 
 const DAY_MS = 86400000;
 export function localDate(date = new Date()): string {
@@ -42,6 +51,7 @@ export function validateDay(date: string, meals: MealSelection[]): string | null
     if (meal.recipes.length > 5) return 'Cada comida permite un máximo de cinco recetas.';
     const ids = new Set<string>();
     for (const recipe of meal.recipes) {
+      if (recipe.inventory !== undefined && !validInventoryPlanningSource(recipe.inventory)) return 'El origen del inventario no es válido.';
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recipe.recipeId) || !['scale', 'leftovers'].includes(recipe.mode)) return 'La receta o preparación no es válida.';
       const id = recipe.recipeId.toLowerCase();
       if (ids.has(id)) return 'No puedes repetir la misma receta en el mismo día y comida.';
@@ -54,7 +64,8 @@ export function validateDay(date: string, meals: MealSelection[]): string | null
 export function dayFingerprint(meals: MealSelection[]): string {
   return JSON.stringify(meals.filter(meal => meal.recipes.length).map(meal => ({
     slot: meal.slot, servings: meal.servings,
-    recipes: meal.recipes.map(recipe => ({ recipeId: recipe.recipeId.toLowerCase(), mode: recipe.mode })),
+    recipes: meal.recipes.map(recipe => ({ recipeId: recipe.recipeId.toLowerCase(), mode: recipe.mode,
+      ...(recipe.inventory ? { inventory: { placeId: recipe.inventory.placeId.toLowerCase(), itemId: recipe.inventory.itemId.toLowerCase(), placeName: recipe.inventory.placeName, space: recipe.inventory.space } } : {}) })),
   })).sort((first, second) => first.slot.localeCompare(second.slot)));
 }
 export function portionSummary(original: number | null, guests: number, mode: string): string {

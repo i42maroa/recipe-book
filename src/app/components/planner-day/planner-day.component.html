@@ -29,13 +29,14 @@
                 @if (recipe(entry); as recipe) {
                   <a class="entry-title" [routerLink]="['/recipes', recipe.id]" [queryParams]="recipeQueryParams()">{{ recipe.name }}</a>
                   <div class="entry-meta"><span class="entry-servings" [attr.aria-label]="recipe.servings ? recipe.servings + ' comensales' : 'Sin comensales indicados'"><app-icon name="person" /> {{ recipe.servings ?? '—' }}</span><span class="entry-types">{{ recipe.mealTypes.join(' · ') || 'Sin tipo de plato' }}</span>@if (recipe.pending) { <span class="entry-new">Nueva</span> }</div>
-                  @if (recipe.servings !== meal.servings) {
+                  @if (!entry.inventory && recipe.servings !== meal.servings) {
                     @if (mode() === 'edit' && entry.control; as control) {
                       <label>Preparación<select [formControl]="control" [attr.disabled]="disabled() ? '' : null" (change)="modeChanged.emit()" [attr.aria-label]="'Preparación de ' + recipe.name"><option value="scale">Ajustar proporción</option><option value="leftovers">Receta completa y sobras</option></select></label>
                     }
                     <p class="portion">{{ summary(entry, meal.servings) }}</p>
                   }
                 } @else { <strong class="entry-title">Receta no disponible</strong> }
+                @if (entry.inventory; as source) { <p class="inventory-source">Del inventario · {{ source.placeName }} · {{ source.space === 'pantry' ? 'Alacena' : 'Congelador' }}</p> }
                 @if (mode() === 'edit') { <button class="entry-remove" type="button" [disabled]="disabled()" [attr.aria-label]="'Quitar ' + (recipe(entry)?.name ?? 'receta no disponible') + ' de esta comida'" title="Quitar receta" (click)="remove(entry)"><app-icon name="close" /></button> }
               </article>
             }

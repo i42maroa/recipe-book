@@ -1,0 +1,8 @@
+<dialog #dialog aria-labelledby="shopping-amount-title" (cancel)="$event.preventDefault(); closed.emit()">
+  <header><h2 id="shopping-amount-title">Cantidad de {{ item().name }}</h2><button type="button" aria-label="Cerrar cantidades" (click)="closed.emit()">×</button></header>
+  <p>Indica la cantidad que necesitas comprar y selecciona su medida.</p>
+  @for (control of amounts(); track control) {
+    <div class="amount-row"><app-ingredient-amount [ingredient]="ingredient()" [formControl]="control" /></div>
+  }
+  <footer><button type="button" (click)="closed.emit()">Cancelar</button><button class="primary" type="button" [disabled]="!valid()" (click)="confirm()">Aplicar cantidad</button></footer>
+</dialog>

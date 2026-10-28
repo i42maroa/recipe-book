@@ -1,0 +1,59 @@
+<dialog #dialog aria-labelledby="inventory-entry-title" (cancel)="close($event)">
+  <header>
+    <div><p class="eyebrow">{{ placeName() }} · {{ space() === 'pantry' ? 'Alacena' : 'Congelador' }}</p><h2 id="inventory-entry-title">{{ initialItem() ? 'Editar entrada' : 'Añadir existencias' }}</h2></div>
+    <button type="button" class="icon-button" aria-label="Cerrar" [disabled]="creating()" (click)="close()"><app-icon name="close" /></button>
+  </header>
+  @if (loadingMeasures()) { <p role="status">Cargando medidas del ingrediente…</p> }
+  @if (measuresError()) { <p class="error" role="alert">No se pudieron cargar las medidas. <button type="button" (click)="loadInitial(true)">Reintentar</button></p> }
+  <form (submit)="submit($event)">
+    <fieldset [disabled]="creating()" [attr.aria-busy]="creating()">
+      @if (!initialItem()) {
+        <div class="mode-buttons" role="group" aria-label="Tipo de entrada">
+          <button type="button" [attr.aria-pressed]="mode() === 'ingredient'" (click)="mode.set('ingredient')">Ingredientes</button>
+          <button type="button" [attr.aria-pressed]="mode() === 'recipe'" (click)="mode.set('recipe')">Recetas preparadas</button>
+          <button type="button" [attr.aria-pressed]="mode() === 'product'" (click)="mode.set('product')">Producto libre</button>
+        </div>
+        <div [hidden]="mode() !== 'ingredient'" class="picker">
+          <app-ingredient-filter purpose="inventory" [selectedIds]="selectedIds()" [showSelected]="false" (selectedIdsChange)="addIngredients($event)" />
+        </div>
+        @if (mode() === 'recipe') {
+          <div class="recipe-selection">
+            <p>Añade recetas que ya tienes preparadas e indica sus raciones.</p>
+            <app-recipe-picker purpose="inventory" [embedded]="true" [dayLabel]="placeName()" [slotLabel]="space() === 'pantry' ? 'Alacena' : 'Congelador'" [excludedRecipeIds]="selectedRecipeIds()" (selected)="addRecipe($event)" />
+          </div>
+        }
+        @if (mode() === 'product') {
+          <div class="product-picker">
+            <div class="product-input-row">
+              <label>Nombre del producto<input [formControl]="productName" placeholder="Ej. Arroz con verduras de Mercadona" (keydown.enter)="$event.preventDefault(); addProduct()"></label>
+              <button type="button" [disabled]="!productName.value.trim()" (click)="addProduct()">Añadir</button>
+            </div>
+            <p>Este producto solo se guardará en el inventario.</p>
+          </div>
+        }
+      }
+      <div class="entry-list">
+        @for (row of rows(); track row.item.id) {
+          <section class="entry" [class.removable]="!initialItem()" [formGroup]="row.form" [attr.aria-label]="row.item.name">
+            <div class="entry-heading">
+              @if (!row.item.ingredientId && !row.item.recipeId) { <label>Producto<input formControlName="name" required></label> }
+              @else { <strong>{{ row.item.name }}</strong> }
+              @if (row.item.recipeId) { <p>Receta preparada</p> }
+              @if (row.item.category) { <p>{{ categoryLabel(row.item.category) }}</p> }
+            </div>
+            @if (row.item.recipeId) {
+              <label class="quantity-kind">Raciones<input type="number" autocomplete="off" min="1" max="2147483647" step="1" formControlName="servings" required></label>
+            } @else {
+              <app-ingredient-amount class="amount-control" formControlName="amount" [ingredient]="ingredientFor(row.item)" />
+            }
+            <label class="entry-date">Fecha de entrada<input type="date" formControlName="enteredOn" min="0001-01-01" max="9999-12-31" required></label>
+            @if (row.item.arrivedOn !== row.item.enteredOn) { <p class="arrival-note">Llegada a este espacio: {{ row.item.arrivedOn.split('-').reverse().join('/') }}</p> }
+            @if (!initialItem()) { <button class="remove-entry" type="button" [attr.aria-label]="'Quitar ' + row.item.name" (click)="remove(row.item.id)"><app-icon name="close" /></button> }
+          </section>
+        } @empty { <p class="empty">Añade ingredientes, recetas preparadas o productos libres para indicar su cantidad y fecha de entrada.</p> }
+      </div>
+      @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+      <footer><button type="button" (click)="close()">Cancelar</button><button class="primary" type="submit">{{ initialItem() ? 'Aplicar cambios' : 'Añadir al listado' }}</button></footer>
+    </fieldset>
+  </form>
+</dialog>

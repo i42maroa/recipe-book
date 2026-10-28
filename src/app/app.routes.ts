@@ -2,11 +2,13 @@
 import { RecipesPageComponent } from './pages/recipes/recipes-page.component';
 import { editorGuard } from './guards/editor.guard';
 import type { PlannerEditorPageComponent } from './pages/planner/planner-editor-page.component';
-import type { FreezerPageComponent } from './pages/freezer/freezer-page.component';
+import type { InventoryPageComponent } from './pages/inventory/inventory-page.component';
+import type { ShoppingPageComponent } from './pages/shopping/shopping-page.component';
 
 export const routes: Routes = [
-  { path: 'freezer', canActivate: [editorGuard], canDeactivate: [(component: FreezerPageComponent) => component.canLeave()], loadComponent: () => import('./pages/freezer/freezer-page.component').then(m => m.FreezerPageComponent) },
-  { path: 'shopping', canActivate: [editorGuard], loadComponent: () => import('./pages/shopping/shopping-page.component').then(m => m.ShoppingPageComponent) },
+  { path: 'freezer', pathMatch: 'full', redirectTo: 'inventory' },
+  { path: 'inventory', canActivate: [editorGuard], canDeactivate: [(component: InventoryPageComponent) => component.canLeave()], loadComponent: () => import('./pages/inventory/inventory-page.component').then(m => m.InventoryPageComponent) },
+  { path: 'shopping', canActivate: [editorGuard], canDeactivate: [(component: ShoppingPageComponent) => component.canLeave()], loadComponent: () => import('./pages/shopping/shopping-page.component').then(m => m.ShoppingPageComponent) },
   { path: 'planner/week', canActivate: [editorGuard], canDeactivate: [(component: PlannerEditorPageComponent) => component.canLeave()], loadComponent: () => import('./pages/planner/planner-editor-page.component').then((m) => m.PlannerEditorPageComponent) },
   { path: 'planner/day', data: { todayOnly: true }, canActivate: [editorGuard], canDeactivate: [(component: PlannerEditorPageComponent) => component.canLeave()], loadComponent: () => import('./pages/planner/planner-editor-page.component').then((m) => m.PlannerEditorPageComponent) },
   { path: 'planner', pathMatch: 'full', canActivate: [editorGuard], loadComponent: () => import('./pages/planner/planner-page.component').then((m) => m.PlannerPageComponent) },

@@ -9,7 +9,7 @@ p { margin: 0; font-size: 12px; color: var(--color-text-secondary); }
 .ingredient-option { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 0; background: var(--color-surface); color: var(--color-text); text-align: left; cursor: pointer; }
 .ingredient-option:hover { background: var(--color-success-soft); }
 .new-ingredient { padding: 14px; border: 1px solid var(--color-secondary); border-radius: 8px; background: var(--color-surface); }
-.new-ingredient-controls { display: flex; align-items: flex-start; gap: 12px; margin-top: 18px; }
+.new-ingredient-controls { display: grid; gap: 12px; margin-top: 18px; }
 .new-ingredient-controls app-select-filter { flex: 1; min-width: 0; }
 .create-ingredient { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 10px 12px; border: 1px solid var(--color-primary); border-radius: 6px; background: var(--color-primary); color: var(--color-surface); font: 12px var(--font-sans); cursor: pointer; }
 .create-ingredient:disabled { opacity: .55; cursor: default; }

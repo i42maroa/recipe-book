@@ -7,6 +7,9 @@ import { calendarPeriodLabel, calendarWeek, localDate, shiftDate } from '../../u
 import { shoppingGroups } from '../../utils/shopping-list.utils';
 import { IconComponent } from '../shared/icon/icon.component';
 import { SkeletonComponent } from '../shared/skeleton/skeleton.component';
+import { IngredientService } from '../../services/ingredient.service';
+import { InventoryService } from '../../services/inventory.service';
+import { shoppingQuantityLabel, subtractShoppingStock } from '../../utils/shopping-quantities.utils';
 
 @Component({
   selector: 'app-shopping-plan-picker', standalone: true,
@@ -20,6 +23,11 @@ export class ShoppingPlanPickerComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly meals = inject(ScheduledMealService);
   private readonly shopping = inject(ShoppingListService);
+  private readonly inventory = inject(InventoryService);
+  private readonly ingredients = inject(IngredientService);
+  readonly inventoryChoice = signal<boolean | null>(null);
+  readonly quantityLabel = shoppingQuantityLabel;
+  readonly excludedAll = signal(false);
   readonly today = localDate();
   readonly start = signal(this.today);
   readonly from = signal('');
@@ -37,6 +45,7 @@ export class ShoppingPlanPickerComponent {
   readonly groups = computed(() => shoppingGroups(this.preview()));
   readonly loadingPreview = signal(false);
   readonly previewError = signal('');
+  readonly previewReady = computed(() => this.rangeSelected() && this.inventoryChoice() !== null && !this.loadingPreview() && !this.previewError() && this.preview().length > 0);
   private weekRequest: AbortController | undefined;
   private previewRequest: AbortController | undefined;
   private weekRevision = 0;
@@ -69,7 +78,7 @@ export class ShoppingPlanPickerComponent {
       if (date < this.from()) this.from.set(date);
       this.to.set(date);
     }
-    if (this.from() !== previousFrom || this.to() !== previousTo || this.previewError()) void this.loadPreview();
+    if (this.from() !== previousFrom || this.to() !== previousTo || this.previewError()) { this.inventoryChoice.set(null); void this.loadPreview(); }
   }
 
   async loadWeek(): Promise<void> {
@@ -90,18 +99,29 @@ export class ShoppingPlanPickerComponent {
     const revision = ++this.previewRevision;
     this.previewRequest?.abort(); this.previewRequest = undefined;
     this.previewError.set(''); this.preview.set([]);
-    if (!this.rangeSelected()) { this.loadingPreview.set(false); return; }
+    this.excludedAll.set(false);
+    if (!this.rangeSelected() || this.inventoryChoice() === null) { this.loadingPreview.set(false); return; }
     const request = this.previewRequest = new AbortController();
     this.loadingPreview.set(true);
     try {
       const items = await this.shopping.fromPlanning(this.from(), this.to(), request.signal);
-      if (!this.destroyRef.destroyed && revision === this.previewRevision) this.preview.set(items);
+      let result = items;
+      if (this.inventoryChoice()) {
+        if (this.inventory.dirty() || this.inventory.saving()) throw new Error('Revisa los cambios pendientes del inventario antes de calcular lo que falta.');
+        await Promise.all([this.inventory.load(true), this.ingredients.ensureLoaded()]);
+        if (this.inventory.error() || !this.inventory.ready()) throw new Error(this.inventory.error() || 'No se pudo consultar el inventario.');
+        const catalog = items.flatMap(item => { const ingredient = this.ingredients.getById(item.id); return ingredient ? [ingredient] : []; });
+        result = subtractShoppingStock(items, this.inventory.places(), catalog);
+      }
+      if (!this.destroyRef.destroyed && revision === this.previewRevision && !request.signal.aborted) { this.preview.set(result); this.excludedAll.set(items.length > 0 && !result.length); }
     } catch (error) {
       if (!this.destroyRef.destroyed && revision === this.previewRevision) this.previewError.set(error instanceof Error ? error.message : 'No se pudieron calcular los ingredientes.');
     } finally { if (!this.destroyRef.destroyed && revision === this.previewRevision) this.loadingPreview.set(false); }
   }
 
+  chooseInventory(value: boolean): void { if (!this.disabled()) { this.inventoryChoice.set(value); void this.loadPreview(); } }
+
   confirm(): void {
-    if (!this.disabled() && this.rangeSelected() && !this.loadingPreview() && !this.previewError() && this.preview().length) this.selected.emit(this.preview());
+    if (!this.disabled() && this.previewReady()) this.selected.emit(this.preview());
   }
 }

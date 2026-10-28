@@ -1,4 +1,5 @@
 import { AuthService } from '../../services/auth.service';
+import { ingredientAmountLabel } from '../../utils/ingredient-measures.utils';
 import { environment } from '../../../environments/environment';
 ﻿import { cuisineFlag, mealPhotoClass } from '../../utils/recipe-display.utils';
 import { AsyncPipe } from '@angular/common';
@@ -184,9 +185,7 @@ export class RecipeDetailPageComponent {
   amountLabel(recipe: Recipe, ingredientId: string): string | null {
     const amount = recipe.ingredientAmounts?.[ingredientId];
     if (!amount) return null;
-    if (amount.kind === 'spoon') return '1 cucharada';
-    if (amount.kind === 'glass') return '1 vaso';
-    return amount.value ? `${amount.value} ${amount.unit}` : null;
+    return ingredientAmountLabel(amount, true, this.ingredientService.getById(ingredientId));
   }
 
   durationLabel(minutes: number | null): string {

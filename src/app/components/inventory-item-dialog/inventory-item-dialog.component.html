@@ -1,0 +1,66 @@
+<dialog #dialog class="item-dialog" aria-labelledby="inventory-item-title" (cancel)="close($event)">
+  <header>
+    <div>
+      <p class="eyebrow">{{ placeName() }} · {{ spaceLabel() }}</p>
+      <h2 id="inventory-item-title">{{ group().item.name }}</h2>
+      <p>{{ group().item.recipeId ? 'Receta preparada' : group().item.category ? categoryLabel(group().item.category!) : 'Producto libre' }}</p>
+    </div>
+    <button type="button" class="icon-button" aria-label="Cerrar información del elemento" [disabled]="disabled()" (click)="close()"><app-icon name="close" /></button>
+  </header>
+
+  @if (group().item.ingredientId; as ingredientId) {
+    <a class="ingredient-link" [routerLink]="['/ingredients', ingredientId.toLowerCase()]" [queryParams]="{ fromInventory: 'true' }">Ver detalle del ingrediente</a>
+  }
+  @if (group().item.recipeId) {
+    @if (recipeAvailable()) { <a class="recipe-link" [routerLink]="['/recipes', group().item.recipeId]" [queryParams]="{ fromInventory: 'true' }">Ver receta</a> }
+    @else if (inventory.linksLoading()) { <p role="status">Comprobando receta…</p> }
+    @else if (inventory.linksError()) { <p role="alert">{{ inventory.linksError() }} <button type="button" [disabled]="disabled()" (click)="inventory.refreshRecipeLinks(true)">Reintentar enlace</button></p> }
+    @else { <p>La receta ya no está disponible en el recetario. Tus existencias se conservan.</p> }
+  }
+
+  <p class="record-count">{{ group().items.length }} {{ group().items.length === 1 ? 'registro' : 'registros' }}</p>
+  @if (group().items.length) { <p class="group-total">Total: {{ groupTotal(group().items) }}</p> }
+  <ul aria-label="Registros disponibles">
+    @for (item of group().items; track item.id) {
+      <li class="inventory-lot" [attr.data-lot-id]="item.id">
+        <div class="lot-info">
+          @if (item.name !== group().item.name) { <strong>{{ item.name }}</strong> }
+          <p>Entrada original: <time [attr.datetime]="item.enteredOn">{{ dateLabel(item.enteredOn) }}</time></p>
+          @if (item.arrivedOn !== item.enteredOn) { <p>Llegada aquí: <time [attr.datetime]="item.arrivedOn">{{ dateLabel(item.arrivedOn) }}</time></p> }
+          @if (planning.forItem(placeId(), item.id); as plans) {
+            @if (plans.length) {
+              <div class="lot-planning"><strong>En planificación</strong>
+                @for (plan of plans; track plan.date + ':' + plan.slot) { <a [routerLink]="['/planner/week']" [queryParams]="{ start: plan.date }">{{ planning.label(plan) }}</a> }
+              </div>
+            }
+          }
+          @if (item.ingredientId; as ingredientId) {
+            @if (ingredientPlanning.forIngredient(ingredientId); as plans) {
+              @if (plans.length) { <div class="lot-planning"><strong>En planificación</strong>
+                @for (plan of plans; track plan.date + ':' + plan.slot + ':' + plan.recipeId) { <a [routerLink]="['/planner/week']" [queryParams]="{ start: plan.date }">{{ ingredientPlanning.label(plan) }}</a> }
+              </div> }
+            }
+          }
+        </div>
+        <span class="amount">{{ amountLabel(item) }}</span>
+        <div class="lot-actions">
+          <button type="button" title="Editar entrada" [disabled]="cannotModify()" [attr.aria-label]="'Editar ' + item.name + ' del ' + dateLabel(item.enteredOn)" (click)="editRequested.emit(item)"><app-icon name="edit" /> Editar</button>
+          <button type="button" class="primary withdraw-button" [disabled]="cannotModify()" [attr.aria-label]="'Retirar ' + item.name + ' del ' + dateLabel(item.enteredOn)" (click)="withdraw(item)">Retirar</button>
+        </div>
+      </li>
+    } @empty { <li class="empty">Ya no quedan registros de este elemento en este espacio.</li> }
+  </ul>
+
+  @if (inventory.loading()) { <p role="status">Actualizando inventario…</p> }
+  @if (planning.loading()) { <p role="status">Comprobando planificación…</p> }
+  @if (planning.error()) { <p role="alert">{{ planning.error() }} <button type="button" (click)="planning.load(true)">Reintentar planificación</button></p> }
+  @if (group().item.ingredientId && ingredientPlanning.loading()) { <p role="status">Comprobando ingredientes planificados…</p> }
+  @if (group().item.ingredientId && ingredientPlanning.error()) { <p role="alert">{{ ingredientPlanning.error() }} <button type="button" (click)="ingredientPlanning.load(true)">Reintentar ingredientes planificados</button></p> }
+  @if (inventory.error()) { <div class="notice" role="alert"><p>{{ inventory.error() }}</p><button type="button" [disabled]="disabled() || inventory.loading() || inventory.saving()" (click)="reloadRequested.emit()">Reintentar carga</button></div> }
+  @if (inventory.saving()) { <p class="saving-status" role="status">Guardando cambios…</p> }
+  @if (inventory.saveError()) {
+    <div class="notice" role="alert"><p>{{ inventory.saveError() }}</p><p>Hay cambios pendientes de guardar.</p>
+      <div class="retry-actions"><button type="button" [disabled]="disabled() || inventory.saving()" (click)="retryRequested.emit()">Reintentar guardado</button><button type="button" [disabled]="disabled() || inventory.saving()" (click)="reloadRequested.emit()">Cargar versión guardada</button></div>
+    </div>
+  }
+</dialog>

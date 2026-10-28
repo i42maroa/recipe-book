@@ -1,0 +1,31 @@
+<dialog #dialog class="place-dialog" aria-labelledby="inventory-place-title" (cancel)="close($event)">
+  <header>
+    <h2 id="inventory-place-title">Selección lugar</h2>
+    <button type="button" class="icon-button" aria-label="Cerrar selección de lugar" [disabled]="disabled()" (click)="close()"><app-icon name="close" /></button>
+  </header>
+
+  @if (inventory.selected(); as place) {
+    <label>Cambiar de lugar
+      <select class="place-selector" [disabled]="cannotModify()" (change)="selected.emit($any($event.target).value)">
+        @for (option of inventory.places(); track option.id) { <option [value]="option.id" [selected]="option.id === place.id">{{ option.name }}</option> }
+      </select>
+    </label>
+  } @else { <p class="empty">Todavía no tienes lugares. Añade uno para organizar su alacena y su congelador.</p> }
+
+  <div class="place-actions">
+    <button type="button" class="primary" [disabled]="cannotModify()" (click)="createRequested.emit()"><app-icon name="plus" /> Añadir nuevo lugar</button>
+    @if (inventory.selected(); as place) {
+      <button type="button" [disabled]="cannotModify()" (click)="renameRequested.emit()"><app-icon name="edit" /> Renombrar</button>
+      <button type="button" class="delete-action" [disabled]="cannotModify() || !!place.items.length" [title]="place.items.length ? 'Vacía la alacena y el congelador antes de eliminar el lugar' : 'Eliminar lugar'" (click)="removeRequested.emit()"><app-icon name="trash" /> Eliminar lugar</button>
+    }
+  </div>
+
+  @if (inventory.saving()) { <p class="status" role="status">Guardando cambios…</p> }
+  @if (inventory.loading()) { <p class="status" role="status">Actualizando lugares…</p> }
+  @if (inventory.error()) { <div class="notice" role="alert"><p>{{ inventory.error() }}</p><button type="button" [disabled]="disabled() || inventory.loading() || inventory.saving()" (click)="reloadRequested.emit()">Reintentar carga</button></div> }
+  @if (inventory.saveError()) {
+    <div class="notice" role="alert"><p>{{ inventory.saveError() }}</p><p>Hay cambios pendientes de guardar.</p>
+      <div class="retry-actions"><button type="button" [disabled]="disabled() || inventory.saving()" (click)="retryRequested.emit()">Reintentar guardado</button><button type="button" [disabled]="disabled() || inventory.saving()" (click)="reloadRequested.emit()">Cargar versión guardada</button></div>
+    </div>
+  }
+</dialog>

@@ -20,6 +20,12 @@
 .recipe-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
 .recipe-card.is-disabled { opacity: .55; cursor: default; }
 .recipe-card.is-disabled:hover { transform: none; box-shadow: none; }
+.recipe-card.compact { padding: 16px; gap: 10px; }
+.compact .recipe-title { min-height: 0; overflow-wrap: anywhere; }
+.compact .meal-label { font-size: 10px; line-height: 1.5; }
+.compact-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; color: var(--color-text-secondary); font-size: 12px; }
+.compact-servings { display: inline-flex; align-items: center; gap: 5px; }
+.compact-servings app-icon { width: 14px; height: 14px; flex-shrink: 0; }
 .recipe-photo {
   position: relative;
   display: flex;

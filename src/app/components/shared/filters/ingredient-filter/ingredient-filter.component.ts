@@ -14,11 +14,13 @@ import { AuthService } from '../../../../services/auth.service';
 import { NotificationService } from '../../../../services/notification.service';
 import { IngredientTagComponent } from '../../ingredient-tag/ingredient-tag.component';
 import { distinctUntilChanged, startWith } from 'rxjs';
+import { IngredientMeasuresComponent } from '../../ingredient-measures/ingredient-measures.component';
+import { ingredientMeasuresForm, measuresFormValue } from '../../../../utils/ingredient-measures-form.utils';
 
 @Component({
   selector: 'app-ingredient-filter',
   standalone: true,
-  imports: [ReactiveFormsModule, SearchFilterComponent, SelectFilterComponent, IconComponent, IngredientTagComponent],
+  imports: [ReactiveFormsModule, SearchFilterComponent, SelectFilterComponent, IconComponent, IngredientTagComponent, IngredientMeasuresComponent],
   templateUrl: './ingredient-filter.component.html',
   styleUrl: './ingredient-filter.component.css',
 })
@@ -29,8 +31,9 @@ export class IngredientFilterComponent {
   private readonly destroyRef = inject(DestroyRef);
   readonly selectedIds = input<string[]>([]);
   readonly selectedIdsChange = output<string[]>();
-  readonly purpose = input<'recipe-filter' | 'shopping' | 'freezer'>('recipe-filter');
+  readonly purpose = input<'recipe-filter' | 'shopping' | 'freezer' | 'inventory'>('recipe-filter');
   readonly showSelected = input(true);
+  readonly requireAll = input(false);
   readonly disabled = input(false);
   readonly addingIngredient = signal(false);
   readonly createError = signal('');
@@ -42,6 +45,7 @@ export class IngredientFilterComponent {
       .map(category => ({ value: category, label: ingredientCategoryLabel(category) })),
   ];
   readonly newCategory = new FormControl<IngredientCategory | ''>('', { nonNullable: true, validators: [Validators.required] });
+  readonly newMeasures = ingredientMeasuresForm();
   readonly newCategoryOptions = this.categoryOptions.filter(option => option.value && option.value !== 'Elaboracion');
   private readonly query = toSignal(this.search.valueChanges, { initialValue: '' });
   readonly selectedCategory = toSignal(this.category.valueChanges, { initialValue: this.category.value });
@@ -49,7 +53,7 @@ export class IngredientFilterComponent {
   readonly newName = computed(() => this.query().trim());
   readonly canCreate = computed(() => this.purpose() !== 'recipe-filter' && this.auth.canEdit() && this.ingredients.loaded()
     && !this.ingredients.error() && normalizeSearch(this.newName()).length >= MIN_SEARCH_LENGTH
-    && !this.catalog().byName.has(normalizeSearch(this.newName())));
+    && !this.results().length && !this.catalog().byName.has(normalizeSearch(this.newName())));
   private readonly selectedSet = computed(() => new Set(this.selectedIds()));
   readonly searching = computed(() => normalizeSearch(this.query()).length >= MIN_SEARCH_LENGTH || !!this.selectedCategory());
   readonly selected = computed(() => this.selectedIds().map(id => ({ id, name: this.catalog().byId.get(id)?.name ?? 'Ingrediente' })));
@@ -71,15 +75,15 @@ export class IngredientFilterComponent {
 
   async createIngredient(): Promise<void> {
     if (this.disabled() || this.addingIngredient() || !this.canCreate()) return;
-    this.newCategory.markAsTouched();
+    this.newCategory.markAsTouched(); this.newMeasures.markAllAsTouched();
     const name = this.newName(); const category = this.newCategory.value;
-    if (!category) return;
+    if (!category || this.newMeasures.invalid) return;
     const owner = this.auth.user()?.id;
     this.addingIngredient.set(true); this.createError.set('');
-    this.search.disable(); this.category.disable(); this.newCategory.disable();
+    this.search.disable(); this.category.disable(); this.newCategory.disable(); this.newMeasures.disable();
     try {
       const existing = this.catalog().byName.get(normalizeSearch(name));
-      const ingredient = existing ?? await this.ingredients.add(name, category);
+      const ingredient = existing ?? await this.ingredients.add(name, category, [], {}, measuresFormValue(this.newMeasures));
       if (this.destroyRef.destroyed || !this.auth.canEdit() || this.auth.user()?.id !== owner) return;
       if (this.disabled()) {
         this.notifications.success(`${ingredient.name} creado. Puedes añadirlo desde el buscador.`);
@@ -94,7 +98,7 @@ export class IngredientFilterComponent {
       }
     } finally {
       if (!this.destroyRef.destroyed) {
-        this.addingIngredient.set(false); this.search.enable(); this.category.enable(); this.newCategory.enable();
+        this.addingIngredient.set(false); this.search.enable(); this.category.enable(); this.newCategory.enable(); this.newMeasures.enable();
       }
     }
   }

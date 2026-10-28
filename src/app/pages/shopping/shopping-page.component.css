@@ -18,7 +18,7 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--color-pr
 .dialog-heading .close-dialog { flex-shrink: 0; width: 44px; padding: 10px; border: 0; background: transparent; }
 .dialog-summary { margin-top: 8px; }
 .add-dialog-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.add-dialog-footer button { flex-shrink: 0; }
+.add-dialog-footer button { flex-shrink: 0; margin-inline-start: auto; }
 .add-tabs { display: flex; gap: 4px; margin-bottom: 20px; padding-bottom: 8px; border-bottom: 1px solid var(--color-secondary); }
 .add-tabs button { flex: 1; max-width: 200px; background: transparent; border-color: transparent; }
 .add-tabs button[aria-selected="true"] { background: var(--color-surface); border-color: var(--color-secondary); color: var(--color-primary-dark); font-weight: 600; }
@@ -35,8 +35,14 @@ button:focus-visible, textarea:focus-visible { outline: 2px solid var(--color-pr
 ul { list-style: none; margin: 0; padding: 0; }
 li { display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--color-border); min-height: 54px; }
 .ingredient-name { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
-.occurrence { min-width: 44px; padding: 5px 9px; border-radius: 6px; background: var(--color-success-soft); color: var(--color-primary); font-size: 12px; flex-shrink: 0; }
-.occurrence:hover:not(:disabled) { border-color: var(--color-secondary); background: var(--color-surface-soft); }
+.ingredient-name small { display: block; margin: 6px 0; color: var(--color-text-secondary); font-size: 11px; line-height: 1.4; }
+.quantity-button { max-width: 55%; text-align: right; overflow-wrap: anywhere; font-size: 12px; }
+.quantity-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; max-width: 55%; min-width: 0; }
+.quantity-controls .quantity-button { max-width: 100%; }
+.unit-quantity { min-width: 48px; font-variant-numeric: tabular-nums; }
+.quantity-help { margin-top: 14px; }
+.purchase-destination { display: grid; gap: 8px; margin-top: 20px; font-size: 13px; }
+.purchase-destination select { box-sizing: border-box; width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 7px; background: var(--color-surface); color: var(--color-text); font: inherit; }
 .remove-ingredient { width: 44px; padding: 12px; border: 0; background: transparent; }
 .remove-ingredient:hover:not(:disabled) { background: var(--color-danger-soft); color: var(--color-danger); }
 .save-actions { margin-top: 20px; flex-wrap: wrap; justify-content: flex-end; }

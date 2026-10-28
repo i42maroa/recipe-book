@@ -56,3 +56,4 @@ a.entry-title:hover { text-decoration: underline; text-underline-offset: 3px; }
 @keyframes planner-day-shimmer { to { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) { .skeleton::after { animation: none; display: none; } }
 @media (max-width: 760px) { .meal-entries { grid-template-columns: minmax(0, 1fr); } .day { padding: 16px; } .day-heading h2 { font-size: 22px; } }
+.inventory-source { color: var(--color-primary); font-size: 12px; line-height: 1.5; }

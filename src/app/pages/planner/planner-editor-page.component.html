@@ -6,7 +6,7 @@
   @if (error() && !loading()) { <div class="notice" role="alert">No se pudieron cargar las comidas. <button type="button" (click)="load()">Reintentar</button></div> }
   @else {
     @if (loading()) { <p class="sr-only" role="status">{{ todayOnly ? 'Cargando las comidas de hoy…' : 'Cargando las comidas de los siete días…' }}</p> }
-    @if (picker(); as target) { <app-recipe-picker [dayLabel]="target.label" [slotLabel]="slotLabel(target.slot)" [excludedRecipeIds]="recipeIdsForSlot(target.date, target.slot)" (selected)="add($event)" (closed)="closePicker()" /> }
+    @if (picker(); as target) { <app-recipe-picker [dayLabel]="target.label" [slotLabel]="slotLabel(target.slot)" [excludedRecipeIds]="recipeIdsForSlot(target.date, target.slot)" (selected)="add($event)" (inventorySelected)="addFromInventory($event)" (closed)="closePicker()" /> }
     <fieldset class="calendar" [disabled]="busy() || loading()" [attr.aria-busy]="busy() || loading()"><legend class="sr-only">{{ todayOnly ? 'Comidas de hoy' : 'Comidas de los siete días' }}</legend>
       @if (!todayOnly) {
       <nav class="week-days" aria-label="Días de la semana">
@@ -16,7 +16,10 @@
       @for (day of dayViews(); track day.date) {
         <app-planner-day [date]="day.date" [label]="day.label" [dayId]="'scheduled-day-' + day.offset" [meals]="day.meals" [summaries]="summaries()" [loading]="loading()" [disabled]="busy()" [recipeQueryParams]="recipeQueryParams()" (addRecipe)="choose(day.date, $event)" (removeRecipe)="removeEntry($event)" (modeChanged)="markDirty(day.date)">
           @if (!loading() && dirtyDates().has(day.date)) {
-            <footer day-footer class="day-save"><p role="status">Cambios sin guardar.</p><button class="primary" type="button" [disabled]="busy()" (click)="saveDay(day.date)">{{ savingDate() === day.date ? 'Guardando…' : 'Guardar' }}</button></footer>
+            <footer day-footer class="day-save">
+              @if (savingDate() === day.date) { <p role="status">Guardando…</p> }
+              @else { <p role="status">Cambios sin guardar.</p><button class="primary" type="button" [disabled]="busy()" (click)="saveDay(day.date)">Guardar</button> }
+            </footer>
           }
         </app-planner-day>
       }

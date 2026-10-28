@@ -16,6 +16,7 @@ export class RecipeCardComponent {
   readonly recipe = input.required<RecipeCard>();
   readonly selected = output<RecipeCard>();
   readonly priority = input(false);
+  readonly compact = input(false);
   readonly disabled = input(false);
   readonly ingredientFilterIds = input<string[]>([]);
   readonly matchedIngredients = computed(() => {

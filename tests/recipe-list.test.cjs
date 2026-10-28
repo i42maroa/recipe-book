@@ -7,7 +7,7 @@ const filterUtils = loadService('src/app/utils/recipe-filters.utils.ts', {}, {},
 const ready = (page) => !page.loading;
 const gate = () => { let resolve; const promise = new Promise((done) => { resolve = done; }); return { promise, resolve }; };
 
-test('the recipe collection initially requests prepared recipes and allows choosing all', async () => {
+test('the recipe collection initially requests prepared recipes and preserves an explicitly chosen status', async () => {
   const { list, state, connect, settled } = setup();
   assert.equal(list.filters.pending, 'done');
   const connection = connect();
@@ -17,6 +17,9 @@ test('the recipe collection initially requests prepared recipes and allows choos
   await settled();
   assert.equal(state.calls.at(-1).filters.pending, 'all');
   connection.subscription.unsubscribe();
+  const back = connect(); await settled();
+  assert.equal(list.filters.pending, 'all');
+  back.subscription.unsubscribe();
 });
 
 test('ingredient selections reset pagination, survive navigation and clear as one update', async () => {
