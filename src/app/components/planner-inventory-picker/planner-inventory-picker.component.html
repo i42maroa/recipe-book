@@ -1,0 +1,32 @@
+<section aria-label="Existencias de tu inventario" [attr.aria-busy]="loading()">
+  <p class="intro">Selecciona un plato preparado de tu inventario para añadirlo a esta comida. Sus raciones se conservan.</p>
+  @if (planning.loading()) { <p class="planning-status" role="status">Comprobando planificación…</p> }
+  @if (planning.error()) { <p class="planning-status" role="alert">{{ planning.error() }} <button type="button" (click)="planning.load(true)">Reintentar planificación</button></p> }
+  <div class="inventory-filters">
+    <app-search-filter placeholder="Buscar plato en el inventario…" ariaLabel="Buscar platos preparados en el inventario" [formControl]="search" />
+  </div>
+  @if (loading()) { <p role="status" class="status">Cargando recetas del inventario…</p> }
+  @else if (error()) {
+    <div class="status" role="alert"><p>{{ error() }}</p><button type="button" (click)="load()">Reintentar</button>@if (inventory.dirty()) { <p><a routerLink="/inventory">Revisar los cambios pendientes del inventario</a></p> }</div>
+  } @else if (recipesLoading()) { <p class="status" role="status">Cargando platos preparados…</p> }
+  @else if (recipesError()) { <p class="status" role="alert">{{ recipesError() }} <button type="button" (click)="load()">Reintentar platos</button></p> }
+  @else {
+    <ul class="inventory-recipes">
+      @for (lot of lots(); track lot.place.id + ':' + lot.item.id) {
+        <li>
+          <button class="inventory-recipe" type="button" [attr.data-lot-id]="lot.item.id" [disabled]="!lot.recipe || isAdded(lot.item.recipeId!)" (click)="select(lot.recipe, lot.item, lot.place)">
+            <strong>{{ lot.item.name }}</strong>
+            <span class="lot-location">{{ lot.place.name }} · @if (lot.item.space === 'freezer') { <span class="freezer-label"><app-icon name="freezer" /> Congelador</span> } @else { Alacena }</span>
+            <span>{{ lot.item.servings }} {{ lot.item.servings === 1 ? 'ración disponible' : 'raciones disponibles' }}</span>
+            <span>Entrada: {{ dateLabel(lot.item.enteredOn) }}</span>
+            @if (planning.forItem(lot.place.id, lot.item.id); as plans) {
+              @if (plans.length) { <small class="planned">En planificación: @for (plan of plans; track plan.date + ':' + plan.slot) { <span>{{ planning.label(plan) }}@if (!$last) { ; }</span> }</small> }
+            }
+            @if (!lot.recipe) { <small>La receta ya no está disponible en el recetario.</small> }
+            @else if (isAdded(lot.item.recipeId!)) { <small>Ya añadida a esta comida</small> }
+          </button>
+        </li>
+      } @empty { <li class="status">{{ search.value ? 'No hay recetas preparadas con esta búsqueda.' : 'Todavía no tienes recetas preparadas en tu inventario.' }}</li> }
+    </ul>
+  }
+</section>

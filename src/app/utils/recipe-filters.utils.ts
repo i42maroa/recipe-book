@@ -14,7 +14,7 @@ interface RecipeFilterControls {
 /** One canonical key for equality and cache lookups, independent of tag order. */
 export function recipeFilterKey(filters: RecipeFilters): string {
   return JSON.stringify([filters.search.trim(), filters.pending, filters.sort, filters.mealType, filters.difficulty,
-    [...new Set(filters.ingredientIds ?? [])].sort()]);
+    [...new Set(filters.ingredientIds ?? [])].sort(), filters.ingredientMatch === 'all' ? 'all' : 'any']);
 }
 
 export function recipeFilterChanges(controls: RecipeFilterControls, options: {

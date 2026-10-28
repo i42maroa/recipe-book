@@ -24,3 +24,5 @@ h3 { font-size: 15px; margin: 0; }
 .empty-day-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .notice { background: var(--color-warning-soft); color: var(--color-text); padding: 14px; border-radius: 8px; }
 @media (max-width: 760px) { .planner-page { padding: 28px 17px; } .heading { align-items: start; flex-direction: column; } .meal-entries { grid-template-columns: 1fr; } .day { padding: 16px; } }
+.planned-recipe { min-width: 0; }
+.inventory-source { margin: 8px 0 0; color: var(--color-primary); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }

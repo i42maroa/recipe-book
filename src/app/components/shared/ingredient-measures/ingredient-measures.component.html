@@ -1,0 +1,14 @@
+<div class="measure-fields" [formGroup]="form">
+  <div class="measure-row" [class.units-enabled]="form.controls.unitsEnabled.value">
+    @if (category === 'Especia') {
+      <p class="spice-measure">Medida base: gramos. Una cucharada equivale a 5 g.</p>
+    } @else {
+      <label><span class="base-unit-title">Medida base <span aria-hidden="true">*</span></span><select formControlName="baseUnit" required><option value="">Elige gramos o mililitros</option><option value="g">Gramos (g)</option><option value="ml">Mililitros (ml)</option></select></label>
+    }
+    @if (form.controls.unitsEnabled.value) {
+      <label><span>Contenido de una unidad ({{ form.controls.baseUnit.value || 'g o ml' }})</span><input type="number" autocomplete="off" formControlName="unitQuantity" min="0" step="any" required placeholder="Ej. 150"></label>
+    }
+  </div>
+  <label class="checkbox"><input type="checkbox" formControlName="unitsEnabled"> Permitir unidades</label>
+  @if (form.touched && form.invalid) { <p class="error" role="alert">Selecciona la medida base e indica una equivalencia mayor que cero si permites unidades.</p> }
+</div>

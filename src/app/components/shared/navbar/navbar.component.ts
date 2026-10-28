@@ -9,8 +9,7 @@ import { IngredientService } from '../../../services/ingredient.service';
 import { NotificationService } from '../../../services/notification.service';
 import { RecipeService } from '../../../services/recipe.service';
 import { RecipeDetailActionsService } from '../../../services/recipe-detail-actions.service';
-import { FreezerService } from '../../../services/freezer.service';
-import { FreezerNavigationAction, FreezerNavigationService } from '../../../services/freezer-navigation.service';
+import { InventoryNavigationAction, InventoryNavigationService } from '../../../services/inventory-navigation.service';
 import { IconComponent } from '../icon/icon.component';
 import { UserSessionComponent } from '../user-session/user-session.component';
 
@@ -26,8 +25,7 @@ type Detail = { kind: 'recipe'; item: Recipe } | { kind: 'ingredient'; item: Ing
 export class NavbarComponent {
   readonly auth = inject(AuthService);
   readonly recipeActions = inject(RecipeDetailActionsService);
-  readonly freezerInventory = inject(FreezerService);
-  readonly freezerNavigation = inject(FreezerNavigationService);
+  readonly inventoryNavigation = inject(InventoryNavigationService);
   private readonly router = inject(Router);
   private readonly recipes = inject(RecipeService);
   private readonly ingredients = inject(IngredientService);
@@ -41,9 +39,9 @@ export class NavbarComponent {
     filter(event => event instanceof NavigationEnd), startWith(null),
     map(() => ['planner', 'planner/day', 'planner/week'].includes(this.router.parseUrl(this.router.url).root.children['primary']?.segments.map(segment => segment.path).join('/') ?? '')),
   ), { initialValue: false });
-  readonly isFreezerPage = toSignal(this.router.events.pipe(
+  readonly isInventoryPage = toSignal(this.router.events.pipe(
     filter(event => event instanceof NavigationEnd), startWith(null),
-    map(() => this.router.parseUrl(this.router.url).root.children['primary']?.segments.map(segment => segment.path).join('/') === 'freezer'),
+    map(() => this.router.parseUrl(this.router.url).root.children['primary']?.segments.map(segment => segment.path).join('/') === 'inventory'),
   ), { initialValue: false });
   readonly detail = toSignal(combineLatest([
     this.router.events.pipe(filter((event) => event instanceof NavigationEnd), startWith(null)),
@@ -108,10 +106,10 @@ export class NavbarComponent {
     this.recipeActions.requestPlanning(recipe.id);
   }
 
-  freezerAction(action: FreezerNavigationAction): void {
-    if (!this.auth.canEdit() || !this.isFreezerPage() || this.freezerNavigation.blocked()) return;
+  inventoryAction(action: InventoryNavigationAction): void {
+    if (!this.auth.canEdit() || !this.isInventoryPage() || this.inventoryNavigation.blocked()) return;
     this.closeMenu(true);
-    this.freezerNavigation.request(action);
+    this.inventoryNavigation.request(action);
   }
 
   async remove(detail: Detail): Promise<void> {

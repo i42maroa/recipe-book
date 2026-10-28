@@ -1,9 +1,9 @@
 import { LoadingService } from './loading.service';
 import { RecipeCard } from '../models/recipe-card.model';
 import { AuthService } from './auth.service';
-﻿import { Injectable, inject } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
-import { MealType, Recipe, RecipeDifficulty } from '../models/recipe.model';
+import { MealType, Recipe, RecipeDifficulty, RecipeIngredientUsage } from '../models/recipe.model';
 import { NotificationService } from './notification.service';
 import { SupabaseService } from './supabase.service';
 import { RecipePhotoChanges, RecipePhotoService } from './recipe-photo.service';
@@ -13,7 +13,7 @@ import { MIN_SEARCH_LENGTH } from '../utils/search.utils';
 import { RecipeCardRow, RecipeRow } from '../models/database.model';
 import { mapIngredientAmounts } from '../utils/ingredient-amount.utils';
 
-const RECIPE_SELECT = '*, recipe_ingredients(ingredient_id,amount_kind,amount_value,amount_unit), recipe_steps(position,description), recipe_cuisine_types(cuisine_types(name)), recipe_photos(id,storage_path,position,alt_text)';
+const RECIPE_SELECT = '*, recipe_ingredients(ingredient_id,amount_kind,amount_value,amount_unit,amount_base_unit,amount_unit_quantity), recipe_steps(position,description), recipe_cuisine_types(cuisine_types(name)), recipe_photos(id,storage_path,position,alt_text)';
 const RECIPE_CARD_SELECT = 'id,name,minutes,servings,pending,meal_types,rating,fitness,difficulty,recipe_ingredients(count),recipe_cuisine_types(cuisine_types(name)),recipe_photos(id,storage_path,position,alt_text)';
 export interface RecipeFilters {
   search: string;
@@ -22,6 +22,7 @@ export interface RecipeFilters {
   mealType: MealType | '';
   difficulty: RecipeDifficulty | '';
   ingredientIds?: string[];
+  ingredientMatch?: 'all';
 }
 export interface RecipeBatch {
   items: RecipeCard[];
@@ -90,19 +91,15 @@ export class RecipeService {
     catch { this.notifications.error('El cambio se ha guardado, pero no se pudieron actualizar los contadores.'); }
   }
 
-  async refreshRecipe(id: string): Promise<void> {
-    this.invalidateDetail(id);
-    await this.fetchRecipe(id);
-    this.changesSubject.next(this.changesSubject.value + 1);
-  }
-
   async getBatch(filters: RecipeFilters, offset = 0, limit = this.pageSize, signal?: AbortSignal): Promise<RecipeBatch> {
     const client = this.supabase.requireClient();
     const from = Math.max(0, Math.floor(offset));
     const batchSize = Math.max(1, Math.floor(limit));
     const ingredientIds = [...new Set(filters.ingredientIds ?? [])];
+    // With one ingredient, any-match and all-match are the same query.
+    const allIngredients = filters.ingredientMatch === 'all' && ingredientIds.length > 1;
     let query = ingredientIds.length
-      ? client.rpc('search_recipes_by_ingredients', { p_ingredient_ids: ingredientIds, p_sort: filters.sort }, { count: 'exact' }).returns<RecipeCardRow[]>()
+      ? client.rpc(allIngredients ? 'search_recipes_with_all_ingredients' : 'search_recipes_by_ingredients', { p_ingredient_ids: ingredientIds, p_sort: filters.sort }, { count: 'exact' }).returns<RecipeCardRow[]>()
         .select(`${RECIPE_CARD_SELECT},matched_ingredients:recipe_ingredients(ingredient_id,ingredients(name))`)
       : client.from('recipes').select(RECIPE_CARD_SELECT, { count: 'exact' });
     const search = filters.search.trim();
@@ -125,6 +122,9 @@ export class RecipeService {
     if (signal) query = query.abortSignal(signal);
     const { data, count, error } = await query.range(from, from + batchSize - 1).returns<RecipeCardRow[]>();
     if (error) {
+      if (allIngredients && ['PGRST202', '42883'].includes(error.code)) {
+        return this.getAllIngredientMatches(filters, from, batchSize, signal);
+      }
       // Recipes may have been deleted since the previous batch was loaded.
       if (from > 0 && error.code === 'PGRST103') {
         const first = await query.range(0, 0);
@@ -136,6 +136,29 @@ export class RecipeService {
     const total = count ?? 0;
     if (data && !Array.isArray(data)) throw new Error('La consulta de recetas no devolvió una lista.');
     const items = this.mapCardRows(data ?? [], ingredientIds);
+    return { items, total, offset: from };
+  }
+
+  /** Compatibility for projects where the dedicated all-ingredient RPC is not installed yet. */
+  private async getAllIngredientMatches(filters: RecipeFilters, from: number, limit: number, signal?: AbortSignal): Promise<RecipeBatch> {
+    const ids = new Set((filters.ingredientIds ?? []).map(id => id.toLowerCase()));
+    const items: RecipeCard[] = [];
+    let offset = 0; let total = 0;
+    // Scan every candidate page before reporting the filtered count. Keep only
+    // the requested output page, preserving the server's ranking and filters.
+    for (;;) {
+      signal?.throwIfAborted();
+      const page = await this.getBatch({ ...filters, ingredientMatch: undefined }, offset, 200, signal);
+      signal?.throwIfAborted();
+      for (const recipe of page.items) {
+        const matches = new Set((recipe.matchedIngredients ?? []).map(ingredient => ingredient.id.toLowerCase()));
+        if (![...ids].every(id => matches.has(id))) continue;
+        if (total >= from && items.length < limit) items.push(recipe);
+        total++;
+      }
+      offset += page.items.length;
+      if (!page.items.length || offset >= page.total) break;
+    }
     return { items, total, offset: from };
   }
 
@@ -190,15 +213,23 @@ export class RecipeService {
     return recipe;
   }
 
-  async getForIngredient(id: string): Promise<Pick<Recipe, 'id' | 'name' | 'minutes'>[]> {
-    const result: Pick<Recipe, 'id' | 'name' | 'minutes'>[] = [];
-    for (let offset = 0; ; offset += 1000) {
-      const { data, error } = await this.supabase.requireClient().from('recipes')
-        .select('id,name,minutes,recipe_ingredients!inner(ingredient_id)')
-        .eq('recipe_ingredients.ingredient_id', id).order('name').order('id').range(offset, offset + 999);
+  async getForIngredient(id: string): Promise<RecipeIngredientUsage[]> {
+    const ingredientId = id.toLowerCase(); const result: RecipeIngredientUsage[] = [];
+    let offset = 0; let total: number | null = null;
+    for (;;) {
+      const { data, count, error } = await this.supabase.requireClient().from('recipes')
+        .select('id,name,recipe_ingredients!inner(ingredient_id,amount_kind,amount_value,amount_unit,amount_base_unit,amount_unit_quantity)', offset === 0 ? { count: 'exact' } : undefined)
+        .eq('recipe_ingredients.ingredient_id', ingredientId).order('name').order('id').range(offset, offset + 199)
+        .returns<Pick<RecipeRow, 'id' | 'name' | 'recipe_ingredients'>[]>();
       if (error) throw error;
-      result.push(...(data ?? []));
-      if (!data || data.length < 1000) return result;
+      if (offset === 0) total = count ?? null;
+      const rows = data ?? [];
+      result.push(...rows.map(row => ({ id: row.id, name: row.name,
+        ingredientAmount: mapIngredientAmounts(row.recipe_ingredients, entry => entry.ingredient_id.toLowerCase())[ingredientId] ?? null,
+      })));
+      offset += rows.length;
+      if (!rows.length && total !== null && offset < total) throw new Error('Las recetas relacionadas han cambiado durante la consulta. Reintenta.');
+      if (!rows.length || (total !== null && offset >= total)) return result;
     }
   }
 
@@ -216,36 +247,35 @@ export class RecipeService {
   private mapCardRows(rows: RecipeCardRow[], ingredientIds: string[] = []): RecipeCard[] {
     const selectedIds = new Set(ingredientIds.map(id => id.toLowerCase()));
     return rows.map((row) => ({
-      id: row.id, name: row.name, minutes: row.minutes, servings: row.servings,
-      pending: row.pending, mealTypes: row.meal_types ?? [], rating: row.rating,
-      fitness: row.fitness, difficulty: row.difficulty ?? undefined,
+      ...this.mapSummary(row),
       ingredientCount: row.recipe_ingredients?.[0]?.count ?? 0,
       ...(row.matched_ingredients ? { matchedIngredients: row.matched_ingredients.flatMap(item =>
         item.ingredients && selectedIds.has(item.ingredient_id.toLowerCase())
           ? [{ id: item.ingredient_id, name: item.ingredients.name }] : []) } : {}),
-      cuisineTypes: (row.recipe_cuisine_types ?? []).flatMap((item) => item.cuisine_types ? [item.cuisine_types.name] : []),
-      photos: [...(row.recipe_photos ?? [])].sort((a, b) => a.position - b.position).map((photo) => ({
-        id: photo.id, storagePath: photo.storage_path, url: this.photoService.publicUrl(photo.storage_path),
-        position: photo.position, altText: photo.alt_text,
-      })),
     }));
   }
 
   private mapRows(rows: RecipeRow[]): Recipe[] {
     return rows.map((row) => ({
-      id: row.id, name: row.name, minutes: row.minutes, servings: row.servings, pending: row.pending, mealTypes: row.meal_types ?? [],
-      rating: row.rating, sourceUrl: row.source_url ?? '', annotations: row.annotations ?? '', fitness: row.fitness,
-      difficulty: row.difficulty ?? undefined, steps: [...(row.recipe_steps ?? [])].sort((a, b) => a.position - b.position).map((step) => step.description),
+      ...this.mapSummary(row),
+      sourceUrl: row.source_url ?? '', annotations: row.annotations ?? '',
+      steps: [...(row.recipe_steps ?? [])].sort((a, b) => a.position - b.position).map((step) => step.description),
       ingredientIds: (row.recipe_ingredients ?? []).map((item) => item.ingredient_id),
       ingredientAmounts: mapIngredientAmounts(row.recipe_ingredients ?? [], (item) => item.ingredient_id),
-      cuisineTypes: (row.recipe_cuisine_types ?? []).map((item) => item.cuisine_types?.name).filter((name): name is NonNullable<typeof name> => name !== undefined),
-      photos: [...(row.recipe_photos ?? [])].sort((a, b) => a.position - b.position).map((photo) => ({
-        id: photo.id, storagePath: photo.storage_path, url: this.photoService.publicUrl(photo.storage_path), position: photo.position, altText: photo.alt_text,
-      })),
     }));
   }
 
-
+  private mapSummary(row: Omit<RecipeCardRow, 'recipe_ingredients'>) {
+    return {
+      id: row.id, name: row.name, minutes: row.minutes, servings: row.servings,
+      pending: row.pending, mealTypes: row.meal_types ?? [], rating: row.rating,
+      fitness: row.fitness, difficulty: row.difficulty ?? undefined,
+      cuisineTypes: (row.recipe_cuisine_types ?? []).flatMap(item => item.cuisine_types ? [item.cuisine_types.name] : []),
+      photos: [...(row.recipe_photos ?? [])].sort((a, b) => a.position - b.position).map((photo) => ({
+        id: photo.id, storagePath: photo.storage_path, url: this.photoService.publicUrl(photo.storage_path), position: photo.position, altText: photo.alt_text,
+      })),
+    };
+  }
 
   async create(recipe: Omit<Recipe, 'id'>, photos?: RecipePhotoChanges): Promise<string> { return this.loading.run(() => this.save(null, recipe, photos), 'recipe-save'); }
   async update(id: string, recipe: Omit<Recipe, 'id'>, photos?: RecipePhotoChanges): Promise<string> { return this.loading.run(() => this.save(id, recipe, photos), 'recipe-save'); }

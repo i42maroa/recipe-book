@@ -4,12 +4,16 @@ export interface AmountRow {
   amount_kind: 'none' | 'spoon' | 'glass' | 'specific';
   amount_value: number | string | null;
   amount_unit: 'ml' | 'g' | 'pieza' | null;
+  amount_base_unit?: 'g' | 'ml' | null;
+  amount_unit_quantity?: number | string | null;
 }
 
 export interface IngredientRow {
   id: string;
   name: string;
   category: IngredientCategory;
+  base_unit?: 'g' | 'ml';
+  unit_quantity?: number | string | null;
   ingredient_components: (AmountRow & { component_ingredient_id: string })[];
 }
 

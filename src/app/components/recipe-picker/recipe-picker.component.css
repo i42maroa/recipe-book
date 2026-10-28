@@ -9,6 +9,10 @@ button { font: inherit; cursor: pointer; background: var(--color-surface); color
 button:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
 button:disabled { opacity: .55; cursor: default; }
 .close { min-width: 44px; }
+.source-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 0 28px 16px; background: var(--color-surface); }
+.source-tabs button { min-width: 0; overflow-wrap: anywhere; }
+.source-tabs button[aria-selected="true"] { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-surface); }
+[hidden] { display: none !important; }
 .picker-filters { position: relative; z-index: 2; padding: 20px 28px; background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
 .picker-results { padding: 24px 28px; }
 .recipe-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
@@ -17,5 +21,12 @@ button:disabled { opacity: .55; cursor: default; }
 .status { grid-column: 1 / -1; padding: 30px 0; text-align: center; color: var(--color-text-secondary); }
 .load-more { display: block; margin: 24px auto 0; }
 footer { text-align: center; font-size: 12px; padding: 0 24px 22px; color: var(--color-text-secondary); }
+.recipe-picker.embedded { display: block; width: 100%; max-height: none; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: visible; }
+.embedded .picker-filters { padding: 0; border: 0; background: transparent; }
+.embedded .picker-results { max-height: 340px; padding: 16px 0; overflow: auto; }
+.embedded .recipe-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.embedded footer { padding: 0; }
 @media (max-width: 760px) { .recipe-picker { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); border-radius: 12px; } .picker-heading, .picker-filters, .picker-results { padding: 18px; } .recipe-grid { grid-template-columns: 1fr 1fr; gap: 10px; } h2 { font-size: 22px; } }
 @media (max-width: 480px) { .recipe-grid { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .embedded .recipe-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .source-tabs { grid-template-columns: minmax(0, .8fr) minmax(0, 1.7fr) minmax(0, .8fr); padding: 0 18px 16px; } .source-tabs button { padding: 10px 6px; font-size: 12px; } }

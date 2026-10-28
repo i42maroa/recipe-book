@@ -78,7 +78,8 @@
         <div class="new-recipe-ingredient" role="group" aria-label="Añadir un ingrediente nuevo">
           <label class="field-label"><span class="field-label-title">Nombre del ingrediente</span><input [formControl]="newIngredientName" (keydown.enter)="$event.preventDefault(); createRecipeIngredient()"></label>
           <app-select-filter label="Categoría" placeholder="Elige una categoría" ariaLabel="Categoría del nuevo ingrediente" [options]="newIngredientCategoryOptions" [formControl]="newIngredientCategory"></app-select-filter>
-          <app-button type="button" [disabled]="addingIngredient() || newIngredientName.invalid || newIngredientCategory.invalid" (clicked)="createRecipeIngredient()">{{ addingIngredient() ? 'Añadiendo…' : 'Añadir' }}</app-button>
+          <app-ingredient-measures [form]="newIngredientMeasures" [category]="newIngredientCategory.value" />
+          <app-button type="button" [disabled]="addingIngredient() || newIngredientName.invalid || newIngredientCategory.invalid || newIngredientMeasures.invalid" (clicked)="createRecipeIngredient()">{{ addingIngredient() ? 'Añadiendo…' : 'Añadir' }}</app-button>
         </div>
       }
     </div>
@@ -93,15 +94,7 @@
         <div class="selected-ingredient recipe-selected-ingredient">
           <button type="button" class="remove-selected-ingredient" [attr.aria-label]="'Quitar ' + ingredient.name" (click)="removeRecipeIngredient(ingredient.id)"><app-icon name="close" /></button>
           <div class="selected-ingredient-heading"><strong>{{ ingredient.name }}</strong><small>{{ categoryLabel(ingredient.category) }}</small></div>
-          <div class="ingredient-amount-controls">
-            <select [value]="ingredientAmountKind(ingredient.id)" [attr.aria-label]="'Cantidad de ' + ingredient.name" (change)="setIngredientAmountKind(ingredient.id, $any($event.target).value)"><option value="none">Sin cantidad</option><option value="spoon">1 cucharada</option><option value="glass">1 vaso</option><option value="specific">Cantidad específica</option></select>
-            @if (ingredientAmount(ingredient.id); as amount) {
-              @if (amount.kind === 'specific') {
-                <input type="number" autocomplete="off" min="0.01" step="any" [value]="amount.value ?? ''" [attr.aria-label]="'Cantidad de ' + ingredient.name" placeholder="Cantidad" (input)="setSpecificAmountValue(ingredient.id, $any($event.target).value)">
-                <select [value]="amount.unit" [attr.aria-label]="'Unidad de ' + ingredient.name" (change)="setSpecificAmountUnit(ingredient.id, $any($event.target).value)"><option value="g">g</option><option value="ml">ml</option><option value="pieza">pieza</option></select>
-              }
-            }
-            </div>
+          <app-ingredient-amount [ingredient]="ingredient" [formControl]="ingredientAmountControl(ingredient.id)" />
           </div>
       } @empty { <p class="ingredient-empty">Busca y añade ingredientes para indicar sus cantidades.</p> }
     </div>
@@ -156,6 +149,7 @@
 <fieldset class="form-fields" [disabled]="busy() || !ingredientService.loaded() || ingredientService.error() || !ingredientDetailsReady() || ingredientService.loading.isLoading('ingredients')" [attr.aria-busy]="busy()">
               <label class="field-label"><span class="field-label-title">Nombre del ingrediente <b>*</b></span><input formControlName="name" placeholder="Ej. Garbanzos"></label>
               <label class="field-label"><span class="field-label-title">Categoría <b>*</b></span><select formControlName="category"><option value="">Elige una categoría</option>@for (category of categories; track category) { <option [value]="category">{{ categoryLabel(category) }}</option> }</select></label>
+              <app-ingredient-measures [form]="ingredientForm.controls.measures" [category]="ingredientForm.controls.category.value" />
               @if (ingredientForm.controls.category.value === 'Elaboracion') {
                 <fieldset class="field-set"><legend>Ingredientes de la elaboración <b>*</b></legend>
                   <app-filter-container class="ingredient-filters" layout="search-select" gap="7px">
@@ -178,7 +172,8 @@
                       <div class="new-recipe-ingredient" role="group" aria-label="Añadir un componente nuevo">
                         <label class="field-label"><span class="field-label-title">Nombre del ingrediente</span><input [formControl]="newCompositionName" (keydown.enter)="$event.preventDefault(); createCompositionIngredient()"></label>
                         <app-select-filter label="Categoría" placeholder="Elige una categoría" ariaLabel="Categoría del nuevo componente" [options]="newIngredientCategoryOptions" [formControl]="newCompositionCategory"></app-select-filter>
-                        <app-button type="button" [disabled]="addingIngredient() || newCompositionName.invalid || newCompositionCategory.invalid" (clicked)="createCompositionIngredient()">{{ addingIngredient() ? 'Añadiendo…' : 'Añadir' }}</app-button>
+                        <app-ingredient-measures [form]="newCompositionMeasures" [category]="newCompositionCategory.value" />
+                        <app-button type="button" [disabled]="addingIngredient() || newCompositionName.invalid || newCompositionCategory.invalid || newCompositionMeasures.invalid" (clicked)="createCompositionIngredient()">{{ addingIngredient() ? 'Añadiendo…' : 'Añadir' }}</app-button>
                       </div>
                     }
                   </div>
@@ -192,15 +187,7 @@
                           <div class="selected-ingredient recipe-selected-ingredient">
                             <button type="button" class="remove-selected-ingredient" [attr.aria-label]="'Quitar ' + component.name" (click)="removeCompositionIngredient(component.id)"><app-icon name="close" /></button>
                             <div class="selected-ingredient-heading"><strong>{{ component.name }}</strong><small>{{ categoryLabel(component.category) }}</small></div>
-                            <div class="ingredient-amount-controls">
-                              <select [value]="compositionAmountKind(component.id)" [attr.aria-label]="'Cantidad de ' + component.name" (change)="setCompositionAmountKind(component.id, $any($event.target).value)"><option value="none">Sin cantidad</option><option value="spoon">1 cucharada</option><option value="glass">1 vaso</option><option value="specific">Cantidad específica</option></select>
-                              @if (compositionAmount(component.id); as amount) {
-                                @if (amount.kind === 'specific') {
-                                  <input type="number" autocomplete="off" min="0.01" step="any" [value]="amount.value ?? ''" [attr.aria-label]="'Cantidad de ' + component.name" placeholder="Cantidad" (input)="setCompositionAmountValue(component.id, $any($event.target).value)">
-                                  <select [value]="amount.unit" [attr.aria-label]="'Unidad de ' + component.name" (change)="setCompositionAmountUnit(component.id, $any($event.target).value)"><option value="g">g</option><option value="ml">ml</option><option value="pieza">pieza</option></select>
-                                }
-                              }
-                            </div>
+                            <app-ingredient-amount [ingredient]="component" [formControl]="compositionAmountControl(component.id)" />
                           </div>
                     } @empty { <p class="ingredient-empty">Selecciona componentes arriba para indicar sus cantidades.</p> }
                   </div>

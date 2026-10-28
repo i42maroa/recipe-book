@@ -21,7 +21,7 @@ export class PageMetadataService {
       // Recipe previews are delivered in the initial HTML by the Vercel function.
       meta.updateTag({ property: 'og:url', content: url });
       const notFound = router.routerState.snapshot.root.firstChild?.routeConfig?.path === '**';
-      meta.updateTag({ name: 'robots', content: path === '/login' || path === '/shopping' || path === '/freezer' || path === '/planner' || path.startsWith('/planner/') || notFound ? 'noindex, nofollow' : 'index, follow' });
+      meta.updateTag({ name: 'robots', content: path === '/login' || path === '/shopping' || path === '/inventory' || path === '/freezer' || path === '/planner' || path.startsWith('/planner/') || notFound ? 'noindex, nofollow' : 'index, follow' });
       let canonical = document.querySelector<HTMLLinkElement>('link[rel="canonical"]');
       if (!canonical) {
         canonical = document.createElement('link');

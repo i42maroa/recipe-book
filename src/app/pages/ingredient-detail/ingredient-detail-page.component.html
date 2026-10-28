@@ -14,6 +14,7 @@
         <div class="ingredient-detail-icon"><app-ingredient-icon [category]="ingredient.category" /></div>
         <h1>{{ ingredient.name }}</h1>
         <span class="ingredient-category">{{ ingredient.category }}</span>
+        @if (unitEquivalent(ingredient); as equivalent) { <p class="unit-equivalent">Por unidad: <strong>{{ equivalent }}</strong></p> }
       </section>
 
       @if (details.madeFrom.length) {
@@ -41,7 +42,7 @@
         } @else if (details.usedIn.length) {
           <ul>
             @for (recipe of details.usedIn; track recipe.id) {
-              <li><a [routerLink]="['/recipes', recipe.id]"><span>{{ recipe.name }}</span><small>{{ recipe.minutes ?? '—' }} min</small></a></li>
+              <li><a [routerLink]="['/recipes', recipe.id]"><span>{{ recipe.name }}</span>@if (recipeAmountLabel(recipe, ingredient); as amount) { <small>{{ amount }}</small> }</a></li>
             }
           </ul>
         } @else {

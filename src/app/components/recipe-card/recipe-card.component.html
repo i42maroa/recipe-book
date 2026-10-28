@@ -1,4 +1,12 @@
-<article class="recipe-card" [class.is-disabled]="disabled()" role="button" [attr.aria-disabled]="disabled() ? 'true' : null" [attr.tabindex]="disabled() ? -1 : 0" (click)="selectCard($event)" (keydown.enter)="selectCard($event)" (keydown.space)="selectCard($event)">
+<article class="recipe-card" [class.compact]="compact()" [class.is-disabled]="disabled()" role="button" [attr.aria-disabled]="disabled() ? 'true' : null" [attr.tabindex]="disabled() ? -1 : 0" (click)="selectCard($event)" (keydown.enter)="selectCard($event)" (keydown.space)="selectCard($event)">
+  @if (compact()) {
+    <span class="recipe-title">{{ recipe().name }}</span>
+    <span class="meal-label">{{ recipe().mealTypes.join(' · ') || 'Sin tipo de plato' }}</span>
+    <span class="compact-meta">
+      <span class="compact-servings"><app-icon class="meta-icon" name="person" />{{ recipe().servings ?? '—' }} {{ recipe().servings === 1 ? 'comensal' : 'comensales' }}</span>
+      <span class="recipe-ingredient-count">{{ recipe().ingredientCount }} {{ recipe().ingredientCount === 1 ? 'ingrediente' : 'ingredientes' }}</span>
+    </span>
+  } @else {
   <span [class]="'recipe-photo ' + photoClass()" [class.has-photo]="!!currentPhoto()">
     @if (currentPhoto(); as photo) {
       <img [attr.loading]="priority() ? 'eager' : 'lazy'" [attr.fetchpriority]="priority() ? 'high' : 'auto'" decoding="async" width="640" height="400" class="recipe-photo-image" [src]="photo.url" [alt]="photo.altText?.trim() || 'Foto de ' + recipe().name">
@@ -39,5 +47,6 @@
       @if (recipe().rating) { <span class="rating"><app-icon class="rating-icon" name="star" /> {{ recipe().rating }}</span> }
     </span>
   </div>
+  }
 </article>
 

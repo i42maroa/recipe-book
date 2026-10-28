@@ -1,7 +1,11 @@
 ﻿import { cuisineFlag, ingredientCategoryLabel } from '../../../utils/recipe-display.utils';
 import { AsyncPipe } from '@angular/common';
 import { Component, DestroyRef, EventEmitter, Input, OnInit, Output, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { IngredientMeasuresComponent } from '../ingredient-measures/ingredient-measures.component';
+import { IngredientAmountComponent } from '../ingredient-amount/ingredient-amount.component';
+import { ingredientMeasuresForm, measuresFormValue } from '../../../utils/ingredient-measures-form.utils';
+import { allowedIngredientAmount, ingredientBaseUnit, positiveQuantity } from '../../../utils/ingredient-measures.utils';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { BehaviorSubject, combineLatest, defer, firstValueFrom, map, startWith } from 'rxjs';
 import { ButtonComponent } from '../button/button.component';
@@ -12,6 +16,7 @@ import { BaseFormType, RecipeFormValue } from '../../../models/form.model';
 import { IngredientService } from '../../../services/ingredient.service';
 import { NotificationService } from '../../../services/notification.service';
 import { SelectFilterOption } from '../filters/select-filter-options';
+import { RECIPE_DIFFICULTIES, RECIPE_MEAL_TYPES } from '../filters/recipe-filter-options';
 import { IconComponent } from '../icon/icon.component';
 import { MIN_SEARCH_LENGTH, normalizeSearch, searchTerms } from '../../../utils/search.utils';
 import { findIngredients } from '../../../utils/ingredient-search.utils';
@@ -20,7 +25,7 @@ import { groupIngredients, selectedIngredients } from '../../../utils/ingredient
 interface IngredientGroup { category: IngredientCategory; ingredients: Ingredient[] }
 
 @Component({
-  selector: 'app-base-form', standalone: true, imports: [ReactiveFormsModule, AsyncPipe, ButtonComponent, FilterContainerComponent, SelectFilterComponent, IconComponent],
+  selector: 'app-base-form', standalone: true, imports: [ReactiveFormsModule, AsyncPipe, ButtonComponent, FilterContainerComponent, SelectFilterComponent, IconComponent, IngredientMeasuresComponent, IngredientAmountComponent],
   templateUrl: './base-form.component.html',
   styleUrl: './base-form.component.css'
 })
@@ -49,6 +54,10 @@ export class BaseFormComponent implements OnInit {
   readonly ingredientCategoryFilter = this.fb.nonNullable.control<IngredientCategory | ''>('');
   readonly newIngredientName = this.fb.nonNullable.control('', [Validators.required, Validators.pattern(/\S/)]);
   readonly newIngredientCategory = this.fb.nonNullable.control<IngredientCategory | ''>('', Validators.required);
+  readonly newIngredientMeasures = ingredientMeasuresForm();
+  readonly newCompositionMeasures = ingredientMeasuresForm();
+  private readonly recipeAmountControls = new Map<string, FormControl<RecipeIngredientAmount | null>>();
+  private readonly compositionAmountControls = new Map<string, FormControl<RecipeIngredientAmount | null>>();
   readonly addingIngredient = signal(false);
   readonly ingredientDetailsReady = signal(true);
   readonly compositionSearch = this.fb.nonNullable.control('');
@@ -72,11 +81,11 @@ export class BaseFormComponent implements OnInit {
       return this.groupIngredients(filtered);
     }),
   );
-  readonly mealTypes: MealType[] = ['Desayuno', 'Entrante', 'Plato', 'Postre'];
+  readonly mealTypes = RECIPE_MEAL_TYPES;
   readonly ratingOptions = Array.from({ length: 10 }, (_, index) => index + 1);
   readonly cuisineTypes: CuisineType[] = ['Española', 'Italiana', 'Mexicana', 'Japonesa', 'China', 'India', 'Francesa', 'Peruana', 'Árabe', 'Otra'];
   cuisineFlag(cuisine: CuisineType): string { return cuisineFlag(cuisine); }
-  readonly difficulties: RecipeDifficulty[] = ['F\u00e1cil', 'Media', 'Dif\u00edcil'];
+  readonly difficulties = RECIPE_DIFFICULTIES;
   readonly categories: IngredientCategory[] = [...INGREDIENT_CATEGORIES];
   readonly quickCategories = this.categories.filter((category) => category !== 'Elaboracion');
   readonly ingredientCategoryOptions: SelectFilterOption[] = [
@@ -109,7 +118,7 @@ export class BaseFormComponent implements OnInit {
   );
   readonly recipeForm = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.pattern(/\S/)]], ingredientIds: this.fb.nonNullable.control<string[]>([]),
-    ingredientAmounts: this.fb.nonNullable.control<Record<string, RecipeIngredientAmount>>({}), minutes: this.fb.control<number | null>(null), servings: this.fb.control<number | null>(null, [Validators.min(1)]),
+    ingredientAmounts: this.fb.nonNullable.control<Record<string, RecipeIngredientAmount>>({}), minutes: this.fb.control<number | null>(null), servings: this.fb.control<number | null>(2, [Validators.min(1)]),
     steps: [''], pending: ['yes', Validators.required], mealTypes: this.fb.nonNullable.control<MealType[]>([]), cuisineTypes: this.fb.nonNullable.control<CuisineType[]>([]),
     rating: this.fb.control<number | null>(null, [Validators.min(1), Validators.max(10)]), sourceUrl: [''], annotations: [''], fitness: [false], difficulty: this.fb.nonNullable.control<RecipeDifficulty>('Media')
   });
@@ -123,6 +132,7 @@ export class BaseFormComponent implements OnInit {
   readonly ingredientForm = this.fb.nonNullable.group({
     name: ['', Validators.required],
     category: ['' as IngredientCategory | '', Validators.required],
+    measures: ingredientMeasuresForm(),
     derivedFromIds: this.fb.nonNullable.control<string[]>([]),
     derivedFromAmounts: this.fb.nonNullable.control<Record<string, RecipeIngredientAmount>>({}),
   });
@@ -188,6 +198,8 @@ export class BaseFormComponent implements OnInit {
         derivedFromIds: this.ingredientToEdit.derivedFromIds ?? [],
         derivedFromAmounts: this.ingredientToEdit.derivedFromAmounts ?? {},
       });
+      this.ingredientForm.controls.measures.patchValue({ baseUnit: ingredientBaseUnit(this.ingredientToEdit),
+        unitsEnabled: positiveQuantity(this.ingredientToEdit.unitQuantity), unitQuantity: this.ingredientToEdit.unitQuantity ?? null });
     }
     void this.loadIngredients().catch(() => undefined);
   }
@@ -200,10 +212,14 @@ export class BaseFormComponent implements OnInit {
       const ingredient = await this.ingredientService.ensureDetails(editing.id);
       if (this.destroyRef.destroyed) return;
       if (!ingredient) { this.notifications.error('El ingrediente ya no está disponible.'); return; }
-      if (!this.ingredientForm.dirty) this.ingredientForm.patchValue({
+      if (!this.ingredientForm.dirty) { this.ingredientForm.patchValue({
         name: ingredient.name, category: ingredient.category,
         derivedFromIds: ingredient.derivedFromIds ?? [], derivedFromAmounts: ingredient.derivedFromAmounts ?? {},
       });
+        this.ingredientForm.controls.measures.patchValue({ baseUnit: ingredientBaseUnit(ingredient),
+          unitsEnabled: positiveQuantity(ingredient.unitQuantity), unitQuantity: ingredient.unitQuantity ?? null });
+        this.compositionAmountControls.clear();
+      }
     }
     if (!this.destroyRef.destroyed) this.ingredientDetailsReady.set(true);
   }
@@ -264,30 +280,22 @@ export class BaseFormComponent implements OnInit {
     const wasSelected = selected.includes(id);
     this.ingredientForm.controls.derivedFromIds.setValue(wasSelected ? selected.filter((value) => value !== id) : [...selected, id]);
     this.ingredientForm.controls.derivedFromIds.markAsTouched();
-    if (wasSelected) this.setCompositionAmount(id, null);
-  }
-  compositionAmountKind(id: string): 'none' | RecipeIngredientAmount['kind'] {
-    return this.ingredientForm.controls.derivedFromAmounts.value[id]?.kind ?? 'none';
+    if (wasSelected) { this.setCompositionAmount(id, null); this.compositionAmountControls.delete(id); }
   }
   compositionAmount(id: string): RecipeIngredientAmount | null {
     return this.ingredientForm.controls.derivedFromAmounts.value[id] ?? null;
   }
-  setCompositionAmountKind(id: string, kind: string): void {
-    if (kind === 'none') { this.setCompositionAmount(id, null); return; }
-    if (kind === 'spoon' || kind === 'glass') { this.setCompositionAmount(id, { kind }); return; }
-    const current = this.compositionAmount(id);
-    this.setCompositionAmount(id, current?.kind === 'specific' ? current : { kind: 'specific', value: null, unit: 'g' });
-  }
-  setCompositionAmountValue(id: string, rawValue: string): void {
-    const amount = this.compositionAmount(id);
-    if (amount?.kind !== 'specific') return;
-    const value = rawValue === '' ? null : Number(rawValue);
-    this.setCompositionAmount(id, { ...amount, value: value !== null && Number.isFinite(value) ? value : null });
-  }
-  setCompositionAmountUnit(id: string, unit: string): void {
-    const amount = this.compositionAmount(id);
-    if (amount?.kind !== 'specific' || (unit !== 'ml' && unit !== 'g' && unit !== 'pieza')) return;
-    this.setCompositionAmount(id, { ...amount, unit });
+  compositionAmountControl(id: string): FormControl<RecipeIngredientAmount | null> {
+    let control = this.compositionAmountControls.get(id);
+    if (!control) {
+      control = this.fb.control(this.compositionAmount(id));
+      this.compositionAmountControls.set(id, control);
+      const current = control;
+      control.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(amount => {
+        if (this.compositionAmountControls.get(id) === current) this.setCompositionAmount(id, amount);
+      });
+    }
+    return control;
   }
   private setCompositionAmount(id: string, amount: RecipeIngredientAmount | null): void {
     const amounts = { ...this.ingredientForm.controls.derivedFromAmounts.value };
@@ -316,10 +324,12 @@ export class BaseFormComponent implements OnInit {
     if (this.busy() || !this.ingredientService.loaded() || this.ingredientService.error()) return;
     const nameControl = target === 'recipe' ? this.newIngredientName : this.newCompositionName;
     const categoryControl = target === 'recipe' ? this.newIngredientCategory : this.newCompositionCategory;
+    const measures = target === 'recipe' ? this.newIngredientMeasures : this.newCompositionMeasures;
+    measures.markAllAsTouched();
     nameControl.markAsTouched(); categoryControl.markAsTouched();
     const name = nameControl.value.trim();
     const category = categoryControl.value;
-    if (!name || !category) return;
+    if (!name || !category || measures.invalid) return;
 
     this.addingIngredient.set(true);
     try {
@@ -329,7 +339,7 @@ export class BaseFormComponent implements OnInit {
         this.notifications.error('Los componentes deben ser ingredientes simples, distintos de la elaboración que estás editando.');
         return;
       }
-      const ingredient = existing ?? await this.ingredientService.add(name, category);
+      const ingredient = existing ?? await this.ingredientService.add(name, category, [], {}, measuresFormValue(measures));
       if (this.destroyRef.destroyed) return;
       if (target === 'recipe') this.addRecipeIngredient(ingredient.id);
       else this.addCompositionIngredient(ingredient.id);
@@ -349,37 +359,23 @@ export class BaseFormComponent implements OnInit {
     const wasSelected = selected.includes(id);
     this.recipeForm.controls.ingredientIds.setValue(wasSelected ? selected.filter((value) => value !== id) : [...selected, id]);
     this.selectedIngredientIdsSubject.next(this.recipeForm.controls.ingredientIds.value);
-    if (wasSelected) this.setIngredientAmount(id, null);
+    if (wasSelected) { this.setIngredientAmount(id, null); this.recipeAmountControls.delete(id); }
     this.recipeForm.controls.ingredientIds.markAsTouched();
-  }
-  ingredientAmountKind(id: string): 'none' | RecipeIngredientAmount['kind'] {
-    return this.recipeForm.controls.ingredientAmounts.value[id]?.kind ?? 'none';
   }
   ingredientAmount(id: string): RecipeIngredientAmount | null {
     return this.recipeForm.controls.ingredientAmounts.value[id] ?? null;
   }
-  setIngredientAmountKind(id: string, kind: string): void {
-    if (kind === 'none') {
-      this.setIngredientAmount(id, null);
-      return;
+  ingredientAmountControl(id: string): FormControl<RecipeIngredientAmount | null> {
+    let control = this.recipeAmountControls.get(id);
+    if (!control) {
+      control = this.fb.control(this.ingredientAmount(id));
+      this.recipeAmountControls.set(id, control);
+      const current = control;
+      control.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(amount => {
+        if (this.recipeAmountControls.get(id) === current) this.setIngredientAmount(id, amount);
+      });
     }
-    if (kind === 'spoon' || kind === 'glass') {
-      this.setIngredientAmount(id, { kind });
-      return;
-    }
-    const current = this.ingredientAmount(id);
-    this.setIngredientAmount(id, current?.kind === 'specific' ? current : { kind: 'specific', value: null, unit: 'g' });
-  }
-  setSpecificAmountValue(id: string, rawValue: string): void {
-    const amount = this.ingredientAmount(id);
-    if (amount?.kind !== 'specific') return;
-    const value = rawValue === '' ? null : Number(rawValue);
-    this.setIngredientAmount(id, { ...amount, value: value !== null && Number.isFinite(value) ? value : null });
-  }
-  setSpecificAmountUnit(id: string, unit: string): void {
-    const amount = this.ingredientAmount(id);
-    if (amount?.kind !== 'specific' || (unit !== 'ml' && unit !== 'g' && unit !== 'pieza')) return;
-    this.setIngredientAmount(id, { ...amount, unit });
+    return control;
   }
   setRecipeTab(tab: number): void {
     if (tab < 0 || tab >= this.recipeTabLabels.length || tab === this.activeRecipeTab) return;
@@ -400,7 +396,7 @@ export class BaseFormComponent implements OnInit {
     if (ids.value.length === 0) return false;
     const hasIncompleteAmount = ids.value.some((id) => {
       const amount = this.recipeForm.controls.ingredientAmounts.value[id];
-      return amount?.kind === 'specific' && (amount.value === null || amount.value <= 0);
+      return !allowedIngredientAmount(amount ?? null, this.ingredientService.getById(id), this.recipeToEdit?.ingredientAmounts?.[id]);
     });
     if (hasIncompleteAmount) {
       this.notifications.error('Indica una cantidad mayor que cero o elige otra opción.');
@@ -434,7 +430,7 @@ export class BaseFormComponent implements OnInit {
     if (value.servings !== null && (!Number.isInteger(value.servings) || value.servings < 1)) { this.activeRecipeTab = 0; this.notifications.error('Indica un número entero de comensales mayor que cero.'); return; }
     const hasIncompleteAmount = value.ingredientIds.some((id) => {
       const amount = value.ingredientAmounts[id];
-      return amount?.kind === 'specific' && (amount.value === null || amount.value <= 0);
+      return !allowedIngredientAmount(amount ?? null, this.ingredientService.getById(id), this.recipeToEdit?.ingredientAmounts?.[id]);
     });
     if (hasIncompleteAmount) { this.activeRecipeTab = 1; this.notifications.error('Indica una cantidad mayor que cero o elige otra opción.'); return; }
     this.recipeSaved.emit({
@@ -451,6 +447,7 @@ export class BaseFormComponent implements OnInit {
     finally { this.savingIngredient.set(false); }
   }
   private async performSaveIngredient(): Promise<void> {
+    this.ingredientForm.markAllAsTouched();
     if (this.ingredientForm.invalid) return;
     const value = this.ingredientForm.getRawValue();
     const derivedFromIds = value.category === 'Elaboracion' ? value.derivedFromIds : [];
@@ -461,7 +458,7 @@ export class BaseFormComponent implements OnInit {
     }
     const hasIncompleteAmount = derivedFromIds.some((id) => {
       const amount = derivedFromAmounts[id];
-      return amount?.kind === 'specific' && (amount.value === null || amount.value <= 0);
+      return !allowedIngredientAmount(amount ?? null, this.ingredientService.getById(id), this.ingredientToEdit?.derivedFromAmounts?.[id]);
     });
     if (hasIncompleteAmount) {
       this.notifications.error('Indica una cantidad mayor que cero o elige otra opci\u00f3n.');
@@ -473,12 +470,13 @@ export class BaseFormComponent implements OnInit {
         category: value.category as IngredientCategory,
         derivedFromIds,
         derivedFromAmounts,
+        ...measuresFormValue(this.ingredientForm.controls.measures),
       }); } catch (error) { this.notifications.error(error instanceof Error ? error.message : 'No se pudo actualizar el ingrediente.'); return; }
       this.notifications.success(`${value.name} actualizado.`);
       this.cancel.emit();
       return;
     }
-    try { await this.ingredientService.add(value.name, value.category as IngredientCategory, derivedFromIds, derivedFromAmounts); }
+    try { await this.ingredientService.add(value.name, value.category as IngredientCategory, derivedFromIds, derivedFromAmounts, measuresFormValue(this.ingredientForm.controls.measures)); }
     catch (error) { this.notifications.error(error instanceof Error ? error.message : 'No se pudo guardar el ingrediente.'); return; }
     this.notifications.success(`${value.name} añadido a tus ingredientes.`);
     this.cancel.emit();

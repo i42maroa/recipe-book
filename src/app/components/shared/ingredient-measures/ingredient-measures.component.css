@@ -1,0 +1,13 @@
+:host { display: block; min-width: 0; }
+.measure-fields { display: grid; gap: 12px; margin: 12px 0; }
+.measure-row { display: grid; gap: 12px; align-items: end; }
+.measure-row.units-enabled { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.base-unit-title { white-space: nowrap; }
+label { display: grid; gap: 7px; min-width: 0; color: var(--color-text-secondary); font-size: 13px; }
+input, select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; padding: 10px; border: 1px solid var(--color-border); border-radius: 7px; background: var(--color-surface); color: var(--color-text); font: inherit; }
+.checkbox { display: flex; align-items: center; gap: 8px; }
+.checkbox input { width: 18px; height: 18px; min-height: 0; accent-color: var(--color-primary); }
+p { margin: 0; font-size: 13px; line-height: 1.5; }
+.spice-measure { color: var(--color-text-secondary); }
+.error { color: var(--color-danger); }
+input:focus-visible, select:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }

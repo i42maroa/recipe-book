@@ -42,8 +42,11 @@ export class BreadcrumbComponent {
     const start = route.queryParams['plannerStart'];
     const plannerStart = typeof start === 'string' && Number.isFinite(dateNumber(start)) ? start : undefined;
     const isPlannerOrigin = fromPlanner === 'today' || fromPlanner === 'day' || fromPlanner === 'week';
-    const plannerQuery = isPlannerOrigin ? { fromPlanner, plannerStart } : {};
-    const recipeParents: BreadcrumbItem[] = isPlannerOrigin
+    const isInventoryOrigin = route.queryParams['fromInventory'] === 'true';
+    const plannerQuery = isInventoryOrigin ? { fromInventory: 'true' } : isPlannerOrigin ? { fromPlanner, plannerStart } : {};
+    const recipeParents: BreadcrumbItem[] = isInventoryOrigin
+      ? [{ label: 'Inventario', url: '/inventory' }]
+      : isPlannerOrigin
       ? [
         { label: 'Planificación', url: '/planner' },
         ...(fromPlanner === 'week' ? [{ label: 'Semanal', url: this.router.createUrlTree(['/planner/week'], { queryParams: { start: plannerStart } }) }] : []),
@@ -53,7 +56,7 @@ export class BreadcrumbComponent {
 
     if (segments[0] === 'login') return [{ label: 'Acceso', url: null }];
     if (segments[0] === 'shopping') return [{ label: 'Compra', url: null }];
-    if (segments[0] === 'freezer') return [{ label: 'Congelador', url: null }];
+    if (segments[0] === 'inventory') return [{ label: 'Inventario', url: null }];
     if (segments[0] === 'planner') {
       if (segments[1] === 'week' || segments[1] === 'day') {
         return [{ label: 'Planificación', url: '/planner' }, { label: segments[1] === 'day' ? 'Día' : 'Semanal', url: null }];
@@ -83,7 +86,7 @@ export class BreadcrumbComponent {
         }
       }
       return [
-        { label: 'Ingredientes', url: '/ingredients' },
+        { label: isInventoryOrigin ? 'Inventario' : 'Ingredientes', url: isInventoryOrigin ? '/inventory' : '/ingredients' },
         { label: ingredient?.name ?? 'Ingrediente', url: null },
       ];
     }

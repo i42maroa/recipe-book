@@ -2,7 +2,7 @@ import { AsyncPipe } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { catchError, combineLatest, distinctUntilChanged, from, map, of, shareReplay, startWith, Subject, switchMap } from 'rxjs';
-import { Ingredient, Recipe } from '../../models/recipe.model';
+import { Ingredient, Recipe, RecipeIngredientUsage } from '../../models/recipe.model';
 import { IngredientService } from '../../services/ingredient.service';
 import { RecipeService } from '../../services/recipe.service';
 import { IngredientIconComponent } from '../../components/shared/ingredient-icon/ingredient-icon.component';
@@ -11,6 +11,7 @@ import { NotFoundPageComponent } from '../not-found/not-found-page.component';
 import { isUuid } from '../../utils/uuid.utils';
 import { SkeletonComponent } from '../../components/shared/skeleton/skeleton.component';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ingredientAmountLabel, ingredientBaseUnit, positiveQuantity } from '../../utils/ingredient-measures.utils';
 
 @Component({
   selector: 'app-ingredient-detail-page',
@@ -68,11 +69,16 @@ export class IngredientDetailPageComponent {
   amountLabel(ingredient: Ingredient, componentId: string): string | null {
     const amount = ingredient.derivedFromAmounts?.[componentId];
     if (!amount) return null;
-    if (amount.kind === 'spoon') return '1 cucharada';
-    if (amount.kind === 'glass') return '1 vaso';
-    if (amount.value === null) return null;
-    const unit = amount.unit === 'pieza' && amount.value !== 1 ? 'piezas' : amount.unit;
-    return `${amount.value} ${unit}`;
+    return ingredientAmountLabel(amount, true, this.ingredientService.getById(componentId));
+  }
+
+  recipeAmountLabel(recipe: RecipeIngredientUsage, ingredient: Ingredient): string | null {
+    return ingredientAmountLabel(recipe.ingredientAmount, true, ingredient);
+  }
+
+  unitEquivalent(ingredient: Ingredient): string | null {
+    return positiveQuantity(ingredient.unitQuantity)
+      ? ingredientAmountLabel({ kind: 'specific', value: ingredient.unitQuantity, unit: ingredientBaseUnit(ingredient) }) : null;
   }
 }
 

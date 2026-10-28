@@ -119,7 +119,7 @@ test('planning consumers invalidate previews before a write and again after its 
   release(); await writing; assert.equal(phases.length, 2);
   state.error = Error('Write failed');
   await assert.rejects(service.saveDay('2026-10-20', []), /Write failed/);
-  assert.equal(phases.length, 3);
+  assert.equal(phases.length, 4);
   subscription.unsubscribe();
 });
 
@@ -307,6 +307,55 @@ test('an account change while verifying quick-planning permissions cannot start 
   const pending = service.addRecipe('2026-10-26', 'lunch', 2, recipeId, 'scale');
   state.owner = 'user-b'; release(); await assert.rejects(pending, /sesión ha cambiado/);
   assert.equal(state.calls.length, 0);
+});
+
+test('changing accounts during permission verification cannot read or save a day for the new account', async () => {
+  for (const operation of ['read', 'save']) {
+    const { service, state } = setup(); let release;
+    state.authHold = new Promise(resolve => { release = resolve; });
+    const pending = operation === 'read' ? service.getDay('2026-10-26') : service.saveDay('2026-10-26', [meal()]);
+    state.owner = 'user-b'; release();
+    await assert.rejects(pending, /sesión ha cambiado/);
+    assert.equal(state.calls.length, 0);
+  }
+});
+
+test('saving a day uses an independent snapshot even if the caller changes meals during permission verification', async () => {
+  const { service, state } = setup(); let release;
+  state.authHold = new Promise(resolve => { release = resolve; });
+  const meals = [meal()]; const pending = service.saveDay('2026-10-26', meals);
+  meals[0].servings = 99; meals[0].recipes.length = 0;
+  release(); await pending;
+  assert.equal(state.calls[0][2].p_meals[0].servings, 2);
+  assert.equal(state.calls[0][2].p_meals[0].recipes.length, 1);
+  state.calls.length = 0;
+  const restored = await service.getDay('2026-10-26');
+  assert.equal(restored[0].servings, 2); assert.equal(restored[0].recipes.length, 1);
+  assert.equal(state.calls.length, 0);
+});
+
+test('a read started during a successful save cannot overwrite the saved day cache when it finishes late', async () => {
+  const { service, state } = setup(); let releaseWrite; let releaseRead;
+  state.hold = new Promise(resolve => { releaseWrite = resolve; });
+  const writing = service.saveDay('2026-10-26', [meal()]); await new Promise(setImmediate);
+  state.hold = new Promise(resolve => { releaseRead = resolve; });
+  const reading = service.getDay('2026-10-26'); await new Promise(setImmediate);
+  releaseWrite(); await writing; releaseRead(); await reading;
+  state.calls.length = 0;
+  const restored = await service.getDay('2026-10-26');
+  assert.equal(restored.length, 1); assert.equal(restored[0].recipes[0].recipeId, recipeId);
+  assert.equal(state.calls.length, 0);
+});
+
+test('a lost save response invalidates a day cached while the server was still processing the write', async () => {
+  const { service, state } = setup(); let release;
+  state.hold = new Promise(resolve => { release = resolve; });
+  const writing = service.saveDay('2026-10-26', [meal()]); await new Promise(setImmediate);
+  state.hold = null; await service.getDay('2026-10-26');
+  state.error = Error('Response lost'); release(); await assert.rejects(writing, /Response lost/);
+  state.error = null; state.rows = [{ meal_date: '2026-10-26', ...meal() }]; state.calls.length = 0;
+  assert.equal((await service.getDay('2026-10-26')).length, 1);
+  assert.ok(state.calls.some(call => call[0] === 'from'));
 });
 
 test('late quick-planning acknowledgements cannot populate a different account', async () => {

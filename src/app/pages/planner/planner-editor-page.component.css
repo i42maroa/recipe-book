@@ -1,7 +1,5 @@
 .planner-page { max-width: 1380px; margin: 0 auto; padding: 44px 5% 32px; }
 .heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.calendar-link { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; box-sizing: border-box; padding: 10px 14px; border: 1px solid var(--color-border); border-radius: 7px; background: var(--color-surface); color: var(--color-primary); text-decoration: none; flex-shrink: 0; font-size: 13px; }
-.calendar-link:hover { background: var(--color-success-soft); }
 h1 { font: 500 clamp(28px, 3vw, 39px)/1.2 var(--font-serif); margin: 10px 0; }
 p { color: var(--color-text-secondary); line-height: 1.5; }
 .eyebrow { font-size: 10px; letter-spacing: 2px; color: var(--color-primary); }
@@ -28,7 +26,6 @@ small { display: block; font-size: 11px; color: var(--color-text-secondary); mar
 .week + .week { margin-top: 30px; }
 .calendar { border: 0; padding: 0; margin: 0; min-width: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.danger { color: var(--color-danger); }
 .day-save { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--color-border); margin-top: 14px; padding-top: 14px; }
 .day-save p { font-size: 12px; margin: 0; }
 .notice { background: var(--color-warning-soft); color: var(--color-text); padding: 14px; border-radius: 8px; }

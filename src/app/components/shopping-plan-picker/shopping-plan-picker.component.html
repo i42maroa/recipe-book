@@ -17,17 +17,22 @@
     @if (weekError()) { <p class="error" role="alert">No se pudieron cargar los contadores del planning. <button type="button" (click)="loadWeek()">Reintentar</button></p> }
     <section class="preview" aria-label="Vista previa de la lista de la compra" [attr.aria-busy]="loadingPreview()">
       <h3>Ingredientes para este intervalo</h3>
+      @if (rangeSelected()) {
+        <div class="inventory-choice" role="group" aria-label="Tener en cuenta el inventario"><p>¿Quieres descontar los ingredientes que ya tienes en el inventario?</p>
+          <button type="button" [disabled]="disabled()" [attr.aria-pressed]="inventoryChoice() === true" (click)="chooseInventory(true)">Sí, comprar solo lo que falta</button>
+          <button type="button" [disabled]="disabled()" [attr.aria-pressed]="inventoryChoice() === false" (click)="chooseInventory(false)">No, incluir todo</button>
+        </div>
+      }
       @if (!rangeSelected()) { <p role="status">Elige las fechas Desde y Hasta para calcular los ingredientes.</p> }
+      @else if (inventoryChoice() === null) { <p role="status">Elige si quieres tener en cuenta tus existencias.</p> }
       @else if (loadingPreview()) { <p role="status">Calculando ingredientes…</p><app-skeleton variant="rows" /> }
       @else if (previewError()) { <p class="error" role="alert">{{ previewError() }}</p><button type="button" (click)="loadPreview()">Reintentar cálculo</button> }
-      @else if (!preview().length) { <p role="status">No hay ingredientes en las recetas disponibles de estos días. Elige otro intervalo.</p><a class="plan-week-link" routerLink="/planner/week" [queryParams]="{ start: from() }">Hacer plan semanal<app-icon name="arrow-right" /></a> }
+      @else if (excludedAll()) { <p role="status">Ya tienes todas las cantidades necesarias. No necesitas comprar ingredientes de este intervalo.</p> }
+      @else if (!preview().length) { <p role="status">No hay ingredientes por comprar en las recetas de estos días. Los platos del inventario ya están preparados.</p><a class="plan-week-link" routerLink="/planner/week" [queryParams]="{ start: from() }">Hacer plan semanal<app-icon name="arrow-right" /></a> }
       @else {
-        <p class="preview-total">{{ preview().length }} ingredientes diferentes. El número indica cuántas veces aparecen en las recetas del planning.</p>
-        @for (group of groups(); track group.category) { <div class="preview-group"><h4>{{ group.label }}</h4><ul>@for (item of group.items; track item.id) { <li><span>{{ item.name }}</span><strong>×{{ item.occurrences }}</strong></li> }</ul></div> }
+        <p class="preview-total">{{ preview().length }} {{ preview().length === 1 ? 'ingrediente diferente' : 'ingredientes diferentes' }}, con cantidades ajustadas a los comensales y la preparación.</p>
+        @for (group of groups(); track group.category) { <div class="preview-group"><h4>{{ group.label }}</h4><ul>@for (item of group.items; track item.id) { <li><span>{{ item.name }}@for (note of item.notes ?? []; track note) { <small>{{ note }}</small> }</span><strong>{{ quantityLabel(item) }}</strong></li> }</ul></div> }
       }
     </section>
   </div>
-  @if (rangeSelected() && !loadingPreview() && !previewError() && preview().length) {
-    <footer><button type="button" class="primary" [disabled]="disabled()" (click)="confirm()">Añadir</button></footer>
-  }
 </section>

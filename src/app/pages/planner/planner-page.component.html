@@ -24,8 +24,11 @@
               <div class="meal-heading"><h3>{{ meal.label }}</h3></div>
               <div class="meal-entries">
                 @for (entry of meal.recipes; track entry.recipeId; let index = $index) {
-                  @if (cards()[entry.recipeId]; as recipe) { <app-recipe-card [recipe]="recipe" [priority]="index < 2" (selected)="showRecipe($event)" /> }
-                  @else { <p class="unavailable-recipe">Receta no disponible.</p> }
+                  <div class="planned-recipe">
+                    @if (cards()[entry.recipeId]; as recipe) { <app-recipe-card [recipe]="recipe" [priority]="index < 2" (selected)="showRecipe($event)" /> }
+                    @else { <p class="unavailable-recipe">Receta no disponible.</p> }
+                    @if (entry.inventory; as source) { <p class="inventory-source">Del inventario · {{ source.placeName }} · {{ source.space === 'pantry' ? 'Alacena' : 'Congelador' }}</p> }
+                  </div>
                 }
               </div>
             </section>

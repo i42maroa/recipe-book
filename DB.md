@@ -43,6 +43,8 @@ Referencias oficiales:
 
 - Identificador estable.
 - Nombre.
+- Medida base obligatoria: gramos (`g`) o mililitros (`ml`).
+- Contenido opcional y positivo de una unidad en la medida base; sin equivalencia no se ofrecen unidades para cantidades nuevas.
 - Categoría, por ejemplo verdura, fruta, legumbre, pescado, carne, lácteo, cereal, especia, elaboración u otro.
 - Una elaboración puede componerse de otros ingredientes y se puede usar en recetas igual que cualquier otro ingrediente.
 
@@ -51,10 +53,12 @@ Referencias oficiales:
 La cantidad se guarda en la relación con la receta (o con la elaboración que la contiene). Debe poder representar:
 
 - Sin cantidad indicada.
-- Una cucharada.
-- Un vaso.
-- Una pieza.
-- Una cantidad numérica con unidad: ml, g.
+- Una cantidad positiva en la medida base del ingrediente: g o ml.
+- Una cantidad en unidades, con la equivalencia usada guardada como instantánea.
+- Cucharadas positivas, incluidas fracciones, solo para Especias: 1 cucharada = 5 g.
+- Los vasos y cantidades anteriores se conservan como datos históricos; no se ofrecen vasos ni tazas para nuevas cantidades.
+
+La migración vigente de medidas es `20261027000200_ingredient_measures.sql`. Añade `base_unit` y `unit_quantity` a `ingredients`, y `amount_base_unit` / `amount_unit_quantity` a las relaciones con recetas y elaboraciones. El SQL inicial mostrado más abajo es la base histórica; las migraciones posteriores definen el esquema completo actual. La migración asigna g a los ingredientes existentes y ml a Líquidos, conservando todas sus cantidades y dejando las equivalencias pendientes de completar manualmente.
 
 ## Modelo relacional
 
@@ -300,7 +304,7 @@ create table public.shopping_list_items (
 );
 ```
 
-Solo sumar cantidades que tengan unidades compatibles. No mezclar automáticamente gramos, mililitros, piezas, vasos y cucharadas. Las cantidades sin unidad convertible deben agruparse o mostrarse por separado.
+En Inventario se suman las cantidades por medida, por ejemplo **3 unidades + 500 g**, conservando todos los lotes y fechas. Las unidades no se convierten a peso para ese total. Las equivalencias permiten mostrar el peso o volumen en el detalle de recetas; cada cantidad nueva en unidades conserva la equivalencia utilizada aunque después cambie el catálogo. La lista de la compra sigue contando apariciones de ingredientes, sin un cálculo de cantidades.
 
 ### Fotografías
 
@@ -342,7 +346,7 @@ create table public.ingredient_nutrients (
 );
 ```
 
-Registrar la base de cálculo y la fuente de los valores. El resultado por receta dependerá de poder convertir las cantidades a unidades comparables; vasos y cucharadas necesitan una equivalencia por ingrediente o una estimación explícita. Conviene indicar cuándo el valor nutricional es aproximado.
+Registrar la base de cálculo y la fuente de los valores. El resultado por receta dependerá de poder convertir las cantidades a unidades comparables. Las unidades nuevas conservan su equivalencia y las cucharadas de especias utilizan 5 g; los vasos y otras cantidades históricas sin equivalencia requieren una estimación explícita. Conviene indicar cuándo el valor nutricional es aproximado.
 
 ## Seguridad: lectura pública y escritura autorizada
 
@@ -374,13 +378,37 @@ Mantener la base de datos detrás de una capa de acceso para no acoplar componen
 
 Las claves públicas configuradas en el frontend no son secretos. La seguridad efectiva debe proceder de RLS, permisos y políticas correctamente configuradas.
 
-## Inventario de congeladores implementado
+## Inventario por lugares implementado
 
-La migración `supabase/migrations/20261026000100_freezer_inventories.sql` añade `freezer_inventories`: una fila por `owner_id`, con `freezers` JSONB, `version` y `updated_at`. Cada congelador contiene `id`, `name` e `items`; cada lote contiene `id`, `ingredientId` opcional representado como null, nombre y categoría como instantánea, cantidad en el formato de recetas y `enteredOn` como fecha de calendario.
+La migración `supabase/migrations/20261027000100_inventory_places.sql`, aplicada después de las migraciones anteriores, añade `inventory_places` e `inventory_entries`. Cada lugar pertenece a un `owner_id` y contiene los dos espacios fijos Alacena (`pantry`) y Congelador (`freezer`), representados por el campo `space` de cada lote. Cada congelador anterior se convierte en un lugar con el mismo ID y nombre; sus lotes se mantienen en Congelador y Alacena empieza vacía. Las tablas y las RPC anteriores quedan archivadas sin acceso de navegador.
 
-Los productos libres llevan `ingredientId: null` y `category: null`, sin escribir en el catálogo. Cada alta conserva su propio lote, aunque repita ingrediente. Los identificadores de ingredientes son referencias informativas sin clave foránea: cambiar o eliminar el ingrediente no elimina un lote guardado. No se conservan movimientos ni historial de lotes consumidos.
+Cada lote tiene ID propio, nombre y categoría como instantánea, `ingredientId` o `recipeId` opcional, cantidad o `servings`, `enteredOn` como fecha original y `arrivedOn` como fecha de llegada al espacio actual. Los ingredientes mantienen las cantidades del recetario; las recetas preparadas admiten solo raciones enteras positivas. Los productos libres tienen ambas referencias y categoría a null y no escriben en el catálogo. No hay claves foráneas al catálogo: renombrar o eliminar una receta no altera su nombre ni sus raciones almacenadas. `inventory_recipe_ids(uuid[])` comprueba qué enlaces al detalle siguen disponibles.
 
-RLS limita lecturas y escrituras al propietario autenticado con permiso de editor. `valid_freezer_inventory(jsonb)` valida la estructura completa y `save_freezer_inventory(jsonb,bigint)` guarda atómicamente, comparando la versión anterior para rechazar sobrescrituras desde borradores antiguos. El frontend guarda automáticamente el conjunto de congeladores del usuario al confirmar cada alta, edición, retirada o cambio de congelador. Se bloquean las modificaciones durante la escritura y los cambios fallidos se conservan en memoria para reintentar o cargar la versión guardada. Búsqueda y ordenación no escriben en la base de datos. Esta descripción corresponde al código del repositorio, sin confirmar la aplicación de la migración remota.
+RLS limita lecturas y escrituras al propietario autenticado con permiso de editor. `get_inventory()` recupera la colección y `apply_inventory_changes(jsonb)` compara los valores anteriores de las filas afectadas y aplica cada operación en una transacción. Los cambios en otros lotes no causan conflictos globales. El frontend guarda automáticamente mediante una cola y permite continuar editando; los fallos conservan el borrador para reintentar o cargar la versión guardada. Los reintentos de operaciones ya aplicadas no duplican lotes ni repiten retiradas. Búsqueda, ordenación y selección de espacio no escriben existencias.
+
+La aplicación permite añadir, editar y retirar lotes completos; la operativa Mover se ha eliminado. Los lotes procedentes de traslados anteriores conservan sus identificadores, `enteredOn` y `arrivedOn`. No se fusionan lotes ni se conserva un historial de destinos o consumos. Solo se permite eliminar un lugar vacío. Este ajuste no cambia el esquema. La implementación está en el repositorio y no confirma que se haya aplicado la migración al proyecto remoto.
+
+## Recetas del inventario en la planificación
+
+`supabase/migrations/20261027000400_inventory_planning.sql` añade un origen opcional `inventory: { placeId, itemId, placeName, space }` a cada receta dentro de `scheduled_meals.recipes`. No crea otra copia del plan ni altera `inventory_entries`. El nombre del lugar y el espacio se conservan como instantánea; la asociación identifica el lote concreto, no todas las existencias de esa receta.
+
+`save_scheduled_day` valida el formato y comprueba que los nuevos vínculos corresponden a un lote del propietario con la misma receta. Conserva un origen histórico ya guardado en esa misma fecha/comida cuando el lote se ha retirado, permitiendo editar las demás comidas. El guardado sigue siendo atómico y no descuenta ni reserva raciones. Las comidas anteriores sin origen mantienen su formato y comportamiento.
+
+`get_inventory_planning_links(p_from date)` devuelve un único array JSON de vínculos a lotes existentes, con lugar, lote, receta, fecha y comida. La consulta cruza únicamente datos del propietario autenticado con permiso de editor y usa `SECURITY INVOKER` y RLS. La interfaz solicita desde hoy para indicar **En planificación** y enlazar al calendario desde el detalle del lote. Al quitar una receta del plan y guardar, su vínculo desaparece de la consulta. Los planes históricos se conservan.
+
+`supabase/migrations/20261027000500_inventory_ingredient_search.sql` añade `search_recipes_with_all_ingredients(uuid[],text)`. Devuelve la relación de recetas para conservar las tarjetas de PostgREST y exige que cada ingrediente seleccionado aparezca directamente en la receta antes del recuento y la paginación. No expande componentes ni comprueba cantidades suficientes. Vacíos, nulos e ingredientes inexistentes no producen una búsqueda sin filtro; los duplicados no alteran el resultado. Utiliza `SECURITY INVOKER` y RLS, sin escribir datos. El selector de ingredientes del planner obtiene las opciones únicamente de las existencias privadas; la búsqueda de recetas sigue siendo pública y la búsqueda general por al menos un ingrediente conserva su RPC anterior.
+
+## Ingredientes del inventario en planificación
+
+Las marcas **En planificación** de ingredientes se calculan a partir de `scheduled_meals` del propietario desde hoy y de los ingredientes directos de cada receta en `recipe_ingredients`, sin tabla adicional ni escritura de stock. Se omiten las recetas planificadas desde un lote preparado, ya que sus ingredientes ya están cocinados. La marca corresponde al ingrediente completo en todos sus lotes, con fecha, comida y receta; no reserva cantidades ni impide retirar existencias. Al quitar y guardar su último uso futuro desaparece la marca. Las ediciones de recetas actualizan los ingredientes considerados.
+
+La búsqueda automática por inventario excluye esos IDs de sus coincidencias OR. Una receta puede incluir ingredientes planificados si coincide con algún otro ingrediente libre; el Recetario general no los excluye. Las lecturas privadas filtran propietario y mantienen RLS; ambas consultas se paginan y las referencias del catálogo se consultan en lotes de hasta 100 recetas. No se requiere migración nueva.
+
+## Cantidades de compra y registro en la alacena
+
+La migración `20261027000600_shopping_quantities_purchase.sql` amplía las instantáneas de compra con `amounts` (medidas y cantidades, incluidas equivalencias de unidades), `unquantified` y avisos opcionales. Mantiene los contadores históricos para conservar datos, pero el frontend ya no los usa como cantidades compradas. `shopping_plan_amounts` obtiene las necesidades por receta y comensales, excluyendo comida preparada del inventario. El frontend asigna 1 unidad por aparición sin cantidad indicada, sin escalar ese valor por comensales, y aplica la equivalencia por unidad si existe. Agrega medidas y, si se elige, descuenta stock compatible sin consumirlo. El valor por defecto no requiere cambios de esquema.
+
+`shopping_purchases` conserva una clave `(owner_id, operation_id)`, el contenido de la solicitud y la versión resultante. La RPC `complete_shopping_purchase` comprueba propietario, destino, cantidades y versión; crea lotes en Alacena, vacía `shopping_lists` y guarda el comprobante dentro de una transacción. Una repetición idéntica devuelve el comprobante antes de comprobar el destino o volver a escribir, incluso si desde entonces existe otra lista. La reutilización del identificador con otro contenido se rechaza. RLS y permisos aíslan los comprobantes por usuario/editor. Esta migración conserva las instantáneas y existencias existentes.
 
 ## Buenas prácticas de evolución
 

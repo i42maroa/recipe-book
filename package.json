@@ -3,19 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test": "node --test tests/*.test.cjs",
     "start": "ng serve",
     "build": "ng build",
     "lint": "ng lint",
     "test:assets": "node --test tests/site-assets.test.cjs",
     "test:photos:sql": "node --test tests/recipe-photo-transactions.test.cjs",
-    "test:shopping": "node --test tests/shopping-list.test.cjs",
-    "test:shopping:sql": "node --test tests/shopping-list-sql.test.cjs",
+    "test:shopping": "node --test tests/shopping-list.test.cjs tests/shopping-quantities.test.cjs tests/shopping-purchase.test.cjs",
+    "test:shopping:sql": "node --test tests/shopping-list-sql.test.cjs tests/shopping-quantities-sql.test.cjs",
+    "test:measures": "node --test tests/ingredient-measures.test.cjs tests/ingredient-measures-sql.test.cjs",
+    "test:inventory": "node --test tests/freezer.test.cjs tests/freezer-dialog.test.cjs tests/inventory-groups.test.cjs tests/inventory-sql.test.cjs",
+    "test:inventory:sql": "node --test tests/inventory-sql.test.cjs",
     "test:freezer": "node --test tests/freezer.test.cjs tests/freezer-dialog.test.cjs",
     "test:freezer:sql": "node --test tests/freezer-sql.test.cjs tests/freezer-entries-sql.test.cjs",
-    "test:planner": "node --test tests/scheduled-meals.test.cjs tests/planner-state.test.cjs",
-    "test:planner:sql": "node --test tests/scheduled-recipe-sql.test.cjs",
+    "test:planner": "node --test tests/scheduled-meals.test.cjs tests/planner-state.test.cjs tests/planner-editor.test.cjs tests/planner-inventory.test.cjs tests/inventory-ingredient-planning.test.cjs tests/planner-picker.test.cjs tests/planner-stock-picker.test.cjs tests/planner-stock-recipes.test.cjs",
+    "test:planner:sql": "node --test tests/scheduled-recipe-sql.test.cjs tests/planner-inventory-sql.test.cjs tests/inventory-ingredient-search-sql.test.cjs",
     "test:session": "node --test tests/cache.test.cjs tests/auth.test.cjs",
-    "test:optimization": "node --test tests/recipe-optimization.test.cjs tests/recipe-card.test.cjs tests/recipe-list.test.cjs tests/loading.test.cjs tests/photo-upload.test.cjs tests/search.test.cjs tests/ingredients.test.cjs"
+    "test:optimization": "node --test tests/recipe-optimization.test.cjs tests/ingredient-search-compatibility.test.cjs tests/recipe-card.test.cjs tests/recipe-list.test.cjs tests/loading.test.cjs tests/photo-upload.test.cjs tests/search.test.cjs tests/ingredients.test.cjs"
   },
   "dependencies": {
     "@angular/common": "^22.0.0",
@@ -26,8 +30,7 @@
     "@angular/router": "^22.0.0",
     "@supabase/supabase-js": "^2.118.0",
     "rxjs": "~7.8.2",
-    "tslib": "^2.8.1",
-    "zone.js": "~0.15.1"
+    "tslib": "^2.8.1"
   },
   "devDependencies": {
     "@angular-eslint/builder": "^22.0.0",

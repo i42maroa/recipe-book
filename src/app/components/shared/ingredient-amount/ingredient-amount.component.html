@@ -1,0 +1,9 @@
+<div class="amount-fields">
+  <label>Medida<select [disabled]="disabled()" (change)="select($any($event.target).value)" (blur)="touch()">
+    @for (option of units(); track option.value) { <option [value]="option.value" [selected]="choice() === option.value" [disabled]="option.legacy ?? false">{{ option.label }}</option> }
+  </select></label>
+  @if (choice() !== 'none' && choice() !== 'glass') {
+    <label>Cantidad<input type="number" autocomplete="off" min="0" step="any" [disabled]="disabled()" [value]="value() ?? ''" (input)="changeValue($any($event.target).value)" (blur)="touch()" required></label>
+  }
+</div>
+@if (choice() === 'pieza' || choice() === 'spoon') { <p class="equivalent">{{ equivalent() }}</p> }

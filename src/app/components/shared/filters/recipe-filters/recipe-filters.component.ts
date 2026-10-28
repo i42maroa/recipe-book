@@ -20,6 +20,8 @@ export class RecipeFiltersComponent {
   readonly difficulty = input.required<FormControl<RecipeDifficulty | ''>>();
   readonly status = input.required<FormControl<string>>();
   readonly ingredientIds = input.required<FormControl<string[]>>();
+  readonly requireAllIngredients = input(false);
+  readonly showIngredientFilter = input(true);
   readonly sortOptions = RECIPE_SORT_OPTIONS;
   readonly mealTypeOptions = RECIPE_MEAL_TYPE_OPTIONS;
   readonly difficultyOptions = RECIPE_DIFFICULTY_OPTIONS;

@@ -21,6 +21,9 @@ button {
 input {
   font: inherit;
 }
+input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 textarea {
   font: inherit;
 }
@@ -58,6 +61,11 @@ p {
 .difficulty-badge.difficulty-easy { background: var(--color-info-soft); color: var(--color-info); }
 .difficulty-badge.difficulty-medium { background: var(--color-warning-soft); color: var(--color-warning-dark); }
 .difficulty-badge.difficulty-hard { background: var(--color-danger-soft); color: var(--color-danger); }
+.photo-breakfast { --recipe-photo-background: var(--recipe-photo-breakfast); }
+.photo-starter { --recipe-photo-background: var(--recipe-photo-starter); }
+.photo-main { --recipe-photo-background: var(--recipe-photo-main); }
+.photo-dessert { --recipe-photo-background: var(--recipe-photo-dessert); }
+.photo-neutral { --recipe-photo-background: var(--recipe-photo-neutral); }
 .pending-badge {
   display: inline-flex;
   align-items: center;
@@ -131,7 +139,7 @@ p {
     border: 0;
     border-radius: 50%;
     background: var(--color-primary);
-    color: #fff;;
+    color: #fff;
     box-shadow: 0 5px 18px var(--shadow-dialog);
     cursor: pointer;
   }

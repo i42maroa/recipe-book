@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { RecipePickerComponent } from '../../components/recipe-picker/recipe-picker.component';
 import { PlannerDayComponent } from '../../components/planner-day/planner-day.component';
 import { RecipeCard } from '../../models/recipe-card.model';
+import { InventoryPlanningSource, InventoryRecipeSelection } from '../../models/inventory-planning.model';
 import { MEAL_SLOTS, MealSlot, PortionMode, RecipeSummary, ScheduledRecipe } from '../../models/scheduled-meal.model';
 import { AuthService } from '../../services/auth.service';
 import { NotificationService } from '../../services/notification.service';
@@ -128,7 +129,8 @@ export class PlannerEditorPageComponent {
   recipeIdsForSlot(date: string, slot: MealSlot): string[] { return this.groupedEntries().ids[`${date}:${slot}`] ?? []; }
   mealServings(date: string, slot: MealSlot): number { return this.servings()[`${date}:${slot}`] ?? 2; }
   private dayMeals(date: string) {
-    return this.slots.map(slot => ({ slot: slot.id, servings: this.mealServings(date, slot.id), recipes: this.forSlot(date, slot.id).map(entry => ({ recipeId: entry.recipeId, mode: entry.control.value })) }));
+    return this.slots.map(slot => ({ slot: slot.id, servings: this.mealServings(date, slot.id), recipes: this.forSlot(date, slot.id).map(entry => ({ recipeId: entry.recipeId, mode: entry.control.value,
+      ...(entry.inventory ? { inventory: entry.inventory } : {}) })) }));
   }
   markDirty(date: string): void {
     const changed = dayFingerprint(this.dayMeals(date)) !== this.savedDays.get(date);
@@ -146,13 +148,17 @@ export class PlannerEditorPageComponent {
     const target = this.picker(); this.picker.set(null);
     if (target) afterNextRender(() => document.getElementById(`day-add-${target.date}`)?.focus({ preventScroll: true }), { injector: this.injector });
   }
-  add(recipe: RecipeCard): void {
+  addFromInventory(selection: InventoryRecipeSelection): void { this.add(selection.recipe, selection.inventory); }
+
+  add(recipe: RecipeCard, inventory?: InventoryPlanningSource): void {
     const target = this.picker();
     if (!target || this.busy() || this.forSlot(target.date, target.slot).length >= 5 || this.forSlot(target.date, target.slot).some(entry => entry.recipeId.toLowerCase() === recipe.id.toLowerCase())) return;
     this.summaries.update(rows => ({ ...rows, [recipe.id]: recipe }));
     this.state.rememberCard(recipe);
-    this.entries.update(rows => [...rows, { date: target.date, slot: target.slot, recipeId: recipe.id, mode: 'scale', key: this.key++, control: new FormControl<PortionMode>('scale', { nonNullable: true }) }]);
+    this.entries.update(rows => [...rows, { date: target.date, slot: target.slot, recipeId: recipe.id, mode: 'scale', key: this.key++, control: new FormControl<PortionMode>('scale', { nonNullable: true }),
+      ...(inventory ? { inventory: structuredClone(inventory) } : {}) }]);
     this.markDirty(target.date); this.closePicker();
+    void this.saveDay(target.date);
   }
   removeEntry(entry: { key: string | number }): void {
     if (this.busy()) return;

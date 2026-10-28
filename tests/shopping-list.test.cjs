@@ -6,11 +6,15 @@ const calendar = loadService('src/app/utils/scheduled-meal.utils.ts', {});
 const uuid = loadService('src/app/utils/uuid.utils.ts', {});
 const display = loadService('src/app/utils/recipe-display.utils.ts', {});
 const model = loadService('src/app/models/recipe.model.ts', {});
+const measures = loadService('src/app/utils/ingredient-measures.utils.ts', {});
+const quantities = loadService('src/app/utils/shopping-quantities.utils.ts', {}, {}, { './ingredient-measures.utils': measures });
 const utils = loadService('src/app/utils/shopping-list.utils.ts', {}, {}, {
   './scheduled-meal.utils': calendar, './uuid.utils': uuid, './recipe-display.utils': display, '../models/recipe.model': model,
+  './ingredient-measures.utils': measures, './shopping-quantities.utils': quantities,
 });
 const tomato = { id: 'aaaaaaaa-1111-4111-8111-111111111111', name: 'Tomate', category: 'Verdura', occurrences: 3 };
 const rice = { id: 'bbbbbbbb-1111-4111-8111-111111111111', name: 'Arroz', category: 'Cereal', occurrences: 1 };
+const planned = items => items.map(item => ({ ...item, occurrences: 1, amounts: [{ kind: 'specific', unit: 'g', value: item.occurrences }], unquantified: 0 }));
 const plain = value => JSON.parse(JSON.stringify(value));
 const gate = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 
@@ -42,7 +46,7 @@ function setup() {
         state.saved = { items: structuredClone(args.p_items), version: args.p_expected_version + 1 };
         return { data: state.saved.version, error: null };
       })();
-      assert.equal(name, 'shopping_ingredients_from_plan');
+      assert.equal(name, 'shopping_plan_amounts');
       return {
         order(field) { call.orders.push(field); return this; },
         range(offset) { call.offset = offset; return this; },
@@ -50,7 +54,7 @@ function setup() {
         async then(resolve, reject) {
           try {
             const hold = state.holdPreview; state.holdPreview = null; if (hold) await hold;
-            resolve({ data: state.preview.slice(call.offset, call.offset + state.cap),
+            resolve({ data: state.preview.slice(call.offset, call.offset + state.cap).map(item => ({ ...item, source: item.id, base_unit: 'g', unit_quantity: null, amount: { kind: 'specific', unit: 'g', value: item.occurrences }, factor: 1, missing_servings: false })),
               count: state.count && options?.count === 'exact' ? state.preview.length : null,
               error: state.previewErrorAt === call.offset ? Error('Preview failed') : null });
           } catch (error) { reject(error); }
@@ -63,7 +67,7 @@ function setup() {
   const { ShoppingListService } = loadService('src/app/services/shopping-list.service.ts', {
     AuthService: auth, SupabaseService: { requireClient: () => client },
     RecipeService: { changes$: recipeChanges }, ScheduledMealService: { changes$: mealChanges }, IngredientService: { ingredientIndex$: ingredientChanges },
-  }, { Date: Clock }, { '../utils/shopping-list.utils': utils, '@angular/core/rxjs-interop': { takeUntilDestroyed: () => source => source } });
+  }, { Date: Clock }, { '../utils/shopping-list.utils': utils, '../utils/shopping-quantities.utils': quantities, '../utils/scheduled-meal.utils': calendar, '../utils/uuid.utils': uuid, '@angular/core/rxjs-interop': { takeUntilDestroyed: () => source => source } });
   return { state, service: new ShoppingListService(), recipeChanges, mealChanges, ingredientChanges };
 }
 
@@ -99,7 +103,7 @@ test('dirty comparison ignores ordering but includes counts and names; sharing g
   assert.notEqual(utils.shoppingFingerprint([tomato]), utils.shoppingFingerprint([{ ...tomato, occurrences: 2 }]));
   assert.notEqual(utils.shoppingFingerprint([tomato]), utils.shoppingFingerprint([{ ...tomato, name: 'Nuevo' }]));
   const text = utils.shoppingShareText([tomato, rice]);
-  assert.match(text, /Lista de la compra · Laurel/); assert.match(text, /Tomate ×3/); assert.match(text, /• Arroz\n/);
+  assert.match(text, /Lista de la compra · Laurel/); assert.match(text, /Tomate · 1 unidad/); assert.match(text, /• Arroz · 1 unidad/);
   assert.doesNotMatch(text, /×1\b/);
 });
 
@@ -120,29 +124,97 @@ test('planning replacement changes only the draft until saved', async () => {
   const preview = await service.fromPlanning('2026-10-20','2026-10-22', new AbortController().signal);
   assert.deepEqual(plain(service.items()), [rice]);
   service.replace([preview[0]]); preview[0].name = 'Changed externally';
-  assert.deepEqual(plain(service.items()), [tomato]); assert.equal(state.saved, null);
+  assert.deepEqual(plain(service.items()), planned([tomato])); assert.equal(state.saved, null);
 });
 
-test('incrementing a counter preserves other ingredients and persists the new count', async () => {
+test('adding the whole planning preview preserves existing ingredients, sums repeated quantities and persists once saved', async () => {
+  const { service, state } = setup(); await service.load();
+  const extra={...rice,id:'cccccccc-1111-4111-8111-111111111111',name:'Extra'};
+  const prior={...tomato,amounts:[{kind:'specific',unit:'g',value:100}],unquantified:0};
+  service.replace([prior,extra]);await service.save();
+  const preview=await service.fromPlanning('2026-10-20','2026-10-22',new AbortController().signal);
+  assert.equal(service.addPlanning(preview),true);preview[0].amounts[0].value=999;
+  assert.deepEqual(plain(service.items()),[{...prior,occurrences:4,amounts:[{kind:'specific',unit:'g',value:103}]},extra,planned([rice])[0]]);
+  assert.equal(service.dirty(),true);assert.deepEqual(plain(state.saved.items),[prior,extra]);
+  assert.equal(await service.save(),true);assert.deepEqual(plain(state.saved.items),plain(service.items()));
+  await service.load(true);assert.equal(service.items()[0].amounts[0].value,103);
+});
+
+test('planning additions merge by ingredient ID, preserve measure equivalents and deduplicate notes without mutating either list',()=>{
+  const grams={kind:'specific',unit:'g',value:0.1},unit={kind:'specific',unit:'pieza',value:1,baseUnit:'g',unitQuantity:150};
+  const previous=[{...tomato,amounts:[grams,unit],unquantified:0,notes:['Aviso']}];
+  const additions=[{...tomato,id:tomato.id.toUpperCase(),occurrences:1,amounts:[{...grams,value:0.2},unit],unquantified:0,notes:['Aviso','Otro aviso']},planned([rice])[0]];
+  const before=structuredClone([previous,additions]);const result=utils.addPlannedShoppingItems(previous,additions);
+  assert.equal(result.length,2);assert.equal(result[0].occurrences,4);
+  assert.deepEqual(plain(result[0].amounts),[{...grams,value:0.3},{...unit,value:2}]);assert.deepEqual(plain(result[0].notes),['Aviso','Otro aviso']);
+  assert.deepEqual([previous,additions],before);result[1].amounts[0].value=999;assert.equal(additions[1].amounts[0].value,1);
+});
+
+test('planning additions retain source data while missing quantities default to units and legacy glasses still need review',()=>{
+  const addition={...tomato,occurrences:1,amounts:[{kind:'specific',unit:'g',value:250}],unquantified:0};
+  const result=utils.addPlannedShoppingItems([tomato],[addition]);assert.equal(result[0].unquantified,1);assert.equal(quantities.shoppingPurchaseReady(result),true);
+  const glasses=[{...tomato,amounts:[{kind:'glass'}],unquantified:0}];
+  const mixed=utils.addPlannedShoppingItems([addition],glasses);assert.deepEqual(plain(mixed[0].amounts),[addition.amounts[0],{kind:'glass'}]);mixed[0].amounts[1].kind='spoon';assert.equal(glasses[0].amounts[0].kind,'glass');
+});
+
+test('planning additions are atomic on invalid totals and blocked during unavailable, saving, pending-purchase or changed-owner states',async()=>{
+  const {service,state}=setup();assert.equal(service.addPlanning(planned([tomato])),false);await service.load();service.replace([tomato]);
+  const before=plain(service.items());assert.throws(()=>service.addPlanning([{...rice,occurrences:0}]),/válida/);assert.deepEqual(plain(service.items()),before);
+  assert.throws(()=>service.addPlanning([{...tomato,occurrences:2147483647}]),/límites/);assert.deepEqual(plain(service.items()),before);
+  for(const flag of [service.saving,service.loading,service.purchasePending]){flag.set(true);assert.equal(service.addPlanning(planned([rice])),false);flag.set(false);assert.deepEqual(plain(service.items()),before);}
+  state.owner='owner-b';assert.equal(service.addPlanning(planned([rice])),false);assert.equal(service.items().length,0);
+});
+
+test('editing real quantities preserves other ingredients and persists measures instead of appearance counters', async () => {
   const { service, state } = setup(); await service.load(); service.replace([tomato, rice]); await service.save();
-  service.increment(rice.id); service.increment(rice.id);
-  assert.deepEqual(plain(service.items()), [tomato, { ...rice, occurrences: 3 }]);
+  service.setAmounts(rice.id, [{ kind: 'specific', value: 350, unit: 'g' }]);
+  assert.deepEqual(plain(service.items()), [tomato, { ...rice, amounts: [{ kind: 'specific', value: 350, unit: 'g' }], unquantified: 0 }]);
   assert.equal(service.dirty(), true); assert.equal(state.saved.items[1].occurrences, 1);
-  assert.equal(await service.save(), true); assert.equal(state.saved.items[1].occurrences, 3);
+  assert.equal(await service.save(), true); assert.equal(state.saved.items[1].amounts[0].value, 350);
   assert.equal(service.dirty(), false);
 });
 
-test('incrementing respects loading, saving, ownership and the supported maximum', async () => {
+test('quantity editing respects loading, saving, ownership and validation', async () => {
   const { service, state } = setup();
-  service.increment(rice.id); assert.equal(service.items().length, 0);
+  service.setAmounts(rice.id, []); assert.equal(service.items().length, 0);
   await service.load(); service.replace([{ ...tomato, occurrences: 2147483647 }, rice]);
-  service.increment(tomato.id); service.increment('missing');
+  service.setAmounts('missing', []);
+  assert.throws(() => service.setAmounts(tomato.id, [{ kind: 'specific', unit: 'g', value: -1 }]), /cantidades/);
   assert.equal(service.items()[0].occurrences, 2147483647);
   const held = gate(); state.holdSave = held.promise; const saving = service.save();
-  service.increment(rice.id); assert.equal(service.items()[1].occurrences, 1);
+  service.setAmounts(rice.id, [{ kind: 'specific', unit: 'g', value: 400 }]); assert.equal(service.items()[1].amounts, undefined);
   held.resolve(); await saving;
-  state.owner = 'owner-b'; service.increment(rice.id);
+  state.owner = 'owner-b'; service.setAmounts(rice.id, []);
   assert.equal(service.items().length, 0);
+});
+
+test('unit buttons increment real units and persist their equivalents without changing other measures or ingredients',async()=>{
+  const {service,state}=setup();await service.load();
+  const unit={kind:'specific',unit:'pieza',value:1,baseUnit:'g',unitQuantity:150};
+  const measured={...tomato,amounts:[{kind:'specific',unit:'g',value:250},unit],unquantified:1,notes:['Aviso']};
+  service.replace([measured,rice]);await service.save();
+  service.incrementUnit(tomato.id,1);service.incrementUnit(tomato.id,1);
+  const expected={...measured,amounts:[measured.amounts[0],{...unit,value:3},{kind:'specific',unit:'pieza',value:1}],unquantified:0};
+  assert.deepEqual(plain(service.items()),[expected,rice]);assert.equal(measured.amounts[1].value,1);assert.equal(service.dirty(),true);
+  assert.equal(state.saved.items[0].amounts[1].value,1);assert.equal(await service.save(),true);await service.load(true);
+  assert.equal(service.items()[0].amounts[1].value,3);assert.equal(service.items()[0].amounts[1].unitQuantity,150);
+});
+
+test('a missing quantity starts at one unit and its first increment saves two without treating the legacy count as units',async()=>{
+  const {service}=setup();await service.load();service.replace([{...tomato,occurrences:9}]);
+  assert.equal(quantities.shoppingQuantityLabel(service.items()[0]),'1 unidad');service.incrementUnit(tomato.id,0);
+  assert.deepEqual(plain(service.items()[0].amounts),[{kind:'specific',unit:'pieza',value:2}]);assert.equal(service.items()[0].unquantified,0);assert.equal(service.items()[0].occurrences,9);
+  await service.save();await service.load(true);assert.equal(service.items()[0].amounts[0].value,2);
+});
+
+test('unit increments reject unrelated measures and overflow, and respect load, save, purchase and owner locks',async()=>{
+  const {service,state}=setup();service.incrementUnit(tomato.id,0);await service.load();
+  const unit={kind:'specific',unit:'pieza',value:0.5};service.replace([{...tomato,amounts:[unit],unquantified:0},planned([rice])[0]]);
+  service.incrementUnit(tomato.id,0);assert.equal(service.items()[0].amounts[0].value,1.5);
+  const before=plain(service.items());service.incrementUnit(rice.id,0);service.incrementUnit(tomato.id,1);service.incrementUnit('missing',0);assert.deepEqual(plain(service.items()),before);
+  for(const flag of [service.loading,service.saving,service.purchasePending]){flag.set(true);service.incrementUnit(tomato.id,0);flag.set(false);assert.deepEqual(plain(service.items()),before);}
+  service.replace([{...tomato,amounts:[{...unit,value:Number.MAX_VALUE}],unquantified:0}]);assert.throws(()=>service.incrementUnit(tomato.id,0),/rango/);assert.equal(service.items()[0].amounts[0].value,Number.MAX_VALUE);
+  state.owner='owner-b';service.incrementUnit(tomato.id,0);assert.equal(service.items().length,0);
 });
 
 test('clearing the list changes the draft and explicitly saving persists its removal', async () => {
@@ -208,12 +280,12 @@ test('a delayed save cannot populate a different account or mark its draft saved
 test('planning preview pages beyond API caps and forwards inclusive dates without changing the draft', async () => {
   const { service, state } = setup(); await service.load();
   const result = await service.fromPlanning('2026-12-31','2027-01-02', new AbortController().signal);
-  assert.deepEqual(plain(result), [tomato, rice]); assert.equal(service.items().length, 0);
-  const calls = state.calls.filter(call => call.type === 'shopping_ingredients_from_plan');
+  assert.deepEqual(plain(result), planned([tomato, rice])); assert.equal(service.items().length, 0);
+  const calls = state.calls.filter(call => call.type === 'shopping_plan_amounts');
   assert.deepEqual(calls.map(call => call.offset), [0,1]); assert.equal(calls.filter(call => call.options.count === 'exact').length, 1);
-  for (const call of calls) { assert.deepEqual(plain(call.args), { p_from: '2026-12-31', p_to: '2027-01-02' }); assert.deepEqual(call.orders, ['name','id']); }
+  for (const call of calls) { assert.deepEqual(plain(call.args), { p_from: '2026-12-31', p_to: '2027-01-02' }); assert.deepEqual(call.orders, ['source']); }
   state.count = false;
-  assert.deepEqual(plain(await service.fromPlanning('2026-10-20','2026-10-20', new AbortController().signal)), [tomato, rice]);
+  assert.deepEqual(plain(await service.fromPlanning('2026-10-20','2026-10-20', new AbortController().signal)), planned([tomato, rice]));
 });
 
 test('failed, aborted or account-obsolete previews never expose a partial result', async () => {
@@ -236,14 +308,14 @@ test('invalid ranges and signed out access fail before requesting planning data'
   assert.equal(state.calls.length, 0);
 });
 
-const previewCalls = state => state.calls.filter(call => call.type === 'shopping_ingredients_from_plan');
+const previewCalls = state => state.calls.filter(call => call.type === 'shopping_plan_amounts');
 const preview = (service, from = '2026-10-20', to = '2026-10-22', signal = new AbortController().signal) => service.fromPlanning(from, to, signal);
 
 test('identical intervals reuse independent complete results, including empty intervals', async () => {
   const { service, state } = setup();
   const first = await preview(service); const count = previewCalls(state).length;
   first[0].name = 'External change'; first.pop();
-  assert.deepEqual(plain(await preview(service)), [tomato, rice]);
+  assert.deepEqual(plain(await preview(service)), planned([tomato, rice]));
   assert.equal(previewCalls(state).length, count);
   state.preview = []; await preview(service, '2026-11-01', '2026-11-01');
   const emptyCount = previewCalls(state).length;
@@ -260,7 +332,7 @@ test('simultaneous identical intervals share pages and one cancelled consumer do
   assert.equal(previewCalls(state).length, 1);
   const transport = previewCalls(state)[0].signal;
   controller.abort(); await cancelled; assert.equal(transport.aborted, false);
-  held.resolve(); assert.deepEqual(plain(await second), [tomato, rice]);
+  held.resolve(); assert.deepEqual(plain(await second), planned([tomato, rice]));
   assert.equal(previewCalls(state).length, 2);
 });
 
@@ -270,17 +342,17 @@ test('cancelling the final preview consumer aborts transport and cannot cache it
   await new Promise(setImmediate); const transport = previewCalls(state)[0].signal;
   controller.abort(); await cancelled; assert.equal(transport.aborted, true);
   held.resolve(); await new Promise(setImmediate);
-  state.preview = [rice]; assert.deepEqual(plain(await preview(service)), [rice]);
+  state.preview = [rice]; assert.deepEqual(plain(await preview(service)), planned([rice]));
   assert.equal(previewCalls(state).length, 2);
 });
 
 test('cache expires after five minutes and never reuses another account or revoked editor access', async () => {
   const { service, state } = setup(); await preview(service);
   state.now += 300_000; state.preview = [rice];
-  assert.deepEqual(plain(await preview(service)), [rice]);
+  assert.deepEqual(plain(await preview(service)), planned([rice]));
   const count = previewCalls(state).length;
   state.owner = 'owner-b'; state.preview = [tomato];
-  assert.deepEqual(plain(await preview(service)), [tomato]);
+  assert.deepEqual(plain(await preview(service)), planned([tomato]));
   assert.ok(previewCalls(state).length > count);
   state.editor = false; await assert.rejects(preview(service), /sesión/);
 });
@@ -298,7 +370,7 @@ test('a preview invalidated while loading cannot restore stale cached data', asy
   const pending = preview(service); await new Promise(setImmediate);
   mealChanges.next(); held.resolve(); await pending;
   state.preview = [rice]; const count = previewCalls(state).length;
-  assert.deepEqual(plain(await preview(service)), [rice]);
+  assert.deepEqual(plain(await preview(service)), planned([rice]));
   assert.ok(previewCalls(state).length > count);
 });
 
@@ -306,7 +378,7 @@ test('failed calculations stay retryable and interval cache has a bounded size',
   const { service, state } = setup(); state.previewErrorAt = 1;
   await assert.rejects(preview(service), /Preview failed/);
   state.previewErrorAt = null;
-  assert.deepEqual(plain(await preview(service)), [tomato, rice]);
+  assert.deepEqual(plain(await preview(service)), planned([tomato, rice]));
   for (let day = 1; day <= 21; day++) {
     const date = `2026-11-${String(day).padStart(2, '0')}`;
     await preview(service, date, date);

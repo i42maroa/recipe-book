@@ -44,8 +44,7 @@ export class IngredientsPageComponent {
     this.search.valueChanges.pipe(searchTerms(), startWith('')),
     this.category.valueChanges.pipe(startWith(this.category.value)),
   ]).pipe(
-    map(([index, query, category]) => findIngredients(index, query, { category })
-      .sort((a, b) => a.name.localeCompare(b.name)))
+    map(([index, query, category]) => findIngredients(index, query, { category }))
   );
 
   readonly ingredientGroups$ = this.filteredIngredients$.pipe(map((items) => groupIngredients(items, this.categories)

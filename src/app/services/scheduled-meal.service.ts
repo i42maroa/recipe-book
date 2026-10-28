@@ -37,9 +37,9 @@ export class ScheduledMealService {
 
   private async getRange(start: string, end: string, signal?: AbortSignal, force = false): Promise<ScheduledMeal[]> {
     if (!Number.isFinite(dateNumber(start)) || !Number.isFinite(dateNumber(end))) throw new Error('La fecha no es válida.');
+    const owner = this.syncOwner();
     await this.auth.requireEditor();
-    const owner = this.auth.user()!.id;
-    this.syncOwner();
+    if (!owner || this.syncOwner() !== owner) throw new Error('La sesión ha cambiado.');
     const generation = this.generation;
     signal?.throwIfAborted();
     const dates = calendarWeek(start).map(day => day.date).filter(date => date <= end);
@@ -60,20 +60,23 @@ export class ScheduledMealService {
   }
 
   async saveDay(date: string, meals: MealSelection[]): Promise<void> {
-    const validation = validateDay(date, meals);
+    const snapshot = structuredClone(meals);
+    const validation = validateDay(date, snapshot);
     if (validation) throw new Error(validation);
+    const owner = this.syncOwner();
     await this.auth.requireEditor();
-    const owner = this.auth.user()!.id;
-    this.syncOwner();
-    // Discard in-flight reads from before this write as well as cached old data.
-    this.generation++;
-    this.days.delete(date);
-    this.changesSubject.next();
-    const { error } = await this.supabase.requireClient().rpc('save_scheduled_day', { p_date: date, p_meals: meals });
-    if (error) throw error;
-    if (this.auth.user()?.id !== owner || !this.auth.canEdit()) throw new Error('La sesión ha cambiado.');
-    this.changesSubject.next();
-    this.remember(date, meals.filter(meal => meal.recipes.length).map(meal => ({ ...meal, date })));
+    if (!owner || this.syncOwner() !== owner) throw new Error('La sesión ha cambiado.');
+    this.invalidateDate(date);
+    try {
+      const { error } = await this.supabase.requireClient().rpc('save_scheduled_day', { p_date: date, p_meals: snapshot });
+      if (error) throw error;
+      if (this.auth.user()?.id !== owner || !this.auth.canEdit()) throw new Error('La sesión ha cambiado.');
+    } finally {
+      // A read started during the write must not restore stale meals, even if
+      // the server committed the write but its response was lost.
+      if (this.auth.user()?.id === owner && this.auth.canEdit() && this.cacheOwner === owner) this.invalidateDate(date);
+    }
+    this.remember(date, snapshot.filter(meal => meal.recipes.length).map(meal => ({ ...meal, date })));
   }
 
   async addRecipe(date: string, slot: MealSlot, servings: number, recipeId: string, mode: PortionMode): Promise<ScheduledRecipeAddition> {

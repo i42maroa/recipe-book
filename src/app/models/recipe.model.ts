@@ -2,19 +2,26 @@ export type MealType = 'Desayuno' | 'Entrante' | 'Plato' | 'Postre';
 export type CuisineType = 'Española' | 'Italiana' | 'Mexicana' | 'Japonesa' | 'China' | 'India' | 'Francesa' | 'Peruana' | 'Árabe' | 'Otra';
 export const INGREDIENT_CATEGORIES = ['Verdura', 'Fruta', 'Legumbre', 'Pescado', 'Carne', 'Lacteo', 'Cereal', 'Liquidos', 'FrutosSecos', 'Especia', 'Elaboracion', 'Otro'] as const;
 export type IngredientCategory = typeof INGREDIENT_CATEGORIES[number];
+export type IngredientBaseUnit = 'g' | 'ml';
+export interface IngredientMeasures {
+  baseUnit: IngredientBaseUnit;
+  unitQuantity: number | null;
+}
 
 export interface Ingredient {
   id: string;
   name: string;
   category: IngredientCategory;
+  baseUnit?: IngredientBaseUnit;
+  unitQuantity?: number | null;
   derivedFromIds?: string[];
   derivedFromAmounts?: Record<string, RecipeIngredientAmount>;
 }
 
 export type RecipeIngredientAmount =
-  | { kind: 'spoon' }
+  | { kind: 'spoon'; value?: number | null }
   | { kind: 'glass' }
-  | { kind: 'specific'; value: number | null; unit: 'ml' | 'g' | 'pieza' };
+  | { kind: 'specific'; value: number | null; unit: 'ml' | 'g' | 'pieza'; baseUnit?: IngredientBaseUnit; unitQuantity?: number };
 
 export type RecipeDifficulty = 'Fácil' | 'Media' | 'Difícil';
 
@@ -35,6 +42,10 @@ export interface Recipe {
   fitness?: boolean;
   difficulty?: RecipeDifficulty;
   photos?: RecipePhoto[];
+}
+
+export interface RecipeIngredientUsage extends Pick<Recipe, 'id' | 'name'> {
+  ingredientAmount: RecipeIngredientAmount | null;
 }
 
 export interface RecipePhoto {
