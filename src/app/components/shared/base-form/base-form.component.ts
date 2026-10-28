@@ -16,6 +16,7 @@ import { BaseFormType, RecipeFormValue } from '../../../models/form.model';
 import { IngredientService } from '../../../services/ingredient.service';
 import { NotificationService } from '../../../services/notification.service';
 import { SelectFilterOption } from '../filters/select-filter-options';
+import { RECIPE_DIFFICULTIES, RECIPE_MEAL_TYPES } from '../filters/recipe-filter-options';
 import { IconComponent } from '../icon/icon.component';
 import { MIN_SEARCH_LENGTH, normalizeSearch, searchTerms } from '../../../utils/search.utils';
 import { findIngredients } from '../../../utils/ingredient-search.utils';
@@ -80,11 +81,11 @@ export class BaseFormComponent implements OnInit {
       return this.groupIngredients(filtered);
     }),
   );
-  readonly mealTypes: MealType[] = ['Desayuno', 'Entrante', 'Plato', 'Postre'];
+  readonly mealTypes = RECIPE_MEAL_TYPES;
   readonly ratingOptions = Array.from({ length: 10 }, (_, index) => index + 1);
   readonly cuisineTypes: CuisineType[] = ['Española', 'Italiana', 'Mexicana', 'Japonesa', 'China', 'India', 'Francesa', 'Peruana', 'Árabe', 'Otra'];
   cuisineFlag(cuisine: CuisineType): string { return cuisineFlag(cuisine); }
-  readonly difficulties: RecipeDifficulty[] = ['F\u00e1cil', 'Media', 'Dif\u00edcil'];
+  readonly difficulties = RECIPE_DIFFICULTIES;
   readonly categories: IngredientCategory[] = [...INGREDIENT_CATEGORIES];
   readonly quickCategories = this.categories.filter((category) => category !== 'Elaboracion');
   readonly ingredientCategoryOptions: SelectFilterOption[] = [

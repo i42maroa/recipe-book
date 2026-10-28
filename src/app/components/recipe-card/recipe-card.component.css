@@ -34,7 +34,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: linear-gradient(135deg, #e8e3d5, #c6b99d);
+  background: var(--recipe-photo-background, var(--recipe-photo-neutral));
 }
 .recipe-photo.has-photo { height: 178px; flex-basis: 178px; }
 .recipe-photo::after {
@@ -64,21 +64,6 @@
 .photo-carousel-button.previous { left: 7px; }
 .photo-carousel-button.next { right: 7px; }
 .photo-carousel-button:focus-visible { outline: 2px solid white; outline-offset: 2px; }
-.photo-breakfast {
-  background: radial-gradient(ellipse at 55% 45%, #f4cf77, #d59544 52%, #8f5b35);
-}
-.photo-starter {
-  background: radial-gradient(ellipse at 51% 45%, #b4ce87, #788e52 52%, #465c3f);
-}
-.photo-main {
-  background: radial-gradient(ellipse at 50% 47%, #e6a64e, #c45b38 52%, #793e2e);
-}
-.photo-dessert {
-  background: radial-gradient(ellipse at 52% 45%, #edb0b7, #c8647c 52%, #783c61);
-}
-.photo-neutral {
-  background: linear-gradient(135deg, #e8e3d5, #c6b99d);
-}
 .photo-illustration {
   z-index: 1;
   width: 76px;

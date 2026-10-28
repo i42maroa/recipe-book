@@ -34,6 +34,13 @@
   --overlay: #20291f80;
   --overlay-topbar: rgb(255 255 255 / 57%);
 
+  /* Fondos de recetas sin fotografía */
+  --recipe-photo-neutral: linear-gradient(135deg, #e8e3d5, #c6b99d);
+  --recipe-photo-breakfast: radial-gradient(ellipse at 55% 45%, #f4cf77, #d59544 52%, #8f5b35);
+  --recipe-photo-starter: radial-gradient(ellipse at 51% 45%, #b4ce87, #788e52 52%, #465c3f);
+  --recipe-photo-main: radial-gradient(ellipse at 50% 47%, #e6a64e, #c45b38 52%, #793e2e);
+  --recipe-photo-dessert: radial-gradient(ellipse at 52% 45%, #edb0b7, #c8647c 52%, #783c61);
+
   /* Tipografía */
   --font-serif: 'Playfair Display', Georgia, serif;
   --font-sans: 'DM Sans', Arial, sans-serif;

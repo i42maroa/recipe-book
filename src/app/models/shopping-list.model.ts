@@ -18,5 +18,3 @@ export interface ShoppingRequirementRow {
   factor: number;
   missing_servings: boolean;
 }
-
-export interface ShoppingDateRange { from: string; to: string }

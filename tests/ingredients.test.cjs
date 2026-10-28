@@ -42,6 +42,7 @@ function setup(size = 7) {
       if (!detail && state.hold) { const held = state.hold; state.hold = null; await held; }
       if (detail) return state.failDetail ? { error: Error('Detail failed') } : { data: snapshot.find(row => row.id === call.id) ?? null, error: null };
       if (state.failOffset === call.offset) return { error: Error('Page failed') };
+      if (state.emptyOffset === call.offset) return { data: [], count: null, error: null };
       return { data: snapshot.slice(call.offset, Math.min(call.end + 1, call.offset + state.cap)).map(({ id, name, category, base_unit, unit_quantity }) => ({ id, name, category, base_unit, unit_quantity })),
         count: state.count && call.options?.count === 'exact' ? snapshot.length : null, error: null };
     }
@@ -212,4 +213,48 @@ test('a rejected ingredient write never publishes a local success', async () => 
   await assert.rejects(service.add('Perejil', 'Especia', [], {}, {baseUnit:'g',unitQuantity:null}), /Write failed/);
   assert.equal(state.rows.length, 7);
   assert.equal(service.getById('ingredient-0006').name, 'Ingrediente 6');
+});
+
+test('editing an ingredient updates its complete local data without reloading unrelated ingredients', async () => {
+  const { service, state } = setup(); await service.ensureLoaded();
+  const reads = state.calls.length; state.failOffset = 0;
+  const changes = { name: '  Salsa editada  ', category: 'Elaboracion', baseUnit: 'g', unitQuantity: null,
+    derivedFromIds: ['ingredient-0001'], derivedFromAmounts: { 'ingredient-0001': { kind: 'specific', value: 25, unit: 'g' } } };
+  await service.update('ingredient-0000', changes);
+  assert.equal(state.calls.length, reads);
+  assert.equal(service.getById('ingredient-0000').name, 'Salsa editada');
+  assert.equal(service.getById('ingredient-0000').derivedFromAmounts['ingredient-0001'].value, 25);
+  assert.equal(service.getById('ingredient-0006').name, 'Ingrediente 6');
+  assert.equal(service.error(), false);
+});
+
+test('an unrelated refresh failure cannot turn a successful ingredient edit into a failed save', async () => {
+  const { service, state } = setup(); await service.ensureLoaded();
+  const held = gate(); state.hold = held.promise; state.failOffset = 0;
+  const refresh = assert.rejects(service.refresh(), /Page failed/);
+  await service.update('ingredient-0000', { name: 'Editado', category: 'Verdura', baseUnit: 'g', unitQuantity: null,
+    derivedFromIds: [], derivedFromAmounts: {} });
+  held.resolve(); await refresh;
+  assert.equal(service.getById('ingredient-0000').name, 'Editado');
+  assert.equal(state.rows.find(row => row.id === 'ingredient-0000').name, 'Editado');
+});
+
+test('caller changes after an edit cannot mutate the saved ingredient snapshot', async () => {
+  const { service } = setup(); await service.ensureLoaded();
+  const changes = { name: 'Salsa', category: 'Elaboracion', baseUnit: 'g', unitQuantity: null,
+    derivedFromIds: ['ingredient-0001'], derivedFromAmounts: { 'ingredient-0001': { kind: 'specific', value: 25, unit: 'g' } } };
+  await service.update('ingredient-0000', changes);
+  changes.derivedFromIds.length = 0; changes.derivedFromAmounts['ingredient-0001'].value = 999;
+  assert.equal(service.getById('ingredient-0000').derivedFromIds.length, 1);
+  assert.equal(service.getById('ingredient-0000').derivedFromAmounts['ingredient-0001'].value, 25);
+});
+
+test('an unexpectedly empty page never replaces the complete ingredient catalog with a partial result', async () => {
+  const { service, state } = setup(); await service.ensureLoaded();
+  state.emptyOffset = 3;
+  await assert.rejects(service.refresh(), /han cambiado/);
+  assert.equal(service.error(), true);
+  assert.ok(service.getById('ingredient-0006'));
+  state.emptyOffset = null; await service.refresh();
+  assert.equal(service.error(), false);
 });

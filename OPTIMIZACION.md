@@ -104,7 +104,15 @@ La lectura del catálogo usa lotes de hasta 200 filas con orden estable por ID y
 
 `ensureDetails(id)` solicita composición y cantidades solo para ese ingrediente, conserva su distinción respecto al catálogo y comparte solicitudes simultáneas. Los detalles y formularios de edición cargan esos datos antes de presentarlos como completos; los formularios conservan cantidades, selecciones y borradores. Los resultados anteriores a una actualización o borrado no pueden recuperar versiones antiguas del ingrediente.
 
-Crear un ingrediente usa la RPC de escritura e incorpora su resultado confirmado al índice local, sin otra descarga del catálogo. Los fallos de una recarga independiente no convierten un alta persistida en un error. Si había una carga en curso, se descarta su revisión antigua y se conserva el detalle del ingrediente recién creado al publicar el catálogo completo.
+Crear o editar un ingrediente usa la RPC de escritura e incorpora los datos confirmados al índice local, sin otra descarga del catálogo. Los fallos de una recarga independiente no convierten una escritura persistida en un error. Si había una carga en curso, se descarta su revisión antigua y se conserva el detalle guardado al publicar el catálogo completo. Una página vacía antes de alcanzar el total esperado tampoco publica un catálogo parcial.
+
+## Mantenimiento del código
+
+La lógica del antiguo congelador está integrada en `inventory.model.ts` e `inventory.utils.ts`: alacena y congelador comparten validación, ordenación, cantidades y retiradas, conservando las medidas históricas. Las tarjetas y los detalles de recetas comparten la transformación de sus campos comunes. Los fondos sin foto se definen en `root.css` y las clases comunes en `styles.css`; se han retirado los estilos de controles sustituidos y de las antiguas páginas de error.
+
+Los guardados diarios capturan una copia independiente y comprueban que sigue activa la misma cuenta después de verificar permisos. Invalidan las lecturas anteriores y las iniciadas durante la escritura, también cuando se pierde la respuesta. Compra reutiliza el bloqueo de scroll compartido para sus diálogos anidados.
+
+`npm test` ejecuta todas las pruebas, incluidas las de SQL y las vistas previas. TypeScript rechaza variables y parámetros sin uso mediante `noUnusedLocals` y `noUnusedParameters`. La aplicación no carga Zone.js y ya no lo declara como dependencia directa.
 
 `RecipeListService` crea un `AbortController` por carga. Al cambiar criterios o revisión, o al irse el último suscriptor, aborta la petición y detiene las páginas siguientes de un refresco grande. Las cancelaciones no producen avisos de error ni sustituyen el estado guardado. Una petición ya completada no se aborta. El transporte de `RecipeService.getBatch` recibe la señal tanto para búsquedas normales como por ingredientes.
 

@@ -18,7 +18,7 @@ export function validShoppingItems(value: unknown): value is ShoppingItem[] {
   for (const item of value) {
     if (!item || typeof item !== 'object' || !isUuid(item.id) || typeof item.name !== 'string' || !item.name.trim()
       || !categories.has(item.category) || !Number.isInteger(item.occurrences) || item.occurrences < 1 || item.occurrences > 2147483647) return false;
-    if (item.amounts !== undefined && (!Array.isArray(item.amounts) || item.amounts.length > 32 || item.amounts.some((amount: unknown) => !amount || !validIngredientAmount(amount as never)))) return false;
+    if (item.amounts !== undefined && (!Array.isArray(item.amounts) || item.amounts.length > 32 || item.amounts.some((amount: unknown) => !amount || !validIngredientAmount(amount)))) return false;
     if (item.unquantified !== undefined && (!Number.isSafeInteger(item.unquantified) || item.unquantified < 0)) return false;
     if (item.notes !== undefined && (!Array.isArray(item.notes) || item.notes.some((note: unknown) => typeof note !== 'string' || note.length > 500))) return false;
     const id = item.id.toLowerCase();
@@ -48,7 +48,7 @@ export function addPlannedShoppingItems(items: ShoppingItem[], additions: Shoppi
   const next = new Map(items.map(item => [item.id.toLowerCase(), structuredClone(item)]));
   for (const addition of structuredClone(additions)) {
     const id = addition.id.toLowerCase(); const previous = next.get(id);
-    if (!previous) { next.set(id, { ...structuredClone(addition), id }); continue; }
+    if (!previous) { next.set(id, { ...addition, id }); continue; }
     const amounts = [...(previous.amounts ?? []), ...(addition.amounts ?? [])];
     next.set(id, { ...previous, occurrences: previous.occurrences + addition.occurrences,
       amounts: [...combineShoppingAmounts(amounts.filter(amount => amount.kind !== 'glass')), ...amounts.filter(amount => amount.kind === 'glass')],

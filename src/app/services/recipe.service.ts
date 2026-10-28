@@ -1,7 +1,7 @@
 import { LoadingService } from './loading.service';
 import { RecipeCard } from '../models/recipe-card.model';
 import { AuthService } from './auth.service';
-﻿import { Injectable, inject } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { MealType, Recipe, RecipeDifficulty, RecipeIngredientUsage } from '../models/recipe.model';
 import { NotificationService } from './notification.service';
@@ -89,12 +89,6 @@ export class RecipeService {
   private async refreshChangedStats(): Promise<void> {
     try { await this.loadStats(); }
     catch { this.notifications.error('El cambio se ha guardado, pero no se pudieron actualizar los contadores.'); }
-  }
-
-  async refreshRecipe(id: string): Promise<void> {
-    this.invalidateDetail(id);
-    await this.fetchRecipe(id);
-    this.changesSubject.next(this.changesSubject.value + 1);
   }
 
   async getBatch(filters: RecipeFilters, offset = 0, limit = this.pageSize, signal?: AbortSignal): Promise<RecipeBatch> {
@@ -253,36 +247,35 @@ export class RecipeService {
   private mapCardRows(rows: RecipeCardRow[], ingredientIds: string[] = []): RecipeCard[] {
     const selectedIds = new Set(ingredientIds.map(id => id.toLowerCase()));
     return rows.map((row) => ({
-      id: row.id, name: row.name, minutes: row.minutes, servings: row.servings,
-      pending: row.pending, mealTypes: row.meal_types ?? [], rating: row.rating,
-      fitness: row.fitness, difficulty: row.difficulty ?? undefined,
+      ...this.mapSummary(row),
       ingredientCount: row.recipe_ingredients?.[0]?.count ?? 0,
       ...(row.matched_ingredients ? { matchedIngredients: row.matched_ingredients.flatMap(item =>
         item.ingredients && selectedIds.has(item.ingredient_id.toLowerCase())
           ? [{ id: item.ingredient_id, name: item.ingredients.name }] : []) } : {}),
-      cuisineTypes: (row.recipe_cuisine_types ?? []).flatMap((item) => item.cuisine_types ? [item.cuisine_types.name] : []),
-      photos: [...(row.recipe_photos ?? [])].sort((a, b) => a.position - b.position).map((photo) => ({
-        id: photo.id, storagePath: photo.storage_path, url: this.photoService.publicUrl(photo.storage_path),
-        position: photo.position, altText: photo.alt_text,
-      })),
     }));
   }
 
   private mapRows(rows: RecipeRow[]): Recipe[] {
     return rows.map((row) => ({
-      id: row.id, name: row.name, minutes: row.minutes, servings: row.servings, pending: row.pending, mealTypes: row.meal_types ?? [],
-      rating: row.rating, sourceUrl: row.source_url ?? '', annotations: row.annotations ?? '', fitness: row.fitness,
-      difficulty: row.difficulty ?? undefined, steps: [...(row.recipe_steps ?? [])].sort((a, b) => a.position - b.position).map((step) => step.description),
+      ...this.mapSummary(row),
+      sourceUrl: row.source_url ?? '', annotations: row.annotations ?? '',
+      steps: [...(row.recipe_steps ?? [])].sort((a, b) => a.position - b.position).map((step) => step.description),
       ingredientIds: (row.recipe_ingredients ?? []).map((item) => item.ingredient_id),
       ingredientAmounts: mapIngredientAmounts(row.recipe_ingredients ?? [], (item) => item.ingredient_id),
-      cuisineTypes: (row.recipe_cuisine_types ?? []).map((item) => item.cuisine_types?.name).filter((name): name is NonNullable<typeof name> => name !== undefined),
-      photos: [...(row.recipe_photos ?? [])].sort((a, b) => a.position - b.position).map((photo) => ({
-        id: photo.id, storagePath: photo.storage_path, url: this.photoService.publicUrl(photo.storage_path), position: photo.position, altText: photo.alt_text,
-      })),
     }));
   }
 
-
+  private mapSummary(row: Omit<RecipeCardRow, 'recipe_ingredients'>) {
+    return {
+      id: row.id, name: row.name, minutes: row.minutes, servings: row.servings,
+      pending: row.pending, mealTypes: row.meal_types ?? [], rating: row.rating,
+      fitness: row.fitness, difficulty: row.difficulty ?? undefined,
+      cuisineTypes: (row.recipe_cuisine_types ?? []).flatMap(item => item.cuisine_types ? [item.cuisine_types.name] : []),
+      photos: [...(row.recipe_photos ?? [])].sort((a, b) => a.position - b.position).map((photo) => ({
+        id: photo.id, storagePath: photo.storage_path, url: this.photoService.publicUrl(photo.storage_path), position: photo.position, altText: photo.alt_text,
+      })),
+    };
+  }
 
   async create(recipe: Omit<Recipe, 'id'>, photos?: RecipePhotoChanges): Promise<string> { return this.loading.run(() => this.save(null, recipe, photos), 'recipe-save'); }
   async update(id: string, recipe: Omit<Recipe, 'id'>, photos?: RecipePhotoChanges): Promise<string> { return this.loading.run(() => this.save(id, recipe, photos), 'recipe-save'); }

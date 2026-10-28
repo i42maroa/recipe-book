@@ -14,11 +14,8 @@ before(async () => {
   const uuid = loadService('src/app/utils/uuid.utils.ts', {});
   const model = loadService('src/app/models/recipe.model.ts', {});
   const scroll = loadService('src/app/utils/dialog-scroll.utils.ts', {});
-  const utils = loadService('src/app/utils/freezer.utils.ts', {}, {}, {
-    './ingredient-measures.utils': measures, './scheduled-meal.utils': calendar, './uuid.utils': uuid, '../models/recipe.model': model,
-  });
   const inventoryUtils = loadService('src/app/utils/inventory.utils.ts', {}, { crypto }, {
-    './ingredient-measures.utils': measures, './freezer.utils': utils, './scheduled-meal.utils': calendar, './uuid.utils': uuid,
+    './ingredient-measures.utils': measures, './scheduled-meal.utils': calendar, './uuid.utils': uuid, '../models/recipe.model': model,
   });
   setup = () => {
     const emissions = [];
@@ -31,7 +28,7 @@ before(async () => {
     const { InventoryEntryDialogComponent } = loadService('src/app/components/inventory-entry-dialog/inventory-entry-dialog.component.ts',
       { IngredientService: injections.IngredientService, PlannerStateService: injections.PlannerStateService }, { crypto }, {
         '@angular/core': core, '@angular/common': { DOCUMENT: 'DOCUMENT' }, '@angular/forms': forms,
-        '../../utils/freezer.utils': utils, '../../utils/inventory.utils': inventoryUtils, '../../utils/scheduled-meal.utils': calendar,
+        '../../utils/inventory.utils': inventoryUtils, '../../utils/scheduled-meal.utils': calendar,
         '../../utils/dialog-scroll.utils': scroll, '../../utils/ingredient-measures.utils': measures,
         '../../utils/recipe-display.utils': { ingredientCategoryLabel: value => value },
       });

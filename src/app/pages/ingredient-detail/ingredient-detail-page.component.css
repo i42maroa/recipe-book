@@ -1,5 +1,4 @@
-﻿.ingredient-detail-page,
-.ingredient-not-found {
+﻿.ingredient-detail-page {
   max-width: 1050px;
   margin: 0 auto;
   padding: 36px 5.2% 50px;
@@ -152,21 +151,13 @@
 .ingredient-recipes li a:hover span {
   text-decoration: underline;
 }
-.no-recipes,
-.ingredient-not-found p {
+.no-recipes {
   margin: 0;
   color: var(--color-text-muted);
   font-size: 12px;
 }
-.ingredient-not-found {
-  text-align: center;
-}
-.ingredient-not-found h1 {
-  font: 600 30px var(--font-serif);
-}
 @media (max-width: 760px) {
-  .ingredient-detail-page,
-  .ingredient-not-found {
+  .ingredient-detail-page {
     padding: 28px 17px 36px;
   }
   .ingredient-detail-card {

@@ -260,9 +260,6 @@ input[type='number']::-webkit-outer-spin-button { margin: 0; -webkit-appearance:
   height: 1px;
   opacity: 0;
 }
-.ingredient-option input {
-  accent-color: var(--color-primary);
-}
 .check-chip > span {
   display: inline-flex;
   min-height: 29px;
@@ -426,35 +423,11 @@ input[type='number']::-webkit-outer-spin-button { margin: 0; -webkit-appearance:
   color: var(--color-text-muted);
   font-size: 8px;
 }
-.selected-ingredient .ingredient-amount-controls {
-  padding-left: 0;
-}
 .selected-ingredients {
   padding: 12px;
   border-radius: 6px;
   background: var(--color-border);
 }
-.ingredient-amount-controls {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 84px 58px;
-  min-width: 0;
-  gap: 5px;
-  padding-left: 19px; align-items: center;
-}
-.ingredient-amount-controls select,
-.ingredient-amount-controls input {
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  min-height: 28px;
-  padding: 0 6px;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-surface);
-  color: var(--color-secondary);
-  font: 10px var(--font-sans);
-}
-.ingredient-amount-controls select:only-child { grid-column: 1 / -1; }
 .error-text {
   display: block;
   margin-top: 4px;
@@ -482,23 +455,12 @@ input[type='number']::-webkit-outer-spin-button { margin: 0; -webkit-appearance:
   font-weight: 400;
   line-height: 1.2;
 }
-.ingredient-amount-controls input {
-  width: 100%;
-  min-height: 32px;
-  border-color: var(--color-secondary);
-  border-radius: 6px;
-  color: var(--color-text);
-  font: 12px var(--font-sans);
-  transition: border-color .15s, box-shadow .15s;
-}
 .field-label input:hover:not(:disabled),
 .field-label select:hover:not(:disabled),
-.field-label textarea:hover:not(:disabled),
-.ingredient-amount-controls input:hover:not(:disabled) { border-color: var(--color-text); }
+.field-label textarea:hover:not(:disabled) { border-color: var(--color-text); }
 .field-label input:focus,
 .field-label select:focus,
-.field-label textarea:focus,
-.ingredient-amount-controls input:focus {
+.field-label textarea:focus {
   border-color: var(--color-primary);
   outline: 0;
   box-shadow: inset 0 0 0 1px var(--color-primary);
@@ -514,8 +476,6 @@ input[type='number']::-webkit-outer-spin-button { margin: 0; -webkit-appearance:
   box-shadow: inset 0 0 0 1px var(--color-primary);
 }
 @media (max-width: 460px) {
-  .ingredient-amount-controls { grid-template-columns: minmax(0, 1fr) 58px; }
-  .ingredient-amount-controls select:first-child { grid-column: 1 / -1; }
   .new-recipe-ingredient { grid-template-columns: minmax(0, 1fr); gap: 16px; }
   .new-recipe-ingredient app-button { justify-self: center; }
   .form-tabs { gap: 2px; }

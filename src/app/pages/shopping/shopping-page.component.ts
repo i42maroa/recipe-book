@@ -17,6 +17,7 @@ import { RecipeIngredientAmount } from '../../models/recipe.model';
 import { InventoryService } from '../../services/inventory.service';
 import { ShoppingAmountDialogComponent } from '../../components/shopping-amount-dialog/shopping-amount-dialog.component';
 import { localDate } from '../../utils/scheduled-meal.utils';
+import { lockDialogScroll } from '../../utils/dialog-scroll.utils';
 import { ingredientAmountLabel } from '../../utils/ingredient-measures.utils';
 
 @Component({
@@ -67,9 +68,7 @@ export class ShoppingPageComponent {
     });
     effect(onCleanup => {
       if (!this.addOpen() && !this.purchaseOpen()) return;
-      const previousOverflow = this.document.body.style.overflow;
-      this.document.body.style.overflow = 'hidden';
-      onCleanup(() => { this.document.body.style.overflow = previousOverflow; });
+      onCleanup(lockDialogScroll(this.document));
     });
     void this.list.load().catch(() => undefined);
   }

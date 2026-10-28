@@ -21,9 +21,10 @@ export function canonicalAmount(amount: RecipeIngredientAmount | null): object |
   return amount.kind === 'spoon' && amount.value !== undefined ? { kind: 'spoon', value: amount.value } : { kind: amount.kind };
 }
 
-export function validIngredientAmount(amount: RecipeIngredientAmount | null): boolean {
-  if (amount === null) return true;
-  if (!amount || typeof amount !== 'object') return false;
+export function validIngredientAmount(value: unknown): value is RecipeIngredientAmount | null {
+  if (value === null) return true;
+  if (!value || typeof value !== 'object') return false;
+  const amount = value as RecipeIngredientAmount;
   if (amount.kind === 'glass') return true; // Historical values remain readable.
   if (amount.kind === 'spoon') return amount.value === undefined || positiveQuantity(amount.value);
   return amount.kind === 'specific' && positiveQuantity(amount.value) && ['g', 'ml', 'pieza'].includes(amount.unit)

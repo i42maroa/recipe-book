@@ -6,14 +6,9 @@ const measures = loadService('src/app/utils/ingredient-measures.utils.ts', {});
 const calendar = loadService('src/app/utils/scheduled-meal.utils.ts', {});
 const uuid = loadService('src/app/utils/uuid.utils.ts', {});
 const model = loadService('src/app/models/recipe.model.ts', {});
-const freezerUtils = loadService('src/app/utils/freezer.utils.ts', {}, {}, {
+const utils = loadService('src/app/utils/inventory.utils.ts', {}, { crypto }, {
   './ingredient-measures.utils': measures, './scheduled-meal.utils': calendar, './uuid.utils': uuid, '../models/recipe.model': model,
 });
-const inventoryUtils = loadService('src/app/utils/inventory.utils.ts', {}, { crypto }, {
-  './ingredient-measures.utils': measures, './freezer.utils': freezerUtils, './scheduled-meal.utils': calendar, './uuid.utils': uuid,
-});
-const utils = { ...freezerUtils, validFreezers: inventoryUtils.validInventory,
-  freezerFingerprint: inventoryUtils.inventoryFingerprint, withdrawFreezerItem: inventoryUtils.withdrawInventoryItem };
 const item = { recipeId: null, servings: null, space: 'freezer', arrivedOn: '2026-10-26', id: 'aaaaaaaa-1111-4111-8111-111111111111', ingredientId: 'bbbbbbbb-1111-4111-8111-111111111111',
   name: 'Pollo', category: 'Carne', enteredOn: '2026-10-26', amount: { kind: 'specific', value: 500, unit: 'g' } };
 const freezer = { id: 'cccccccc-1111-4111-8111-111111111111', name: 'Casa', items: [item] };
@@ -66,48 +61,48 @@ function setup() {
     async requireEditor() { const hold = state.authGate; state.authGate = null; if (hold) await hold; if (!state.owner || !state.editor) throw Error('Unauthorized'); } };
   const { InventoryService } = loadService('src/app/services/inventory.service.ts', {
     CacheService: { get: key => selectionCache.get(key) ?? null, set: (key, value) => selectionCache.set(key, value) }, AuthService: auth, SupabaseService: { requireClient: () => client },
-  }, { crypto }, { '../utils/inventory.utils': inventoryUtils, '../../environments/environment': { environment: { supabaseUrl: 'test-project' } } });
+  }, { crypto }, { '../utils/inventory.utils': utils, '../../environments/environment': { environment: { supabaseUrl: 'test-project' } } });
   return { state, service: new InventoryService(), recreate: () => new InventoryService() };
 }
 
 test('inventory accepts independent dated lots, elaborations, free products and recipe quantities', () => {
   const lots = [item, product, { ...item, id: crypto.randomUUID(), enteredOn: '2026-10-20', category: 'Elaboracion' }];
   for (const amount of [null, { kind: 'spoon' }, { kind: 'glass' }, { kind: 'specific', value: 2, unit: 'pieza' }, { kind: 'specific', value: 0.1, unit: 'ml' }]) {
-    assert.equal(utils.validFreezers([{ ...freezer, items: lots.map(lot => ({ ...lot, amount })) }]), true);
+    assert.equal(utils.validInventory([{ ...freezer, items: lots.map(lot => ({ ...lot, amount })) }]), true);
   }
 });
 
 test('inventory rejects malformed identifiers, duplicates, dates, names, categories and amounts', () => {
   for (const bad of [null, {}, [{ ...freezer, name: ' \n ' }], [{ ...freezer, id: 'bad' }], [{ ...freezer, id: [freezer.id] }], [freezer, { ...freezer, id: freezer.id.toUpperCase() }]]) {
-    assert.equal(utils.validFreezers(bad), false);
+    assert.equal(utils.validInventory(bad), false);
   }
   for (const patch of [{ id: 'bad' }, { id: [item.id] }, { name: ' ' }, { ingredientId: 'bad' }, { ingredientId: [item.ingredientId] }, { ingredientId: null }, { category: 'bad' },
     { enteredOn: '2026-02-30' }, { enteredOn: '0000-01-01' }, { enteredOn: null }, { enteredOn: '26/10/2026' }, { amount: undefined },
     { amount: { kind: 'specific', value: 0, unit: 'g' } }, { amount: { kind: 'specific', value: Infinity, unit: 'g' } },
     { amount: { kind: 'specific', value: '3', unit: 'g' } }, { amount: { kind: 'specific', value: 2, unit: 'kg' } }]) {
-    assert.equal(utils.validFreezers([{ ...freezer, items: [{ ...item, ...patch }] }]), false, JSON.stringify(patch));
+    assert.equal(utils.validInventory([{ ...freezer, items: [{ ...item, ...patch }] }]), false, JSON.stringify(patch));
   }
-  assert.equal(utils.validFreezers([{ ...freezer, items: [item, { ...item, id: item.id.toUpperCase() }] }]), false);
-  assert.equal(utils.validFreezers([freezer, { ...freezer, id: crypto.randomUUID() }]), false);
+  assert.equal(utils.validInventory([{ ...freezer, items: [item, { ...item, id: item.id.toUpperCase() }] }]), false);
+  assert.equal(utils.validInventory([freezer, { ...freezer, id: crypto.randomUUID() }]), false);
 });
 
 test('partial withdrawals retain dates, reject excessive amounts and remove exhausted lots without floating residue', () => {
-  const remaining = utils.withdrawFreezerItem(item, 200);
+  const remaining = utils.withdrawInventoryItem(item, 200);
   assert.equal(remaining.amount.value, 300); assert.equal(remaining.enteredOn, item.enteredOn); assert.equal(item.amount.value, 500);
-  assert.equal(utils.withdrawFreezerItem(item, 500), null);
+  assert.equal(utils.withdrawInventoryItem(item, 500), null);
   const decimal = { ...item, amount: { kind: 'specific', value: 0.3, unit: 'g' } };
-  assert.equal(utils.withdrawFreezerItem(decimal, 0.1).amount.value, 0.2);
-  for (const quantity of [0, -1, 501, NaN, Infinity]) assert.throws(() => utils.withdrawFreezerItem(item, quantity));
-  assert.throws(() => utils.withdrawFreezerItem({ ...item, amount: null }, 1));
+  assert.equal(utils.withdrawInventoryItem(decimal, 0.1).amount.value, 0.2);
+  for (const quantity of [0, -1, 501, NaN, Infinity]) assert.throws(() => utils.withdrawInventoryItem(item, quantity));
+  assert.throws(() => utils.withdrawInventoryItem({ ...item, amount: null }, 1));
 });
 
 test('fingerprints ignore ordering and key order but include quantities, dates, names and freezer identity', () => {
   const original = [{ ...freezer, items: [item, product] }];
-  assert.equal(utils.freezerFingerprint(original), utils.freezerFingerprint([{ ...freezer, items: [product, { ...item, amount: { unit: 'g', value: 500, kind: 'specific' } }] }]));
+  assert.equal(utils.inventoryFingerprint(original), utils.inventoryFingerprint([{ ...freezer, items: [product, { ...item, amount: { unit: 'g', value: 500, kind: 'specific' } }] }]));
   for (const patch of [{ enteredOn: '2026-10-25' }, { name: 'Nuevo' }, { amount: null }]) {
-    assert.notEqual(utils.freezerFingerprint([freezer]), utils.freezerFingerprint([{ ...freezer, items: [{ ...item, ...patch }] }]));
+    assert.notEqual(utils.inventoryFingerprint([freezer]), utils.inventoryFingerprint([{ ...freezer, items: [{ ...item, ...patch }] }]));
   }
-  assert.match(utils.freezerAmountLabel({ kind: 'specific', value: 2, unit: 'pieza' }), /2 unidades/);
+  assert.match(measures.ingredientAmountLabel({ kind: 'specific', value: 2, unit: 'pieza' }), /2 unidades/);
 });
 
 test('every mutation saves automatically, including additions, withdrawals and freezer management', async () => {
@@ -224,7 +219,7 @@ test('sorting supports both entry date directions and name directions without ch
   const original = structuredClone(lots);
   for (const [order, names] of [['oldest', ['Zanahoria', 'Pollo', 'Arroz']], ['newest', ['Arroz', 'Pollo', 'Zanahoria']],
     ['name', ['Arroz', 'Pollo', 'Zanahoria']], ['name-desc', ['Zanahoria', 'Pollo', 'Arroz']]]) {
-    assert.deepEqual(plain(utils.sortFreezerItems(lots, order)).map(lot => lot.name), names);
+    assert.deepEqual(plain(utils.sortInventoryItems(lots, order)).map(lot => lot.name), names);
   }
   assert.deepEqual(lots, original);
 });
@@ -277,8 +272,8 @@ test('retrying after a lost successful response neither duplicates lots nor with
 test('positive quantities below 0.01 remain valid and never display as zero', () => {
   for (const value of [0.001, 1e-9, Number.MIN_VALUE]) {
     const amount = { kind: 'specific', value, unit: 'g' };
-    assert.equal(utils.validFreezerAmount(amount), true);
-    assert.notEqual(utils.freezerAmountLabel(amount), '0 g');
+    assert.equal(measures.validIngredientAmount(amount), true);
+    assert.notEqual(measures.ingredientAmountLabel(amount), '0 g');
   }
 });
 
@@ -286,15 +281,15 @@ const prepared = { ...product, recipeId: 'eeeeeeee-1111-4111-8111-111111111111',
   amount: null, servings: 4, enteredOn: '2026-10-20', arrivedOn: '2026-10-20', space: 'pantry' };
 
 test('prepared recipes require positive integer portions and keep their snapshots after partial consumption', () => {
-  assert.equal(inventoryUtils.validInventory([{ ...freezer, items: [prepared] }]), true);
+  assert.equal(utils.validInventory([{ ...freezer, items: [prepared] }]), true);
   for (const patch of [{ servings: 1.5 }, { servings: 0 }, { servings: null }, { servings: 2147483648 },
     { ingredientId: item.ingredientId }, { amount: item.amount }, { arrivedOn: '2026-10-19' }, { recipeId: 'bad' }, { space: 'fridge' }]) {
-    assert.equal(inventoryUtils.validInventory([{ ...freezer, items: [{ ...prepared, ...patch }] }]), false, JSON.stringify(patch));
+    assert.equal(utils.validInventory([{ ...freezer, items: [{ ...prepared, ...patch }] }]), false, JSON.stringify(patch));
   }
-  const remaining = inventoryUtils.withdrawInventoryItem(prepared, 1);
+  const remaining = utils.withdrawInventoryItem(prepared, 1);
   assert.equal(remaining.servings, 3); assert.equal(remaining.name, prepared.name); assert.equal(remaining.enteredOn, prepared.enteredOn);
-  assert.equal(inventoryUtils.withdrawInventoryItem(prepared, 4), null);
-  for (const quantity of [0, -1, 0.5, 5, Infinity, NaN]) assert.throws(() => inventoryUtils.withdrawInventoryItem(prepared, quantity));
+  assert.equal(utils.withdrawInventoryItem(prepared, 4), null);
+  for (const quantity of [0, -1, 0.5, 5, Infinity, NaN]) assert.throws(() => utils.withdrawInventoryItem(prepared, quantity));
 });
 
 test('selection survives a fresh service instance and stays isolated by user', async () => {

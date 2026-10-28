@@ -1,8 +1,14 @@
-import type { FreezerItem } from './freezer.model';
+import type { IngredientCategory, RecipeIngredientAmount } from './recipe.model';
 
 export type InventorySpace = 'pantry' | 'freezer';
 
-export interface InventoryItem extends FreezerItem {
+export interface InventoryItem {
+  id: string;
+  ingredientId: string | null;
+  name: string;
+  category: IngredientCategory | null;
+  amount: RecipeIngredientAmount | null;
+  enteredOn: string;
   space: InventorySpace;
   recipeId: string | null;
   servings: number | null;

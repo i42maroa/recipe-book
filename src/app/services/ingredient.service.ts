@@ -1,6 +1,6 @@
 import { LoadingService } from './loading.service';
 import { AuthService } from './auth.service';
-﻿import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { BehaviorSubject, map } from 'rxjs';
 import { Ingredient, IngredientCategory, IngredientMeasures } from '../models/recipe.model';
 import { validIngredientMeasures } from '../utils/ingredient-measures.utils';
@@ -61,14 +61,12 @@ export class IngredientService {
           .select(CATALOG_SELECT, offset === 0 ? { count: 'exact' } : undefined)
           .order('id').range(offset, offset + 199).returns<CatalogRow[]>();
         if (revision !== this.revision) break;
-        if (error) {
-          if (offset > 0 && error.code === 'PGRST103') break;
-          throw error;
-        }
+        if (error) throw error;
         if (offset === 0) total = count;
         const rows = data ?? [];
         for (const row of rows) items.set(row.id, { id: row.id, name: row.name, category: row.category, ...mapMeasures(row) });
         offset += rows.length;
+        if (!rows.length && total !== null && offset < total) throw new Error('Los ingredientes han cambiado durante la consulta. Reintenta.');
         // Use the actual response size: project limits can be smaller than 200.
         if (!rows.length || (total !== null && offset >= total)) break;
       }
@@ -127,13 +125,13 @@ export class IngredientService {
   }
   getById(id: string): Ingredient | undefined { return this.indexSubject.value.byId.get(id); }
   async update(id: string, changes: Pick<Ingredient, 'name' | 'category' | 'derivedFromIds' | 'derivedFromAmounts' | 'baseUnit' | 'unitQuantity'>): Promise<void> {
-    this.validateMeasures(changes, changes.category);
+    const ingredient = structuredClone({ id, ...changes, name: changes.name.trim() });
+    this.validateMeasures(ingredient, ingredient.category);
     await this.auth.requireEditor();
-    const { error } = await this.supabase.requireClient().rpc('save_ingredient', { p_id: id, p_name: changes.name.trim(), p_category: changes.category, p_components: this.components({ id, ...changes }), p_base_unit: changes.baseUnit, p_unit_quantity: changes.unitQuantity });
+    const { error } = await this.supabase.requireClient().rpc('save_ingredient', { p_id: id, p_name: ingredient.name, p_category: ingredient.category, p_components: this.components(ingredient), p_base_unit: ingredient.baseUnit, p_unit_quantity: ingredient.unitQuantity });
     if (error) throw error;
     this.revision++;
-    await this.refresh();
-    this.remember({ id, ...changes, name: changes.name.trim() });
+    this.remember(ingredient);
   }
   private components(ingredient: Ingredient): object[] { return (ingredient.derivedFromIds ?? []).map((componentId) => ({ ingredient_id: componentId, ...(ingredient.derivedFromAmounts?.[componentId] ?? { kind: 'none' }) })); }
   private validateMeasures(measures: unknown, category: IngredientCategory): void {

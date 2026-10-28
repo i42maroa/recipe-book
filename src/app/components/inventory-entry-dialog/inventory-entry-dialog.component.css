@@ -28,9 +28,6 @@ button app-icon { width: 17px; height: 17px; }
 .entry-heading p { font-size: 11px; margin: 3px 0 0; }
 .quantity-kind { grid-column: 2 / 5; }
 .amount-control { grid-column: 2 / 5; }
-.specific .quantity-kind { grid-column: 2; }
-.quantity-value { grid-column: 3; }
-.quantity-unit { grid-column: 4; }
 .entry-date { grid-column: 5; }
 .remove-entry { position: absolute; top: 3px; right: 3px; width: 28px; min-height: 28px; padding: 5px; border: 0; border-radius: 0; background: transparent; }
 .remove-entry:hover:not(:disabled) { color: var(--color-danger); }
@@ -48,15 +45,8 @@ footer { justify-content: flex-end; flex-wrap: wrap; margin-top: 24px; }
   .entry-heading { grid-column: 1 / -1; grid-row: 1; }
   .quantity-kind { grid-column: 1 / -1; grid-row: 2; }
   .amount-control { grid-column: 1 / -1; grid-row: 2; }
-  .specific .quantity-kind { grid-column: 1; }
-  .quantity-value { grid-column: 2; grid-row: 2; }
-  .quantity-unit { grid-column: 3; grid-row: 2; }
   .entry-date { grid-column: 1 / -1; grid-row: 3; max-width: 180px; }
 }
 @media (max-width: 400px) {
   .entry { grid-template-columns: minmax(0, 1fr) 70px 62px; }
-  .specific .quantity-kind { grid-column: 1 / -1; }
-  .quantity-value { grid-column: 1 / 3; grid-row: 3; }
-  .quantity-unit { grid-column: 3; grid-row: 3; }
-  .specific .entry-date { grid-row: 4; }
 }

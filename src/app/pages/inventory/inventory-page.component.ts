@@ -19,7 +19,7 @@ import { InventoryPlanningService } from '../../services/inventory-planning.serv
 import { InventoryIngredientPlanningService } from '../../services/inventory-ingredient-planning.service';
 import { InventoryNavigationService } from '../../services/inventory-navigation.service';
 import { NotificationService } from '../../services/notification.service';
-import { FreezerSort, sortFreezerItems } from '../../utils/freezer.utils';
+import { InventorySort, sortInventoryItems } from '../../utils/inventory.utils';
 import { categorizeInventoryGroups, groupInventoryItems, inventoryGroupTotal, InventoryItemGroup } from '../../utils/inventory-groups.utils';
 import { lockDialogScroll } from '../../utils/dialog-scroll.utils';
 import { RecipeService } from '../../services/recipe.service';
@@ -48,7 +48,7 @@ export class InventoryPageComponent {
   private readonly entryDialog = viewChild(InventoryEntryDialogComponent);
   readonly selected = this.inventory.selected;
   readonly search = new FormControl('', { nonNullable: true });
-  readonly sort = new FormControl<FreezerSort>('oldest', { nonNullable: true });
+  readonly sort = new FormControl<InventorySort>('oldest', { nonNullable: true });
   readonly planningFilter = new FormControl<'all' | 'planned' | 'unplanned'>('all', { nonNullable: true });
   readonly planningFilterValue = toSignal(this.planningFilter.valueChanges, { initialValue: this.planningFilter.value });
   readonly planningReady = computed(() => this.ingredientPlanning.ready() && !this.ingredientPlanning.loading() && !this.ingredientPlanning.error()
@@ -65,7 +65,7 @@ export class InventoryPageComponent {
   readonly spaces: { value: InventorySpace; label: string }[] = [{ value: 'pantry', label: 'Alacena' }, { value: 'freezer', label: 'Congelador' }];
   readonly spaceLabel = computed(() => this.inventory.selectedSpace() === 'pantry' ? 'Alacena' : 'Congelador');
   readonly spaceItems = computed(() => (this.selected()?.items ?? []).filter(item => item.space === this.inventory.selectedSpace()));
-  private readonly allGroups = computed(() => groupInventoryItems(sortFreezerItems(this.spaceItems(), this.sortValue())));
+  private readonly allGroups = computed(() => groupInventoryItems(sortInventoryItems(this.spaceItems(), this.sortValue())));
   readonly groups = computed(() => {
     const query = normalizeSearch(this.searchValue());
     const planning = this.planningFilterValue();

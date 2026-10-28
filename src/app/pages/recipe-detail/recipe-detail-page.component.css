@@ -22,7 +22,7 @@
   place-items: center;
   overflow: hidden;
   border-radius: 10px;
-  background: linear-gradient(135deg, #e8e3d5, #c6b99d);
+  background: var(--recipe-photo-background, var(--recipe-photo-neutral));
 }
 .recipe-detail-hero.has-photo { min-height: 360px; }
 .recipe-detail-hero.skeleton-hero { background: transparent; }
@@ -59,21 +59,6 @@
 .detail-photo-nav.previous { left: 16px; }
 .detail-photo-nav.next { right: 16px; }
 .detail-photo-nav:focus-visible { outline: 2px solid white; outline-offset: 2px; }
-.recipe-detail-hero.photo-breakfast {
-  background: radial-gradient(ellipse at 55% 45%, #f4cf77, #d59544 52%, #8f5b35);
-}
-.recipe-detail-hero.photo-starter {
-  background: radial-gradient(ellipse at 51% 45%, #b4ce87, #788e52 52%, #465c3f);
-}
-.recipe-detail-hero.photo-main {
-  background: radial-gradient(ellipse at 50% 47%, #e6a64e, #c45b38 52%, #793e2e);
-}
-.recipe-detail-hero.photo-dessert {
-  background: radial-gradient(ellipse at 52% 45%, #edb0b7, #c8647c 52%, #783c61);
-}
-.recipe-detail-hero.photo-neutral {
-  background: linear-gradient(135deg, #e8e3d5, #c6b99d);
-}
 .hero-emoji {
   position: relative;
   z-index: 1;
@@ -286,24 +271,6 @@
   font-size: 11px;
   line-height: 1.6;
   white-space: pre-line;
-}
-.recipe-not-found {
-  padding: 70px 20px;
-  color: var(--color-text-muted);
-  text-align: center;
-}
-.recipe-not-found > span {
-  color: var(--color-secondary);
-  font-size: 28px;
-}
-.recipe-not-found h1 {
-  margin: 12px 0 8px;
-  color: var(--color-text);
-  font: 600 27px var(--font-serif);
-}
-.recipe-not-found p {
-  margin-bottom: 20px;
-  font-size: 12px;
 }
 @media (max-width: 1024px) {
   :host { width: 100%; min-width: 0; padding: 22px 24px 32px; }

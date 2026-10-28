@@ -1,4 +1,4 @@
-﻿import { CuisineType, IngredientCategory, MealType, RecipeDifficulty, RecipeIngredientAmount } from './recipe.model';
+﻿import { CuisineType, MealType, RecipeDifficulty, RecipeIngredientAmount } from './recipe.model';
 
 export type BaseFormType = 'recipe' | 'ingredient';
 
@@ -20,11 +20,3 @@ export interface RecipeFormValue {
   photos: import('./recipe.model').RecipePhoto[];
   photoFiles: File[];
 }
-
-export interface IngredientFormValue {
-  name: string;
-  category: IngredientCategory;
-}
-
-
-
