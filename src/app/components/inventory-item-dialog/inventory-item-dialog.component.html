@@ -2,15 +2,16 @@
   <header>
     <div>
       <p class="eyebrow">{{ placeName() }} · {{ spaceLabel() }}</p>
-      <h2 id="inventory-item-title">{{ group().item.name }}</h2>
+      <h2 id="inventory-item-title">
+        @if (group().item.ingredientId; as ingredientId) {
+          <a class="ingredient-link" [routerLink]="['/ingredients', ingredientId.toLowerCase()]" [queryParams]="{ fromInventory: 'true' }">{{ group().item.name }}</a>
+        } @else { {{ group().item.name }} }
+      </h2>
       <p>{{ group().item.recipeId ? 'Receta preparada' : group().item.category ? categoryLabel(group().item.category!) : 'Producto libre' }}</p>
     </div>
     <button type="button" class="icon-button" aria-label="Cerrar información del elemento" [disabled]="disabled()" (click)="close()"><app-icon name="close" /></button>
   </header>
 
-  @if (group().item.ingredientId; as ingredientId) {
-    <a class="ingredient-link" [routerLink]="['/ingredients', ingredientId.toLowerCase()]" [queryParams]="{ fromInventory: 'true' }">Ver detalle del ingrediente</a>
-  }
   @if (group().item.recipeId) {
     @if (recipeAvailable()) { <a class="recipe-link" [routerLink]="['/recipes', group().item.recipeId]" [queryParams]="{ fromInventory: 'true' }">Ver receta</a> }
     @else if (inventory.linksLoading()) { <p role="status">Comprobando receta…</p> }

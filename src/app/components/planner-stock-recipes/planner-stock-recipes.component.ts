@@ -30,8 +30,9 @@ export class PlannerStockRecipesComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly owner = this.auth.user()?.id;
   readonly inventoryIngredients = computed(() => plannerInventoryIngredients(this.inventory.places()));
-  readonly ingredientIds = computed(() => this.inventoryIngredients().filter(ingredient => !this.ingredientPlanning.isPlanned(ingredient.id)).map(ingredient => ingredient.id).sort());
-  readonly plannedIngredients = computed(() => this.inventoryIngredients().filter(ingredient => this.ingredientPlanning.isPlanned(ingredient.id)));
+  readonly nonSpiceIngredients = computed(() => this.inventoryIngredients().filter(ingredient => !ingredient.items.some(item => item.category === 'Especia')));
+  readonly ingredientIds = computed(() => this.nonSpiceIngredients().filter(ingredient => !this.ingredientPlanning.isPlanned(ingredient.id)).map(ingredient => ingredient.id).sort());
+  readonly plannedIngredients = computed(() => this.nonSpiceIngredients().filter(ingredient => this.ingredientPlanning.isPlanned(ingredient.id)));
   readonly search = new FormControl('', { nonNullable: true });
   readonly sort = new FormControl('recent', { nonNullable: true });
   readonly mealType = new FormControl<MealType | ''>('', { nonNullable: true });

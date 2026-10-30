@@ -1,5 +1,5 @@
 <section aria-label="Recetas por ingredientes del inventario" [attr.aria-busy]="loading()">
-  <p class="intro">Recetas con al menos un ingrediente libre de tu inventario, ordenadas por coincidencias. Los ingredientes planificados no se usan para buscar; una receta puede aparecer si coincide con otros ingredientes libres.</p>
+  <p class="intro">Recetas con al menos un ingrediente disponible de tu inventario, ordenadas por coincidencias. Las especias y los ingredientes planificados no cuentan para buscar ni ordenar las recetas.</p>
   @if (plannedIngredients().length) {
     <details class="planned-ingredients"><summary>{{ plannedIngredients().length }} {{ plannedIngredients().length === 1 ? 'ingrediente en planificación · excluido' : 'ingredientes en planificación · excluidos' }} de la búsqueda</summary>
       <ul>@for (ingredient of plannedIngredients(); track ingredient.id) { <li><strong>{{ ingredient.name }}</strong><span class="planned-badge">En planificación</span>
@@ -10,11 +10,12 @@
   <app-recipe-filters [search]="search" [sort]="sort" [mealType]="mealType" [difficulty]="difficulty" [status]="status" [ingredientIds]="filterIngredients" [showIngredientFilter]="false" />
   @if (loading() && !results().length) { <p class="status" role="status">Buscando recetas con tus ingredientes…</p> }
   @else if (ingredientPlanning.error() || (error() && !results().length)) { <p class="status" role="alert">{{ ingredientPlanning.error() || error() }} <button type="button" (click)="load()">Reintentar búsqueda</button></p> }
-  @else if (!ingredientIds().length && inventoryIngredients().length) { <p class="status">Todos los ingredientes de tu inventario están planificados. Puedes seguir buscando en la pestaña Recetario.</p> }
+  @else if (!nonSpiceIngredients().length && inventoryIngredients().length) { <p class="status">Solo tienes especias en el inventario y no se utilizan para buscar recetas. Añade otros ingredientes o busca en la pestaña Recetario.</p> }
+  @else if (!ingredientIds().length && inventoryIngredients().length) { <p class="status">Todos los ingredientes que se pueden usar para buscar están planificados. Puedes seguir buscando en la pestaña Recetario.</p> }
   @else if (!ingredientIds().length) { <p class="status">Todavía no tienes ingredientes en el inventario. <a routerLink="/inventory">Añadir ingredientes</a></p> }
   @else {
     @if (ingredientPlanning.loading()) { <p role="status">Actualizando ingredientes planificados…</p> }
-    <p class="results-summary">{{ total() }} {{ total() === 1 ? 'receta' : 'recetas' }} · {{ ingredientIds().length }} {{ ingredientIds().length === 1 ? 'ingrediente libre' : 'ingredientes libres' }}</p>
+    <p class="results-summary">{{ total() }} {{ total() === 1 ? 'receta' : 'recetas' }} · {{ ingredientIds().length }} {{ ingredientIds().length === 1 ? 'ingrediente disponible' : 'ingredientes disponibles' }}</p>
     <div class="recipe-grid">
       @for (recipe of results(); track recipe.id) {
         <div class="picker-option"><app-recipe-card [recipe]="recipe" [ingredientFilterIds]="ingredientIds()" [disabled]="isAdded(recipe.id) || !ingredientPlanning.ready() || ingredientPlanning.loading()" (selected)="select($event)" />

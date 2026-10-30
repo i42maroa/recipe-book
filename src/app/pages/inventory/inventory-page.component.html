@@ -35,8 +35,17 @@
           <div class="inventory-categories">
             @for (category of categories(); track category.id) {
               <section class="inventory-category" [attr.data-category]="category.id" [attr.aria-labelledby]="'inventory-category-' + category.id">
-                <h3 class="category-title" [id]="'inventory-category-' + category.id">{{ category.label }}</h3>
-                <ul class="inventory-groups">
+                <h3 class="category-title" [id]="'inventory-category-' + category.id">
+                  <button type="button" class="category-toggle" [attr.aria-expanded]="categoryExpanded(category.id)" [attr.aria-controls]="'inventory-category-items-' + category.id" (click)="toggleCategory(category.id)">
+                    @if (category.id === 'recipes') { <app-icon name="recipes" /> }
+                    @else if (category.id === 'products') { <app-icon name="shopping" /> }
+                    @else { <app-ingredient-icon [category]="category.id" /> }
+                    <span class="category-label">{{ category.label }}</span>
+                    <span class="category-count" [attr.aria-label]="category.groups.length + (category.groups.length === 1 ? ' elemento' : ' elementos')">{{ category.groups.length }}</span>
+                    <span class="category-tab" aria-hidden="true"><app-icon name="chevron-down" /></span>
+                  </button>
+                </h3>
+                <ul class="inventory-groups" [id]="'inventory-category-items-' + category.id" [hidden]="!categoryExpanded(category.id)">
                   @for (group of category.groups; track group.id) {
                     <li class="inventory-group">
                       <button type="button" class="inventory-element" aria-haspopup="dialog" [attr.data-element-id]="group.id" (click)="openDetails(group)">
