@@ -8,6 +8,7 @@ import { InventoryEntryDialogComponent } from '../../components/inventory-entry-
 import { InventoryItemDialogComponent } from '../../components/inventory-item-dialog/inventory-item-dialog.component';
 import { InventoryPlaceDialogComponent } from '../../components/inventory-place-dialog/inventory-place-dialog.component';
 import { IconComponent } from '../../components/shared/icon/icon.component';
+import { IngredientIconComponent } from '../../components/shared/ingredient-icon/ingredient-icon.component';
 import { SkeletonComponent } from '../../components/shared/skeleton/skeleton.component';
 import { SearchFilterComponent } from '../../components/shared/filters/search-filter/search-filter.component';
 import { SelectFilterComponent } from '../../components/shared/filters/select-filter/select-filter.component';
@@ -29,7 +30,7 @@ type InventoryAction = { kind: 'create' } | { kind: 'rename'; placeId: string };
 
 @Component({
   selector: 'app-inventory-page', standalone: true,
-  imports: [ReactiveFormsModule, InventoryEntryDialogComponent, InventoryItemDialogComponent, InventoryPlaceDialogComponent, IconComponent, SkeletonComponent, SearchFilterComponent, SelectFilterComponent],
+  imports: [ReactiveFormsModule, InventoryEntryDialogComponent, InventoryItemDialogComponent, InventoryPlaceDialogComponent, IconComponent, IngredientIconComponent, SkeletonComponent, SearchFilterComponent, SelectFilterComponent],
   templateUrl: './inventory-page.component.html',
   styleUrl: './inventory-page.component.css',
 })
@@ -75,6 +76,17 @@ export class InventoryPageComponent {
       .filter(group => planning === 'all' || this.isPlanned(group) === (planning === 'planned'));
   });
   readonly categories = computed(() => categorizeInventoryGroups(this.groups()));
+  private readonly expandedCategories = signal(new Set<string>());
+  private categoryKey(id: string): string { return `${this.selected()?.id}:${this.inventory.selectedSpace()}:${id}`; }
+  categoryExpanded(id: string): boolean { return this.expandedCategories().has(this.categoryKey(id)); }
+  toggleCategory(id: string): void {
+    const key = this.categoryKey(id);
+    this.expandedCategories.update(current => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
   private readonly detailSelection = signal<InventoryItemGroup | null>(null);
   readonly detailTrigger = signal<HTMLElement | null>(null);
   readonly entryTrigger = signal<HTMLElement | null>(null);

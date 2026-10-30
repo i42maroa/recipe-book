@@ -63,6 +63,41 @@ test('planned ingredients are excluded from OR matching while recipes with other
   assert.deepEqual(state.reads[0].query.ingredientIds,[second]);assert.deepEqual(plain(picker.plannedIngredients().map(item=>item.id)),[first]);
   picker.select(state.rows[0]);assert.equal(state.outputs.length,1);
 });
+
+test('spices never contribute search IDs or planned exclusions, including duplicate lots in both spaces',async()=>{
+  const {picker,state,stock,planned}=setup();
+  stock.update(places=>places.map(place=>({...place,items:place.items.map(item=>item.ingredientId===first?{...item,name:'Comino',category:'Especia'}:item)})));
+  picker.ngOnInit();await settle();assert.deepEqual(state.reads[0].query.ingredientIds,[second]);
+  planned.set([first]);await picker.load();assert.deepEqual(state.reads.at(-1).query.ingredientIds,[second]);
+  assert.equal(picker.plannedIngredients().length,0);
+  assert.equal(picker.ingredientPlanning.isPlanned(first),true);
+  assert.equal(picker.inventoryIngredients().find(item=>item.id===first).items.length,2);
+  picker.select(state.rows[0]);assert.equal(state.outputs.length,1);
+});
+
+test('spice-only stock never issues an unfiltered recipe query, whether planned or not',async()=>{
+  for (const planning of [[],[first]]) {
+    const {picker,state,stock,planned}=setup();
+    stock.set([{id:'place',name:'Casa',items:[{id:'spice',ingredientId:first,recipeId:null,name:'Comino',category:'Especia',space:'pantry'}]}]);
+    planned.set(planning);picker.ngOnInit();await settle();
+    assert.equal(state.reads.length,0);assert.equal(picker.ingredientIds().length,0);
+    assert.equal(picker.nonSpiceIngredients().length,0);assert.equal(picker.inventoryIngredients().length,1);
+    assert.equal(picker.plannedIngredients().length,0);assert.equal(picker.results().length,0);assert.equal(picker.loading(),false);
+  }
+});
+
+test('changing the last searchable ingredient to a spice clears results and changing it back refreshes the query',async()=>{
+  const {picker,state,stock,planned,sync}=setup();
+  stock.set([{id:'place',name:'Casa',items:[{id:'ingredient',ingredientId:first,recipeId:null,name:'Ingrediente',category:'Otro',space:'pantry'}]}]);
+  picker.ngOnInit();await settle();
+  assert.deepEqual(state.reads[0].query.ingredientIds,[first]);assert.equal(picker.plannedIngredients().length,0);
+  stock.update(places=>places.map(place=>({...place,items:place.items.map(item=>({...item,category:'Especia'}))})));
+  sync();await settle();assert.equal(picker.ingredientIds().length,0);assert.equal(picker.results().length,0);
+  assert.equal(state.reads.length,1);assert.equal(picker.plannedIngredients().length,0);
+  stock.update(places=>places.map(place=>({...place,items:place.items.map(item=>({...item,category:'Otro'}))})));
+  sync();await settle();assert.equal(state.reads.length,2);assert.deepEqual(state.reads.at(-1).query.ingredientIds,[first]);
+  planned.set([first]);sync();await settle();assert.equal(picker.ingredientIds().length,0);assert.equal(picker.plannedIngredients().length,1);
+});
 test('all planned ingredients never produce an unfiltered query and become searchable again when released',async()=>{
   const {picker,state,planned,sync}=setup();planned.set([first,second]);picker.ngOnInit();await settle();assert.equal(state.reads.length,0);
   assert.equal(picker.inventoryIngredients().length,2);planned.set([]);sync();await settle();assert.deepEqual(state.reads[0].query.ingredientIds,[first,second]);
