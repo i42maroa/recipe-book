@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "test": "npm run build:mcp && node --test tests/*.test.cjs",
-    "build:mcp": "tsc -p tsconfig.mcp.json",
+    "build:mcp": "tsc -p api/tsconfig.json",
     "test:mcp": "npm run build:mcp && node --test tests/mcp*.test.cjs",
     "start:mcp": "npm run build:mcp && node --env-file-if-exists=.env.mcp out-tsc/mcp/server/mcp/dev.js",
     "start": "ng serve",
