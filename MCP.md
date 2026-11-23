@@ -10,6 +10,8 @@ El servidor está en `server/mcp/`, los puntos de entrada de Vercel en `api/mcp.
 
 Las funciones usan `api/tsconfig.json`, que hereda la configuración NodeNext de `tsconfig.mcp.json`. Vercel busca la configuración desde el directorio del punto de entrada; sin este archivo utilizaría el `module: preserve` de Angular y dejaría instrucciones `export` en archivos que el runtime carga como CommonJS. `build:mcp` usa la misma configuración que Vercel y una prueba comprueba la carga de ambos puntos de entrada con el cargador CommonJS.
 
+`module`, `moduleResolution`, `strict` y `strictNullChecks` también se declaran directamente en `api/tsconfig.json`: el empaquetador de Vercel puede introducir `strict: false` antes de resolver `extends` si falta `module` en el archivo inicial. Las pruebas reproducen ese paso previo y comprueban los tipos de ambas funciones; los UUID de las recetas siguen siendo obligatorios en el esquema de planificación.
+
 | Herramienta | Acceso | Comportamiento |
 | --- | --- | --- |
 | `search_recipes` | Público | Nombre, ingredientes, estado, dificultad y tipo. Paginación de hasta 50 resultados. |

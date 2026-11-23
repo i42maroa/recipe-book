@@ -1,3 +1,9 @@
 {
-  "extends": "../tsconfig.mcp.json"
+  "extends": "../tsconfig.mcp.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "strictNullChecks": true
+  }
 }
