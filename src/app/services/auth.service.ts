@@ -2,6 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { Session, User } from '@supabase/supabase-js';
 import { SupabaseService } from './supabase.service';
+import { isOAuthAuthorizationId } from '../utils/oauth.utils';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -95,7 +96,7 @@ export class AuthService {
   }
 
   async signInWithGoogle(authorizationId?: string): Promise<void> {
-    const destination = authorizationId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authorizationId)
+    const destination = isOAuthAuthorizationId(authorizationId)
       ? `/oauth/consent?authorization_id=${encodeURIComponent(authorizationId)}` : '/login';
     const { error } = await this.supabase.requireClient().auth.signInWithOAuth({
       provider: 'google',

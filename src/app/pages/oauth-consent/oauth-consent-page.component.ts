@@ -5,6 +5,7 @@ import { AuthService } from '../../services/auth.service';
 import { SupabaseService } from '../../services/supabase.service';
 import { LoginPageComponent } from '../login/login-page.component';
 import { ButtonComponent } from '../../components/shared/button/button.component';
+import { isOAuthAuthorizationId } from '../../utils/oauth.utils';
 
 @Component({
   selector: 'app-oauth-consent-page', standalone: true,
@@ -40,7 +41,7 @@ export class OAuthConsentPageComponent {
   }
 
   private async load(revision: number): Promise<void> {
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(this.authorizationId)) {
+    if (!isOAuthAuthorizationId(this.authorizationId)) {
       this.error.set('La solicitud de conexión no es válida. Iníciala de nuevo desde tu asistente.'); return;
     }
     this.busy.set(true);
