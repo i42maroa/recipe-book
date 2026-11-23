@@ -211,6 +211,7 @@ test('daily plans reject impossible dates, repeated slots/recipes, foreign owner
   const base = { date: '2026-11-23', meals: [meal], expectedVersion: 'a'.repeat(32) };
   for (const value of [{ ...base, date: '2026-02-30' }, { ...base, owner_id: owner }, { ...base, expectedVersion: undefined },
     { ...base, meals: [meal, meal] }, { ...base, meals: [{ ...meal, servings: 0 }] },
+    { ...base, meals: [{ ...meal, recipes: [{ mode: 'scale' }] }] },
     { ...base, meals: [{ ...meal, recipes: [meal.recipes[0], { recipeId: recipeId.toUpperCase(), mode: 'scale' }] }] },
     { ...base, meals: [{ ...meal, recipes: [{ recipeId, inventory: {} }] }] }]) {
     assert.equal(saveDailyPlanSchema.safeParse(value).success, false);
