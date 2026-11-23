@@ -27,8 +27,19 @@ Las escrituras y los datos privados requieren OAuth. Las herramientas indican su
 
 1. Aplica, después de las migraciones existentes, `supabase/migrations/20261123000100_mcp_daily_planning.sql` y `supabase/migrations/20261123000200_mcp_oauth.sql`. La primera añade lectura y guardado de días con control de versión. La segunda prepara un registro privado de clientes OAuth y un hook de tokens; no habilita OAuth automáticamente ni añade clientes.
 2. En Supabase, activa **Authentication > OAuth Server**. Configura **Site URL** con la dirección de Laurel y el authorization path con `/oauth/consent`. Para esta primera versión usa un cliente previamente registrado y mantén desactivado el registro dinámico.
-3. Registra un cliente OAuth para ChatGPT con la dirección de retorno **exacta que muestre ChatGPT** al configurar la conexión. Los callbacks pueden variar por conexión y configuración: no deduzcas la URI de un ejemplo. Guarda su ID y, si se utiliza un cliente confidencial, su secreto en la configuración OAuth de ChatGPT. Ese secreto no va al frontend ni al repositorio.
-4. Asocia ese ID al recurso MCP desde SQL Editor, sustituyendo ambos valores:
+3. **Antes de iniciar el registro en ChatGPT**, configura las variables de servidor en **Vercel > proyecto > Settings > Environment Variables**, selecciona **Production** y realiza un nuevo despliegue:
+
+   | Variable | Valor para el despliegue actual |
+   | --- | --- |
+   | `SUPABASE_URL` | `https://jglujthjuvahsvplquxd.supabase.co` |
+   | `SUPABASE_PUBLISHABLE_KEY` | Clave pública `sb_publishable_...` del proyecto, o usa `SUPABASE_ANON_KEY` para la clave anon anterior. |
+   | `PUBLIC_SITE_URL` | `https://recipe-book-neon-two.vercel.app` |
+   | `MCP_RESOURCE_URL` | `https://recipe-book-neon-two.vercel.app/mcp` |
+
+   Los valores del frontend en `environment.production.ts` no configuran las variables de las funciones de Vercel. `MCP_OAUTH_CLIENT_IDS` se completa después de registrar el cliente. En este punto funcionan el descubrimiento OAuth y las consultas públicas. Abre `https://recipe-book-neon-two.vercel.app/.well-known/oauth-protected-resource`: debe responder HTTP 200 con un JSON que contenga `resource` y `authorization_servers`. Si devuelve HTTP 503 con «El MCP de Laurel todavía no está configurado», falta alguna de las cuatro variables o tiene un valor no válido. Revisa también que estén aplicadas a Production y que el despliegue sea posterior al cambio de variables.
+
+4. Registra un cliente OAuth para ChatGPT con la dirección de retorno **exacta que muestre ChatGPT** al configurar la conexión. Los callbacks pueden variar por conexión y configuración: no deduzcas la URI de un ejemplo. Guarda su ID y, si se utiliza un cliente confidencial, su secreto en la configuración OAuth de ChatGPT. Ese secreto no va al frontend ni al repositorio.
+5. Asocia ese ID al recurso MCP desde SQL Editor, sustituyendo ambos valores:
 
    ```sql
    insert into private.mcp_oauth_clients(client_id, resource)
@@ -36,23 +47,18 @@ Las escrituras y los datos privados requieren OAuth. Las herramientas indican su
    on conflict (client_id) do update set resource = excluded.resource;
    ```
 
-5. En **Authentication > Hooks**, habilita el hook de acceso `public.laurel_mcp_access_token_hook`. Si ya existe otro hook, integra esta función en el existente y conserva sus reglas. El hook solo modifica los tokens de los clientes registrados: añade la audiencia del MCP, conserva `authenticated` para la API de datos e identifica el cliente y el scope `openid`. Las sesiones normales de Laurel conservan sus claims.
-6. Para Google, añade a **Authentication > URL Configuration > Redirect URLs** la vuelta a la pantalla de consentimiento con su identificador: `https://recipe-book-neon-two.vercel.app/oauth/consent?authorization_id=*`. Conserva el retorno `/login` existente. El callback configurado en Google sigue siendo el de Supabase; no es el callback OAuth de ChatGPT.
-7. Configura las variables de servidor de Vercel y despliega:
-
-   | Variable | Valor |
-   | --- | --- |
-   | `SUPABASE_URL` | URL del proyecto actual. |
-   | `SUPABASE_PUBLISHABLE_KEY` | Clave pública `sb_publishable_...`, o usa `SUPABASE_ANON_KEY` para la clave anon anterior. |
-   | `PUBLIC_SITE_URL` | Dirección pública de Laurel, sin `/` final. |
-   | `MCP_RESOURCE_URL` | Dirección pública exacta del MCP, por ejemplo `https://recipe-book-neon-two.vercel.app/mcp`. |
-   | `MCP_OAUTH_CLIENT_IDS` | ID registrado en el paso 4; admite varios separados por comas. |
-
-   El recurso debe coincidir exactamente en la variable, la tabla privada y la URL configurada en ChatGPT. El servidor rechaza claves secretas, tokens sin esa audiencia, clientes no autorizados, sesiones caducadas y usuarios sin permisos. Sin variables de configuración devuelve 503; sin clientes autorizados solo funcionan las herramientas públicas.
-
-8. En ChatGPT web, configura una app/conexión MCP con la URL `/mcp` y OAuth, usando el modo de desarrollo cuando esté disponible en tu cuenta. Completa el acceso en Laurel y revisa el nombre del cliente, la cuenta y el destino antes de permitir la conexión. Si cambian las herramientas, actualiza su definición en ChatGPT.
+6. En **Authentication > Hooks**, habilita el hook de acceso `public.laurel_mcp_access_token_hook`. Si ya existe otro hook, integra esta función en el existente y conserva sus reglas. El hook solo modifica los tokens de los clientes registrados: añade la audiencia del MCP, conserva `authenticated` para la API de datos e identifica el cliente y el scope `openid`. Las sesiones normales de Laurel conservan sus claims.
+7. Para Google, añade a **Authentication > URL Configuration > Redirect URLs** la vuelta a la pantalla de consentimiento con su identificador: `https://recipe-book-neon-two.vercel.app/oauth/consent?authorization_id=*`. Conserva el retorno `/login` existente. El callback configurado en Google sigue siendo el de Supabase; no es el callback OAuth de ChatGPT.
+8. Añade a Vercel la variable `MCP_OAUTH_CLIENT_IDS` con el ID registrado en el paso 4 y realiza un nuevo despliegue. Admite varios IDs separados por comas. El recurso debe coincidir exactamente en `MCP_RESOURCE_URL`, la tabla privada y la URL configurada en ChatGPT. El servidor rechaza claves secretas, tokens sin esa audiencia, clientes no autorizados, sesiones caducadas y usuarios sin permisos.
+9. Completa la conexión MCP en ChatGPT web con la URL `/mcp` y OAuth. Completa el acceso en Laurel y revisa el nombre del cliente, la cuenta y el destino antes de permitir la conexión. Si cambian las herramientas, actualiza su definición en ChatGPT.
 
 La disponibilidad de conexiones MCP, herramientas de escritura y modo de desarrollo depende del producto, el plan y las políticas del espacio. El despliegue y esta guía no habilitan esas opciones en la cuenta de ChatGPT.
+
+### Diagnóstico del consentimiento
+
+Supabase envía `authorization_id` en la URL de `/oauth/consent`. Es un token opaco (actualmente alfanumérico de 32 caracteres), distinto del UUID del cliente o del usuario. Laurel conserva su valor y mayúsculas, valida que sea un segmento de ruta seguro y consulta a Supabase para comprobar su existencia, propietario y caducidad. El retorno desde Google conserva ese mismo token.
+
+Configura **Authentication > URL Configuration > Site URL** con `https://recipe-book-neon-two.vercel.app` y el authorization path con `/oauth/consent`. La autorización debe abrirse en el dominio público; las URL de Preview protegidas por Vercel requieren un acceso adicional y mantienen una sesión de navegador distinta. Mantén `PUBLIC_SITE_URL`, `MCP_RESOURCE_URL` y los Redirect URLs de Google coherentes con ese dominio. Tras cambiar Site URL, inicia una conexión nueva desde ChatGPT.
 
 ## Desarrollo y comprobaciones
 

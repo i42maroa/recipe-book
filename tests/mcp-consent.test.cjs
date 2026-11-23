@@ -1,8 +1,9 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { loadService } = require('./helpers/load-service.cjs');
+const oauthUtils = loadService('src/app/utils/oauth.utils.ts', {});
 const settle = () => new Promise(setImmediate);
-const authorizationId = '00000000-0000-0000-0000-000000000001';
+const authorizationId = 'AbCdEfGhIjKlMnOpQrStUvWxYz012345';
 
 function fixture({ id = authorizationId, loggedIn = true } = {}) {
   const state = { loggedIn, editor: loggedIn, effects: [], calls: [], redirects: [], hold: null,
@@ -22,7 +23,8 @@ function fixture({ id = authorizationId, loggedIn = true } = {}) {
   };
   const core = { Component: () => value => value, signal, effect: callback => { state.effects.push(callback); callback(); }, inject: token => injections[token] };
   const { OAuthConsentPageComponent } = loadService('src/app/pages/oauth-consent/oauth-consent-page.component.ts', injections,
-    { URL, window: { location: { assign: url => state.redirects.push(url) } } }, { '@angular/core': core });
+    { URL, window: { location: { assign: url => state.redirects.push(url) } } },
+    { '@angular/core': core, '../../utils/oauth.utils': oauthUtils });
   return { page: new OAuthConsentPageComponent(), state };
 }
 
@@ -34,6 +36,20 @@ test('consent waits for an authenticated editor and validates the authorization 
   await settle();
   assert.equal(invalid.state.calls.length, 0);
   assert.match(invalid.page.error(), /no es válida/);
+});
+
+test('consent accepts a Supabase opaque authorization token without changing its case', async () => {
+  const { page, state } = fixture();
+  await settle();
+  assert.equal(page.error(), '');
+  assert.equal(state.calls[0][1], authorizationId);
+  assert.equal(page.details().authorization_id, authorizationId);
+});
+
+test('authorization tokens reject missing values and unsafe Auth API path segments', () => {
+  for (const value of [undefined, null, '', '../../consent', 'abc/def', 'abc?x=y', 'abc#fragment', 'abc%2Fdef', 'with space', 'x'.repeat(257)]) {
+    assert.equal(oauthUtils.isOAuthAuthorizationId(value), false);
+  }
 });
 
 test('consent approves and denies only via Supabase and preserves the returned code/state URL', async () => {
