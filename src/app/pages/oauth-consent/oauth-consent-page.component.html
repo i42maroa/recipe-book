@@ -1,0 +1,25 @@
+<section class="consent-panel" aria-labelledby="consent-title">
+  <h1 id="consent-title">Conectar con Laurel</h1>
+  @if (!auth.canEdit()) {
+    <p>Inicia sesión con una cuenta autorizada para conectar tu asistente.</p>
+  }
+  @if (details(); as request) {
+    <p><strong>{{ request.client.name }}</strong> solicita acceso a Laurel con tu cuenta.</p>
+    <p>La conexión permite consultar recetas, crear recetas en el catálogo compartido y consultar o guardar tu planificación diaria.</p>
+    <p>Tu asistente actuará con los permisos de tu cuenta. Puedes revocar la conexión desde los ajustes del asistente.</p>
+    <dl>
+      <dt>Cuenta</dt><dd>{{ request.user.email }}</dd>
+      <dt>Permisos solicitados</dt><dd>{{ request.scope || 'Acceso a tu cuenta' }}</dd>
+      <dt>Dirección de retorno</dt><dd>{{ request.redirect_uri }}</dd>
+    </dl>
+    <div class="actions">
+      <app-button [disabled]="busy()" (clicked)="decide(true)">Permitir conexión</app-button>
+      <app-button variant="outline" [disabled]="busy()" (clicked)="decide(false)">Rechazar</app-button>
+    </div>
+  } @else if (busy()) {
+    <p role="status">Cargando solicitud…</p>
+  }
+  @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+  <a routerLink="/recipes">Volver al recetario</a>
+</section>
+@if (!auth.canEdit()) { <app-login-page [authorizationId]="authorizationId" /> }

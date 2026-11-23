@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, Input, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ButtonComponent } from '../../components/shared/button/button.component';
@@ -12,6 +12,7 @@ import { AuthService } from '../../services/auth.service';
   styleUrl: './login-page.component.css',
 })
 export class LoginPageComponent {
+  @Input() authorizationId?: string;
   readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder);
   private readonly route = inject(ActivatedRoute);
@@ -34,7 +35,7 @@ export class LoginPageComponent {
     if (this.busy()) return;
     this.busy.set(true);
     this.error.set('');
-    try { await this.auth.signInWithGoogle(); }
+    try { await this.auth.signInWithGoogle(this.authorizationId); }
     catch (error) {
       this.error.set(error instanceof Error ? error.message : 'No se pudo iniciar sesión con Google.');
     } finally { this.busy.set(false); }

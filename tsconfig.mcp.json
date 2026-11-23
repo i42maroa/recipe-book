@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/mcp", "rootDir": ".", "module": "NodeNext", "moduleResolution": "NodeNext",
+    "types": ["node"], "importHelpers": false
+  },
+  "include": ["server/mcp/**/*.ts", "api/mcp.ts", "api/mcp-metadata.ts"]
+}

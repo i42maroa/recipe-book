@@ -1,6 +1,6 @@
 # Contexto del proyecto
 
-Actualizado el 30 de octubre de 2026. Este documento describe lo implementado en el repositorio y las decisiones vigentes. Las migraciones de Supabase y la publicación de cada versión en Vercel se realizan por separado; este documento no confirma su estado remoto.
+Actualizado el 23 de noviembre de 2026. Este documento describe lo implementado en el repositorio y las decisiones vigentes. Las migraciones de Supabase y la publicación de cada versión en Vercel se realizan por separado; este documento no confirma su estado remoto.
 
 El estado vigente incluye filtros de recetas compartidos y siempre visibles, búsqueda por ingredientes ordenada por coincidencias, selección de componentes de elaboraciones, planificación diaria y semanal, lista de la compra personal, inventario privado por lugares con alacena y congelador, ingredientes y recetas preparadas con lotes editables y retirada completa, y gestión segura de fotografías. También incluye búsqueda y normalización compartidas, catálogos e índices reutilizables, cachés de navegación y de intervalos de compra, cancelación de consultas y protección frente a respuestas antiguas. Las secciones siguientes describen el resultado actual y separan las mejoras pendientes de las ya aplicadas.
 
@@ -19,7 +19,7 @@ La aplicación incluye consulta pública, creación, edición y eliminación aut
 - **Alojamiento configurado:** Vercel, con salida estática en `dist/recetario/browser` y reescritura SPA en `vercel.json`.
 - **Comprobaciones:** Angular CLI, ESLint y pruebas de servicios con `node:test`.
 
-**Decisión vigente:** mantener Angular conectado directamente a Supabase. No se ha añadido una API intermedia de datos, Spring Boot, Redis ni una pasarela con límites por IP o usuario. Vercel incorpora únicamente una función de lectura pública para entregar los metadatos de las recetas compartidas en el HTML inicial. La API propia queda como una posible evolución, aplazada por decisión del usuario.
+**Decisión vigente:** mantener Angular conectado directamente a Supabase. No se ha añadido una API intermedia para el frontend, Spring Boot, Redis ni una pasarela con límites por IP o usuario. Vercel incorpora una función de lectura pública para entregar los metadatos de las recetas compartidas y un endpoint MCP independiente para consulta y creación de recetas y planificación diaria desde asistentes. El MCP conserva RLS y la identidad del usuario, y utiliza OAuth de Supabase con una pantalla de consentimiento en `/oauth/consent`. La implementación y los pasos de activación están en [MCP.md](MCP.md); su presencia en el repositorio no confirma el despliegue ni la activación remota.
 
 ## Convenciones de desarrollo
 

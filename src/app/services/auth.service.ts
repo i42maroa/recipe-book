@@ -94,10 +94,12 @@ export class AuthService {
     await this.refreshPermission();
   }
 
-  async signInWithGoogle(): Promise<void> {
+  async signInWithGoogle(authorizationId?: string): Promise<void> {
+    const destination = authorizationId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(authorizationId)
+      ? `/oauth/consent?authorization_id=${encodeURIComponent(authorizationId)}` : '/login';
     const { error } = await this.supabase.requireClient().auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/login` },
+      options: { redirectTo: `${window.location.origin}${destination}` },
     });
     if (error) throw new Error('No se pudo iniciar sesión con Google. Inténtalo de nuevo.');
   }

@@ -9,6 +9,9 @@
   },
   "rewrites": [
     { "source": "/recipes/:id", "destination": "/api/recipe-preview?id=:id" },
+    { "source": "/mcp", "destination": "/api/mcp" },
+    { "source": "/.well-known/oauth-protected-resource", "destination": "/api/mcp-metadata" },
+    { "source": "/.well-known/oauth-protected-resource/mcp", "destination": "/api/mcp-metadata" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
