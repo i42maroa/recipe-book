@@ -6,6 +6,7 @@ import type { InventoryPageComponent } from './pages/inventory/inventory-page.co
 import type { ShoppingPageComponent } from './pages/shopping/shopping-page.component';
 
 export const routes: Routes = [
+  { path: 'oauth/consent', loadComponent: () => import('./pages/oauth-consent/oauth-consent-page.component').then(m => m.OAuthConsentPageComponent) },
   { path: 'freezer', pathMatch: 'full', redirectTo: 'inventory' },
   { path: 'inventory', canActivate: [editorGuard], canDeactivate: [(component: InventoryPageComponent) => component.canLeave()], loadComponent: () => import('./pages/inventory/inventory-page.component').then(m => m.InventoryPageComponent) },
   { path: 'shopping', canActivate: [editorGuard], canDeactivate: [(component: ShoppingPageComponent) => component.canLeave()], loadComponent: () => import('./pages/shopping/shopping-page.component').then(m => m.ShoppingPageComponent) },

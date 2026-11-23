@@ -6,6 +6,12 @@ const template = require('@angular-eslint/eslint-plugin-template');
 module.exports = [
   { ignores: ['dist/**', 'node_modules/**'] },
   {
+    files: ['server/**/*.ts', 'api/*.ts'],
+    languageOptions: { parser: tsParser, parserOptions: { project: './tsconfig.mcp.json' } },
+    plugins: { '@typescript-eslint': tsPlugin },
+    rules: { ...tsPlugin.configs.recommended.rules }
+  },
+  {
     files: ['src/**/*.ts'],
     languageOptions: { parser: tsParser, parserOptions: { project: './tsconfig.json' } },
     plugins: { '@typescript-eslint': tsPlugin, '@angular-eslint': angular },
