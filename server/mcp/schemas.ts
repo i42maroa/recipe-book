@@ -24,22 +24,41 @@ const amount = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('spoon'), value: z.number().positive().default(1) }).strict(),
   z.object({ kind: z.literal('specific'), value: z.number().positive(), unit: z.enum(['g', 'ml', 'pieza']) }).strict(),
 ]);
-export const createRecipeSchema = z.object({
+const recipeFields = {
   name: text, ingredientIds: z.array(uuid).min(1).max(100),
-  ingredientAmounts: z.record(uuid, amount).default({}),
-  minutes: z.number().int().positive().max(100000).nullable().default(null),
-  servings: z.number().int().positive().max(10000).nullable().default(2),
-  steps: z.array(z.string().trim().min(1).max(10000)).max(100).default([]),
-  pending: z.boolean().default(true), mealTypes: z.array(mealType).max(4).default([]),
-  cuisineTypes: z.array(z.enum(['Española', 'Italiana', 'Mexicana', 'Japonesa', 'China', 'India', 'Francesa', 'Peruana', 'Árabe', 'Otra'])).max(10).default([]),
-  rating: z.number().int().min(1).max(10).nullable().default(null),
-  sourceUrl: z.union([z.literal(''), z.url().refine(value => ['https:', 'http:'].includes(new URL(value).protocol))]).default(''),
-  annotations: z.string().max(20000).default(''), fitness: z.boolean().default(false), difficulty: difficulty.optional(),
+  ingredientAmounts: z.record(uuid, amount),
+  minutes: z.number().int().positive().max(100000).nullable(),
+  servings: z.number().int().positive().max(10000).nullable(),
+  steps: z.array(z.string().trim().min(1).max(10000)).max(100),
+  pending: z.boolean(), mealTypes: z.array(mealType).max(4),
+  cuisineTypes: z.array(z.enum(['Española', 'Italiana', 'Mexicana', 'Japonesa', 'China', 'India', 'Francesa', 'Peruana', 'Árabe', 'Otra'])).max(10),
+  rating: z.number().int().min(1).max(10).nullable(),
+  sourceUrl: z.union([z.literal(''), z.url().refine(value => ['https:', 'http:'].includes(new URL(value).protocol))]),
+  annotations: z.string().max(20000), fitness: z.boolean(), difficulty,
+};
+export const createRecipeSchema = z.object({ ...recipeFields,
+  ingredientAmounts: recipeFields.ingredientAmounts.default({}), minutes: recipeFields.minutes.default(null),
+  servings: recipeFields.servings.default(2), steps: recipeFields.steps.default([]), pending: recipeFields.pending.default(true),
+  mealTypes: recipeFields.mealTypes.default([]), cuisineTypes: recipeFields.cuisineTypes.default([]),
+  rating: recipeFields.rating.default(null), sourceUrl: recipeFields.sourceUrl.default(''),
+  annotations: recipeFields.annotations.default(''), fitness: recipeFields.fitness.default(false), difficulty: difficulty.optional(),
 }).strict().superRefine((recipe, context) => {
   if (new Set(recipe.ingredientIds).size !== recipe.ingredientIds.length) context.addIssue({ code: 'custom', message: 'No repitas ingredientes.' });
   if (Object.keys(recipe.ingredientAmounts).some(id => !recipe.ingredientIds.includes(id))) context.addIssue({ code: 'custom', message: 'Hay cantidades de ingredientes no incluidos.' });
   if (recipe.pending && recipe.rating !== null) context.addIssue({ code: 'custom', message: 'Una receta pendiente no puede tener valoración.' });
 });
+export const updateRecipeSchema = z.object({
+  id: uuid,
+  expectedVersion: z.iso.datetime({ offset: true }).describe('Copia exactamente version de get_recipe; no conviertas ni redondees la fecha.'),
+  changes: z.object({ ...recipeFields, difficulty: difficulty.nullable(),
+    ingredientAmounts: z.record(uuid, amount.nullable()).describe('Solo las cantidades que cambian. null elimina una cantidad; las omitidas se conservan.'),
+  }).partial().strict().superRefine((changes, context) => {
+    if (!Object.keys(changes).length) context.addIssue({ code: 'custom', message: 'Indica algún cambio.' });
+    if (changes.ingredientIds && new Set(changes.ingredientIds).size !== changes.ingredientIds.length) context.addIssue({ code: 'custom', message: 'No repitas ingredientes.' });
+    if (changes.ingredientIds && Object.keys(changes.ingredientAmounts ?? {}).some(id => !changes.ingredientIds!.includes(id))) context.addIssue({ code: 'custom', message: 'Hay cantidades de ingredientes no incluidos.' });
+    if (changes.pending === true && changes.rating != null) context.addIssue({ code: 'custom', message: 'Una receta pendiente no puede tener valoración.' });
+  }),
+}).strict();
 export const getDailyPlanSchema = z.object({ date }).strict();
 export const saveDailyPlanSchema = z.object({
   date,

@@ -5,12 +5,13 @@ const { createServer: createNodeServer } = require('node:http');
 const { createClient } = require('@supabase/supabase-js');
 const { createHttpHandler, validateClaims } = require('../out-tsc/mcp/server/mcp/http.js');
 const { loadConfig } = require('../out-tsc/mcp/server/mcp/config.js');
-const { createRecipeSchema, saveDailyPlanSchema } = require('../out-tsc/mcp/server/mcp/schemas.js');
+const { createRecipeSchema, saveDailyPlanSchema, updateRecipeSchema } = require('../out-tsc/mcp/server/mcp/schemas.js');
 const { LaurelService } = require('../out-tsc/mcp/server/mcp/service.js');
 
 const recipeId = '00000000-0000-0000-0000-000000000001';
 const ingredientId = '00000000-0000-0000-0000-000000000002';
 const owner = '00000000-0000-0000-0000-000000000003';
+const recipeVersion = '2026-11-24T12:00:00.123456+00:00';
 const config = { supabaseUrl: 'https://db.example.com', supabaseKey: 'sb_publishable_test', resource: 'https://laurel.example.com/mcp',
   siteUrl: 'https://laurel.example.com', oauthClientIds: ['chatgpt-client'] };
 const claims = () => ({ iss: `${config.supabaseUrl}/auth/v1`, aud: ['authenticated', config.resource], sub: owner,
@@ -21,13 +22,14 @@ function fixture(options = {}) {
   const logs = [];
   const state = { allowed: true, tokenClaims: claims(), authError: null, rpcError: null, savedId: recipeId,
     ingredients: [{ id: ingredientId, name: 'Tomate', category: 'Verdura', base_unit: 'g', unit_quantity: 150 }],
-    recipe: { id: recipeId, name: 'Ensalada', recipe_ingredients: [], recipe_steps: [{ position: 2, description: 'Servir' }, { position: 1, description: 'Cortar' }] } };
+    recipe: { id: recipeId, name: 'Ensalada', updated_at: recipeVersion, recipe_ingredients: [], recipe_steps: [{ position: 2, description: 'Servir' }, { position: 1, description: 'Cortar' }] } };
   const client = {
     auth: { getClaims: async () => ({ data: { claims: state.tokenClaims }, error: state.authError }) },
     rpc(name, args) {
       calls.push({ name, args });
       if (name === 'search_recipes_by_ingredients') return builder('recipes');
       return Promise.resolve({ data: name === 'is_recipe_editor' ? state.allowed : name === 'save_recipe_optimized' ? [{ id: state.savedId }]
+        : name === 'update_mcp_recipe' ? { id: recipeId, version: recipeVersion }
         : name === 'get_mcp_scheduled_day' ? { date: args.p_date, meals: [], version: 'a'.repeat(32) } : null,
       error: name === 'is_recipe_editor' ? null : state.rpcError });
     },
@@ -60,16 +62,19 @@ async function rpc(handler, method, params = {}, extraHeaders = {}) {
   return { response, data };
 }
 
-test('MCP negotiates a real protocol handshake and lists six tools without login', async () => {
+test('MCP negotiates a real protocol handshake and lists seven tools without login', async () => {
   const { handler } = fixture();
   const init = await rpc(handler, 'initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } });
   assert.equal(init.response.status, 200);
   assert.equal(init.data.result.serverInfo.name, 'laurel');
   const { data } = await rpc(handler, 'tools/list');
-  assert.deepEqual(data.result.tools.map(tool => tool.name).sort(), ['create_recipe', 'get_daily_plan', 'get_recipe', 'save_daily_plan', 'search_ingredients', 'search_recipes']);
+  assert.deepEqual(data.result.tools.map(tool => tool.name).sort(), ['create_recipe', 'get_daily_plan', 'get_recipe', 'save_daily_plan', 'search_ingredients', 'search_recipes', 'update_recipe']);
   const save = data.result.tools.find(tool => tool.name === 'save_daily_plan');
   assert.equal(save.annotations.destructiveHint, true);
   assert.equal(save._meta.securitySchemes[0].type, 'oauth2');
+  const update = data.result.tools.find(tool => tool.name === 'update_recipe');
+  assert.equal(update.annotations.destructiveHint, true);
+  assert.equal(update._meta.securitySchemes[0].type, 'oauth2');
 });
 
 test('public search escapes wildcard input, paginates and returns recipe links', async () => {
@@ -91,6 +96,7 @@ test('recipe detail sorts preparation steps and reports a missing recipe', async
   const { handler, state } = fixture();
   const first = await rpc(handler, 'tools/call', { name: 'get_recipe', arguments: { id: recipeId } });
   assert.deepEqual(first.data.result.structuredContent.steps, ['Cortar', 'Servir']);
+  assert.equal(first.data.result.structuredContent.version, recipeVersion);
   state.recipe = null;
   const missing = await rpc(handler, 'tools/call', { name: 'get_recipe', arguments: { id: recipeId } });
   assert.equal(missing.data.result.structuredContent.code, 'NOT_FOUND');
@@ -98,9 +104,11 @@ test('recipe detail sorts preparation steps and reports a missing recipe', async
 
 test('private tools return an OAuth challenge without making database calls', async () => {
   const { handler, calls } = fixture();
-  for (const name of ['create_recipe', 'get_daily_plan', 'save_daily_plan']) {
+  for (const name of ['create_recipe', 'get_daily_plan', 'save_daily_plan', 'update_recipe']) {
     const args = name === 'create_recipe' ? { name: 'Ensalada', ingredientIds: [ingredientId] }
-      : name === 'get_daily_plan' ? { date: '2026-11-23' } : { date: '2026-11-23', meals: [], expectedVersion: 'a'.repeat(32) };
+      : name === 'get_daily_plan' ? { date: '2026-11-23' }
+      : name === 'update_recipe' ? { id: recipeId, expectedVersion: recipeVersion, changes: { servings: 2 } }
+      : { date: '2026-11-23', meals: [], expectedVersion: 'a'.repeat(32) };
     const { data } = await rpc(handler, 'tools/call', { name, arguments: args });
     assert.equal(data.result.isError, true);
     assert.match(data.result._meta['mcp/www_authenticate'][0], /oauth-protected-resource/);
@@ -163,7 +171,7 @@ test('discovery diagnostics record anonymous and authenticated lists and cannot 
   for (const headers of [{}, { Authorization: 'Bearer private-token' }]) {
     const result = await rpc(handler, 'tools/list', {}, headers);
     assert.equal(result.response.status, 200);
-    assert.equal(result.data.result.tools.length, 6);
+    assert.equal(result.data.result.tools.length, 7);
   }
   assert.deepEqual(logs.map(entry => [entry.method, entry.status, entry.authorization]),
     [['tools/list', 200, 'absent'], ['tools/list', 200, 'accepted']]);
@@ -247,6 +255,39 @@ test('creation rejects duplicate ingredients, pending ratings, unknown fields an
     { ...base, ingredientAmounts: { [ingredientId]: { kind: 'specific', value: -1, unit: 'g' } } }]) {
     assert.equal(createRecipeSchema.safeParse(value).success, false);
   }
+});
+
+test('recipe patch schemas preserve omitted fields, allow clearing amounts and reject ambiguous edits', () => {
+  const base = { id: recipeId, expectedVersion: recipeVersion, changes: { servings: 2 } };
+  assert.deepEqual(updateRecipeSchema.parse(base), base);
+  assert.deepEqual(updateRecipeSchema.parse({ ...base, changes: { ingredientAmounts: { [ingredientId]: null } } }).changes,
+    { ingredientAmounts: { [ingredientId]: null } });
+  for (const change of [{ changes: {} }, { expectedVersion: undefined }, { changes: { servings: 0 } },
+    { changes: { photos: [] } }, { changes: { ingredientIds: [] } }, { changes: { ingredientIds: [ingredientId, ingredientId] } },
+    { changes: { ingredientIds: [recipeId], ingredientAmounts: { [ingredientId]: null } } },
+    { changes: { pending: true, rating: 5 } }, { changes: { owner_id: owner } }]) {
+    assert.equal(updateRecipeSchema.safeParse({ ...base, ...change }).success, false);
+  }
+});
+
+test('recipe updates forward only requested changes and the exact version without creating or retrying', async () => {
+  const { handler, calls, state } = fixture();
+  const input = { id: recipeId, expectedVersion: recipeVersion, changes: { servings: 2 } };
+  const result = await rpc(handler, 'tools/call', { name: 'update_recipe', arguments: input }, { Authorization: 'Bearer fake' });
+  assert.equal(result.data.result.structuredContent.saved, true);
+  assert.deepEqual(calls.find(call => call.name === 'update_mcp_recipe').args,
+    { p_id: recipeId, p_changes: { servings: 2 }, p_expected_version: recipeVersion });
+  for (const [code, expected] of [['PT409', 'CONFLICT'], ['P0002', 'NOT_FOUND'], ['22023', 'VALIDATION']]) {
+    state.rpcError = { code, message: 'private SQL details' };
+    const failed = await rpc(handler, 'tools/call', { name: 'update_recipe', arguments: input }, { Authorization: 'Bearer fake' });
+    assert.equal(failed.data.result.structuredContent.code, expected);
+    assert.doesNotMatch(JSON.stringify(failed.data), /private SQL details/);
+  }
+  state.allowed = false;
+  const denied = await rpc(handler, 'tools/call', { name: 'update_recipe', arguments: input }, { Authorization: 'Bearer fake' });
+  assert.equal(denied.data.result.structuredContent.code, 'FORBIDDEN');
+  assert.equal(calls.filter(call => call.name === 'update_mcp_recipe').length, 4);
+  assert.equal(calls.filter(call => call.name === 'save_recipe_optimized' || call.table).length, 0);
 });
 
 test('daily plans reject impossible dates, repeated slots/recipes, foreign owners and inventory payloads', () => {

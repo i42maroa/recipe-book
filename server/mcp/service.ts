@@ -4,7 +4,7 @@ import { mapIngredientAmounts } from '../../src/app/utils/ingredient-amount.util
 import { allowedIngredientAmount } from '../../src/app/utils/ingredient-measures.utils';
 import type { RecipeRow, IngredientRow } from '../../src/app/models/database.model';
 import type { MealSelection } from '../../src/app/models/scheduled-meal.model';
-import { createRecipeSchema, searchRecipesSchema } from './schemas';
+import { createRecipeSchema, searchRecipesSchema, updateRecipeSchema } from './schemas';
 import type { McpConfig } from './config';
 
 export class ToolError extends Error {
@@ -15,9 +15,10 @@ function checked<T>(result: { data: T; error: { code?: string; message: string }
   if (result.error) {
     const code = result.error.code;
     if (code === '42501') throw new ToolError('FORBIDDEN', 'Esta cuenta no tiene permisos para esta operación.');
-    if (code === 'PT409') throw new ToolError('CONFLICT', 'El día ha cambiado. Consulta de nuevo el plan antes de guardarlo.');
+    if (code === 'PT409') throw new ToolError('CONFLICT', 'Los datos han cambiado. Consulta de nuevo la receta o el plan antes de guardar.');
+    if (code === 'P0002') throw new ToolError('NOT_FOUND', 'La receta ya no existe.');
     if (code === '23503') throw new ToolError('NOT_FOUND', 'Alguna receta o ingrediente ya no existe. Consulta los datos de nuevo.');
-    if (code === '22023' || code === '23514') throw new ToolError('VALIDATION', 'Los datos no cumplen las reglas del recetario. Revisa cantidades, comensales y recetas.');
+    if (code === '22023' || code === '22P02' || code === '23514') throw new ToolError('VALIDATION', 'Los datos no cumplen las reglas del recetario. Revisa cantidades, comensales y recetas.');
     // Do not expose SQL internals, infrastructure details or credentials to the model.
     throw new ToolError('DATABASE_ERROR', 'No se pudo completar la operación en Supabase. Si era un guardado, consulta el resultado antes de reintentarlo.');
   }
@@ -57,11 +58,11 @@ export class LaurelService {
   }
 
   async getRecipe(id: string) {
-    const row = checked(await this.client.from('recipes').select(`${summary},source_url,annotations,recipe_ingredients(ingredient_id,amount_kind,amount_value,amount_unit,amount_base_unit,amount_unit_quantity,ingredients(${ingredientSelect})),recipe_steps(position,description),recipe_cuisine_types(cuisine_types(name)),recipe_photos(storage_path,position,alt_text)`)
+    const row = checked(await this.client.from('recipes').select(`${summary},updated_at,source_url,annotations,recipe_ingredients(ingredient_id,amount_kind,amount_value,amount_unit,amount_base_unit,amount_unit_quantity,ingredients(${ingredientSelect})),recipe_steps(position,description),recipe_cuisine_types(cuisine_types(name)),recipe_photos(storage_path,position,alt_text)`)
       .eq('id', id).maybeSingle());
     if (!row) throw new ToolError('NOT_FOUND', 'La receta no existe.');
     const amounts = mapIngredientAmounts(row.recipe_ingredients as RecipeRow['recipe_ingredients'], item => item.ingredient_id);
-    return { ...row, url: `${this.config.siteUrl}/recipes/${id}`,
+    return { ...row, version: row.updated_at, url: `${this.config.siteUrl}/recipes/${id}`,
       ingredientAmounts: amounts,
       steps: [...row.recipe_steps].sort((a, b) => a.position - b.position).map(step => step.description) };
   }
@@ -95,6 +96,15 @@ export class LaurelService {
     const result = checked(await this.client.rpc('get_mcp_scheduled_day', { p_date: date }));
     if (!result || !Array.isArray(result.meals) || typeof result.version !== 'string') throw new ToolError('DATABASE_ERROR', 'El plan recibido no es válido.');
     return result;
+  }
+
+  async updateRecipe(input: z.infer<typeof updateRecipeSchema>) {
+    await this.requireEditor();
+    const result = checked(await this.client.rpc('update_mcp_recipe', {
+      p_id: input.id, p_changes: input.changes, p_expected_version: input.expectedVersion,
+    }));
+    if (!result || result.id !== input.id || typeof result.version !== 'string') throw new ToolError('UNCONFIRMED', 'No se pudo confirmar la actualización. Consulta la receta antes de reintentarlo.');
+    return { id: result.id, version: result.version, saved: true, url: `${this.config.siteUrl}/recipes/${result.id}` };
   }
 
   async saveDailyPlan(date: string, meals: MealSelection[], expectedVersion: string) {
