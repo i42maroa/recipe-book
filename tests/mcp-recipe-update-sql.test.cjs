@@ -30,7 +30,14 @@ test('MCP recipe updates execute the actual SQL with version checks, RLS and mea
     await db.exec(measures.slice(start, measures.indexOf('$$;', start) + 3));
     await db.exec('commit');
     await db.exec(read('20261019000100_recipe_query_optimization'));
+    const statusQuery = fs.readFileSync('supabase/queries/20261124_mcp_recipe_update_status.sql', 'utf8');
+    assert.deepEqual((await db.query(statusQuery)).rows[0], { function_signature: null, function_exists: false,
+      authenticated_can_execute: false, anonymous_can_execute: false });
     await db.exec(read('20261124000100_mcp_recipe_updates'));
+    const status = (await db.query(statusQuery)).rows[0];
+    assert.equal(status.function_exists, true);
+    assert.equal(status.authenticated_can_execute, true);
+    assert.equal(status.anonymous_can_execute, false);
     await db.exec(`create table public.recipe_photos(id uuid primary key,recipe_id uuid references public.recipes(id),storage_path text);
       grant select on public.recipe_photos to authenticated;
       do $$ declare tab text; begin
