@@ -277,7 +277,7 @@ test('recipe updates forward only requested changes and the exact version withou
   assert.equal(result.data.result.structuredContent.saved, true);
   assert.deepEqual(calls.find(call => call.name === 'update_mcp_recipe').args,
     { p_id: recipeId, p_changes: { servings: 2 }, p_expected_version: recipeVersion });
-  for (const [code, expected] of [['PT409', 'CONFLICT'], ['P0002', 'NOT_FOUND'], ['22023', 'VALIDATION']]) {
+  for (const [code, expected] of [['PT409', 'CONFLICT'], ['P0002', 'NOT_FOUND'], ['22023', 'VALIDATION'], ['PGRST202', 'MIGRATION_REQUIRED']]) {
     state.rpcError = { code, message: 'private SQL details' };
     const failed = await rpc(handler, 'tools/call', { name: 'update_recipe', arguments: input }, { Authorization: 'Bearer fake' });
     assert.equal(failed.data.result.structuredContent.code, expected);
@@ -286,7 +286,7 @@ test('recipe updates forward only requested changes and the exact version withou
   state.allowed = false;
   const denied = await rpc(handler, 'tools/call', { name: 'update_recipe', arguments: input }, { Authorization: 'Bearer fake' });
   assert.equal(denied.data.result.structuredContent.code, 'FORBIDDEN');
-  assert.equal(calls.filter(call => call.name === 'update_mcp_recipe').length, 4);
+  assert.equal(calls.filter(call => call.name === 'update_mcp_recipe').length, 5);
   assert.equal(calls.filter(call => call.name === 'save_recipe_optimized' || call.table).length, 0);
 });
 

@@ -100,9 +100,12 @@ export class LaurelService {
 
   async updateRecipe(input: z.infer<typeof updateRecipeSchema>) {
     await this.requireEditor();
-    const result = checked(await this.client.rpc('update_mcp_recipe', {
+    const response = await this.client.rpc('update_mcp_recipe', {
       p_id: input.id, p_changes: input.changes, p_expected_version: input.expectedVersion,
-    }));
+    });
+    if (response.error?.code === 'PGRST202') throw new ToolError('MIGRATION_REQUIRED',
+      'Supabase no encuentra la función de edición de recetas. Aplica 20261124000100_mcp_recipe_updates.sql y recarga la caché de la API. Consulta la receta antes de volver a guardar.');
+    const result = checked(response);
     if (!result || result.id !== input.id || typeof result.version !== 'string') throw new ToolError('UNCONFIRMED', 'No se pudo confirmar la actualización. Consulta la receta antes de reintentarlo.');
     return { id: result.id, version: result.version, saved: true, url: `${this.config.siteUrl}/recipes/${result.id}` };
   }
