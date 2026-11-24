@@ -16,8 +16,9 @@ const config = { supabaseUrl: 'https://db.example.com', supabaseKey: 'sb_publish
 const claims = () => ({ iss: `${config.supabaseUrl}/auth/v1`, aud: ['authenticated', config.resource], sub: owner,
   role: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600, client_id: 'chatgpt-client', scope: 'openid' });
 
-function fixture() {
+function fixture(options = {}) {
   const calls = [];
+  const logs = [];
   const state = { allowed: true, tokenClaims: claims(), authError: null, rpcError: null, savedId: recipeId,
     ingredients: [{ id: ingredientId, name: 'Tomate', category: 'Verdura', base_unit: 'g', unit_quantity: 150 }],
     recipe: { id: recipeId, name: 'Ensalada', recipe_ingredients: [], recipe_steps: [{ position: 2, description: 'Servir' }, { position: 1, description: 'Cortar' }] } };
@@ -43,9 +44,9 @@ function fixture() {
     return chain;
   }
   const factory = (...args) => { calls.push({ factory: args[2] }); return client; };
-  const handler = createHttpHandler({ config, createSupabase: factory });
+  const handler = createHttpHandler({ config, createSupabase: factory, log: entry => logs.push(entry), ...options });
   const service = new LaurelService(client, config, owner);
-  return { calls, state, handler, service };
+  return { calls, state, handler, service, logs };
 }
 
 async function rpc(handler, method, params = {}, extraHeaders = {}) {
@@ -127,6 +128,48 @@ test('bad token signatures and wrong claims fail before tools execute', async ()
     { nbf: Date.now() / 1000 + 1000 }, { client_id: 'unknown' }, { role: 'service_role' }, { scope: '' }, { sub: null }]) {
     assert.throws(() => validateClaims({ ...claims(), ...change }, config));
   }
+});
+
+test('diagnostics distinguish token rejection causes without logging credentials or claims', async () => {
+  const { handler, state, logs, calls } = fixture();
+  const cases = [
+    [{ iss: 'https://private-issuer.example.com' }, 'issuer_mismatch'],
+    [{ aud: 'private-audience' }, 'audience_mismatch'],
+    [{ sub: 'private-user' }, 'invalid_identity'],
+    [{ exp: 0 }, 'expired_token'],
+    [{ nbf: Date.now() / 1000 + 1000 }, 'token_not_active'],
+    [{ client_id: 'private-client' }, 'client_not_allowed'],
+    [{ scope: 'private-scope' }, 'missing_scope'],
+  ];
+  for (const [change, reason] of cases) {
+    state.tokenClaims = { ...claims(), ...change };
+    const result = await rpc(handler, 'tools/list', {}, { Authorization: 'Bearer private-token' });
+    assert.equal(result.response.status, 401);
+    assert.deepEqual(logs.at(-1), { event: 'laurel_mcp_request', method: 'tools/list', status: 401, authorization: 'rejected', reason });
+    assert.doesNotMatch(JSON.stringify(result.data), /issuer_mismatch|audience_mismatch|client_not_allowed/);
+  }
+  state.authError = Error('private SDK error');
+  await rpc(handler, 'tools/list', {}, { Authorization: 'Bearer private-token' });
+  assert.equal(logs.at(-1).reason, 'token_verification_failed');
+  await rpc(handler, 'private-method', { secret: 'private-argument' }, { Authorization: 'Basic private-credentials' });
+  assert.equal(logs.at(-1).method, 'unknown');
+  assert.equal(logs.at(-1).reason, 'malformed_authorization');
+  assert.doesNotMatch(JSON.stringify(logs), /private-|Bearer|Basic|authenticated|https:/);
+  assert.equal(calls.filter(call => call.name || call.table).length, 0);
+});
+
+test('discovery diagnostics record anonymous and authenticated lists and cannot break auth decisions', async () => {
+  const { handler, logs } = fixture();
+  for (const headers of [{}, { Authorization: 'Bearer private-token' }]) {
+    const result = await rpc(handler, 'tools/list', {}, headers);
+    assert.equal(result.response.status, 200);
+    assert.equal(result.data.result.tools.length, 6);
+  }
+  assert.deepEqual(logs.map(entry => [entry.method, entry.status, entry.authorization]),
+    [['tools/list', 200, 'absent'], ['tools/list', 200, 'accepted']]);
+  const brokenLog = fixture({ log: () => { throw Error('logging unavailable'); } });
+  brokenLog.state.tokenClaims = { ...claims(), client_id: 'wrong-client' };
+  assert.equal((await rpc(brokenLog.handler, 'tools/list', {}, { Authorization: 'Bearer private-token' })).response.status, 401);
 });
 
 test('real Supabase SDK verifies a signed JWT through JWKS and rejects a tampered signature', async () => {
