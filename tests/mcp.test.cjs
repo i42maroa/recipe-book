@@ -5,12 +5,14 @@ const { createServer: createNodeServer } = require('node:http');
 const { createClient } = require('@supabase/supabase-js');
 const { createHttpHandler, validateClaims } = require('../out-tsc/mcp/server/mcp/http.js');
 const { loadConfig } = require('../out-tsc/mcp/server/mcp/config.js');
-const { createRecipeSchema, saveDailyPlanSchema, updateRecipeSchema } = require('../out-tsc/mcp/server/mcp/schemas.js');
+const { createRecipeSchema, saveDailyPlanSchema, updateRecipeSchema, manageInventoryIngredientSchema } = require('../out-tsc/mcp/server/mcp/schemas.js');
 const { LaurelService } = require('../out-tsc/mcp/server/mcp/service.js');
 
 const recipeId = '00000000-0000-0000-0000-000000000001';
 const ingredientId = '00000000-0000-0000-0000-000000000002';
 const owner = '00000000-0000-0000-0000-000000000003';
+const placeId = '00000000-0000-0000-0000-000000000004';
+const itemId = '00000000-0000-0000-0000-000000000005';
 const recipeVersion = '2026-11-24T12:00:00.123456+00:00';
 const config = { supabaseUrl: 'https://db.example.com', supabaseKey: 'sb_publishable_test', resource: 'https://laurel.example.com/mcp',
   siteUrl: 'https://laurel.example.com', oauthClientIds: ['chatgpt-client'] };
@@ -21,6 +23,9 @@ function fixture(options = {}) {
   const calls = [];
   const logs = [];
   const state = { allowed: true, tokenClaims: claims(), authError: null, rpcError: null, savedId: recipeId,
+    inventory: [{ id: placeId, name: 'Casa', items: [{ id: itemId, ingredientId, name: 'Tomate', category: 'Verdura',
+      amount: { kind: 'specific', value: 2, unit: 'pieza', baseUnit: 'g', unitQuantity: 150 },
+      space: 'pantry', enteredOn: '2026-11-20', arrivedOn: '2026-11-20', recipeId: null, servings: null }] }],
     ingredients: [{ id: ingredientId, name: 'Tomate', category: 'Verdura', base_unit: 'g', unit_quantity: 150 }],
     recipe: { id: recipeId, name: 'Ensalada', updated_at: recipeVersion, recipe_ingredients: [], recipe_steps: [{ position: 2, description: 'Servir' }, { position: 1, description: 'Cortar' }] } };
   const client = {
@@ -30,6 +35,7 @@ function fixture(options = {}) {
       if (name === 'search_recipes_by_ingredients') return builder('recipes');
       return Promise.resolve({ data: name === 'is_recipe_editor' ? state.allowed : name === 'save_recipe_optimized' ? [{ id: state.savedId }]
         : name === 'update_mcp_recipe' ? { id: recipeId, version: recipeVersion }
+        : name === 'get_inventory' ? state.inventory : name === 'apply_inventory_changes' ? true
         : name === 'get_mcp_scheduled_day' ? { date: args.p_date, meals: [], version: 'a'.repeat(32) } : null,
       error: name === 'is_recipe_editor' ? null : state.rpcError });
     },
@@ -39,10 +45,12 @@ function fixture(options = {}) {
     const query = { table, single: false };
     const chain = {};
     for (const method of ['select', 'eq', 'ilike', 'contains', 'order', 'range', 'in']) {
-      chain[method] = (...args) => { calls.push({ table, method, args }); return chain; };
+      chain[method] = (...args) => { calls.push({ table, method, args }); if (method === 'eq' && args[0] === 'id') query.id = args[1]; return chain; };
     }
     chain.maybeSingle = () => { query.single = true; return chain; };
-    chain.then = (resolve, reject) => Promise.resolve({ data: table === 'ingredients' ? state.ingredients : query.single ? state.recipe : [{ id: recipeId, name: 'Ensalada' }], count: 1, error: null }).then(resolve, reject);
+    chain.then = (resolve, reject) => Promise.resolve({ data: table === 'ingredients' ? query.single
+      ? state.ingredients.find(item => item.id === query.id) ?? null : state.ingredients
+      : query.single ? state.recipe : [{ id: recipeId, name: 'Ensalada' }], count: 1, error: null }).then(resolve, reject);
     return chain;
   }
   const factory = (...args) => { calls.push({ factory: args[2] }); return client; };
@@ -62,19 +70,25 @@ async function rpc(handler, method, params = {}, extraHeaders = {}) {
   return { response, data };
 }
 
-test('MCP negotiates a real protocol handshake and lists seven tools without login', async () => {
+test('MCP negotiates a real protocol handshake and lists nine tools without login', async () => {
   const { handler } = fixture();
   const init = await rpc(handler, 'initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } });
   assert.equal(init.response.status, 200);
   assert.equal(init.data.result.serverInfo.name, 'laurel');
   const { data } = await rpc(handler, 'tools/list');
-  assert.deepEqual(data.result.tools.map(tool => tool.name).sort(), ['create_recipe', 'get_daily_plan', 'get_recipe', 'save_daily_plan', 'search_ingredients', 'search_recipes', 'update_recipe']);
+  assert.deepEqual(data.result.tools.map(tool => tool.name).sort(), ['create_recipe', 'get_daily_plan', 'get_inventory', 'get_recipe', 'manage_inventory_ingredient', 'save_daily_plan', 'search_ingredients', 'search_recipes', 'update_recipe']);
   const save = data.result.tools.find(tool => tool.name === 'save_daily_plan');
   assert.equal(save.annotations.destructiveHint, true);
   assert.equal(save._meta.securitySchemes[0].type, 'oauth2');
   const update = data.result.tools.find(tool => tool.name === 'update_recipe');
   assert.equal(update.annotations.destructiveHint, true);
   assert.equal(update._meta.securitySchemes[0].type, 'oauth2');
+  for (const name of ['get_inventory', 'manage_inventory_ingredient']) {
+    const tool = data.result.tools.find(tool => tool.name === name);
+    assert.equal(tool._meta.securitySchemes[0].type, 'oauth2');
+    assert.equal(tool.annotations.readOnlyHint, name === 'get_inventory');
+    assert.equal(tool.annotations.destructiveHint, name === 'manage_inventory_ingredient');
+  }
 });
 
 test('public search escapes wildcard input, paginates and returns recipe links', async () => {
@@ -104,10 +118,12 @@ test('recipe detail sorts preparation steps and reports a missing recipe', async
 
 test('private tools return an OAuth challenge without making database calls', async () => {
   const { handler, calls } = fixture();
-  for (const name of ['create_recipe', 'get_daily_plan', 'save_daily_plan', 'update_recipe']) {
+  for (const name of ['create_recipe', 'get_daily_plan', 'save_daily_plan', 'update_recipe', 'get_inventory', 'manage_inventory_ingredient']) {
     const args = name === 'create_recipe' ? { name: 'Ensalada', ingredientIds: [ingredientId] }
       : name === 'get_daily_plan' ? { date: '2026-11-23' }
       : name === 'update_recipe' ? { id: recipeId, expectedVersion: recipeVersion, changes: { servings: 2 } }
+      : name === 'get_inventory' ? {}
+      : name === 'manage_inventory_ingredient' ? { action: 'remove', placeId, itemId, expectedVersion: 'a'.repeat(64) }
       : { date: '2026-11-23', meals: [], expectedVersion: 'a'.repeat(32) };
     const { data } = await rpc(handler, 'tools/call', { name, arguments: args });
     assert.equal(data.result.isError, true);
@@ -171,7 +187,7 @@ test('discovery diagnostics record anonymous and authenticated lists and cannot 
   for (const headers of [{}, { Authorization: 'Bearer private-token' }]) {
     const result = await rpc(handler, 'tools/list', {}, headers);
     assert.equal(result.response.status, 200);
-    assert.equal(result.data.result.tools.length, 7);
+    assert.equal(result.data.result.tools.length, 9);
   }
   assert.deepEqual(logs.map(entry => [entry.method, entry.status, entry.authorization]),
     [['tools/list', 200, 'absent'], ['tools/list', 200, 'accepted']]);
@@ -288,6 +304,72 @@ test('recipe updates forward only requested changes and the exact version withou
   assert.equal(denied.data.result.structuredContent.code, 'FORBIDDEN');
   assert.equal(calls.filter(call => call.name === 'update_mcp_recipe').length, 5);
   assert.equal(calls.filter(call => call.name === 'save_recipe_optimized' || call.table).length, 0);
+});
+
+test('inventory schemas require explicit actions, dates and versions without accepting catalogue/owner changes', () => {
+  const addition = { action: 'add', placeId, itemId, ingredientId, space: 'pantry', enteredOn: '2026-11-25' };
+  assert.deepEqual(manageInventoryIngredientSchema.parse(addition), addition);
+  const update = { action: 'update', placeId, itemId, expectedVersion: 'a'.repeat(64), amount: null };
+  assert.deepEqual(manageInventoryIngredientSchema.parse(update), update);
+  for (const value of [{ ...addition, enteredOn: '2026-02-30' }, { ...addition, arrivedOn: '2026-11-24' },
+    { ...addition, ingredientId: undefined }, { ...addition, expectedVersion: 'a'.repeat(64) },
+    { ...update, expectedVersion: undefined }, { ...update, ingredientId }, { ...update, owner_id: owner },
+    { ...update, amount: undefined }, { ...update, amount: { kind: 'specific', value: 0, unit: 'g' } },
+    { ...update, amount: { kind: 'glass' } }, { ...update, action: 'remove' }, { ...update, recipeId }]) {
+    assert.equal(manageInventoryIngredientSchema.safeParse(value).success, false);
+  }
+});
+
+test('inventory protocol returns private versions and forwards only the targeted row to the atomic save', async () => {
+  const { handler, state, calls } = fixture();
+  const headers = { Authorization: 'Bearer fake' };
+  const read = await rpc(handler, 'tools/call', { name: 'get_inventory', arguments: {} }, headers);
+  const entry = read.data.result.structuredContent.places[0].items[0];
+  assert.match(entry.version, /^[0-9a-f]{64}$/);
+  assert.equal(entry.editableIngredient, true);
+  const before = structuredClone(state.inventory[0].items[0]);
+  const update = await rpc(handler, 'tools/call', { name: 'manage_inventory_ingredient', arguments: {
+    action: 'update', placeId, itemId, expectedVersion: entry.version, amount: { kind: 'specific', value: 1, unit: 'pieza' },
+  } }, headers);
+  assert.equal(update.data.result.structuredContent.saved, true);
+  const saved = calls.find(call => call.name === 'apply_inventory_changes');
+  assert.deepEqual(saved.args.p_changes, [{ placeId, itemId, before,
+    after: { ...before, amount: { ...before.amount, value: 1 } } }]);
+  assert.equal(calls.filter(call => call.name === 'apply_inventory_changes').length, 1);
+  state.allowed = false;
+  const forbidden = await rpc(handler, 'tools/call', { name: 'get_inventory', arguments: {} }, headers);
+  assert.equal(forbidden.data.result.structuredContent.code, 'FORBIDDEN');
+});
+
+test('inventory version ignores object key order and rejects stale, foreign and unsupported entries', async () => {
+  const { service, state, calls } = fixture();
+  const entry = (await service.getInventory()).places[0].items[0];
+  state.inventory[0].items[0].amount = { unitQuantity: 150, baseUnit: 'g', unit: 'pieza', value: 2, kind: 'specific' };
+  assert.equal((await service.getInventory()).places[0].items[0].version, entry.version);
+  await assert.rejects(service.manageInventoryIngredient({ action: 'remove', placeId, itemId, expectedVersion: 'a'.repeat(64) }), error => error.code === 'CONFLICT');
+  await assert.rejects(service.manageInventoryIngredient({ action: 'remove', placeId: owner, itemId, expectedVersion: entry.version }), error => error.code === 'NOT_FOUND');
+  state.inventory[0].items[0] = { ...state.inventory[0].items[0], ingredientId: null, category: null, recipeId, servings: 2, amount: null };
+  const prepared = (await service.getInventory()).places[0].items[0];
+  assert.equal(prepared.editableIngredient, false);
+  await assert.rejects(service.manageInventoryIngredient({ action: 'remove', placeId, itemId, expectedVersion: prepared.version }), error => error.code === 'VALIDATION');
+  assert.equal(calls.filter(call => call.name === 'apply_inventory_changes').length, 0);
+});
+
+test('inventory reports missing RPCs explicitly and does not claim an unconfirmed save succeeded', async () => {
+  const { state } = fixture();
+  let mode = 'read-missing';
+  const client = { rpc: async name => name === 'is_recipe_editor' ? { data: true, error: null }
+    : name === 'get_inventory' && mode !== 'read-missing' ? { data: state.inventory, error: null }
+    : mode === 'unconfirmed' ? { data: false, error: null }
+    : { data: null, error: { code: 'PGRST202', message: 'private SQL details' } } };
+  const service = new LaurelService(client, config, owner);
+  await assert.rejects(service.getInventory(), error => error.code === 'MIGRATION_REQUIRED');
+  mode = 'write-missing';
+  const entry = (await service.getInventory()).places[0].items[0];
+  const removal = { action: 'remove', placeId, itemId, expectedVersion: entry.version };
+  await assert.rejects(service.manageInventoryIngredient(removal), error => error.code === 'MIGRATION_REQUIRED');
+  mode = 'unconfirmed';
+  await assert.rejects(service.manageInventoryIngredient(removal), error => error.code === 'UNCONFIRMED');
 });
 
 test('daily plans reject impossible dates, repeated slots/recipes, foreign owners and inventory payloads', () => {
