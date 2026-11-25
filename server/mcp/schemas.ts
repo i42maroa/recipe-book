@@ -20,10 +20,34 @@ export const searchRecipesSchema = z.object({
 }).strict();
 export const getRecipeSchema = z.object({ id: uuid }).strict();
 export const searchIngredientsSchema = z.object({ search: z.string().trim().min(2).max(200), ...paging }).strict();
+export const getInventorySchema = z.object({}).strict();
 const amount = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('spoon'), value: z.number().positive().default(1) }).strict(),
   z.object({ kind: z.literal('specific'), value: z.number().positive(), unit: z.enum(['g', 'ml', 'pieza']) }).strict(),
 ]);
+export const manageInventoryIngredientSchema = z.object({
+  action: z.enum(['add', 'update', 'remove']),
+  placeId: uuid.describe('ID real de un lugar obtenido con get_inventory.'),
+  itemId: uuid.describe('ID real de la entrada para update/remove. Para add, un UUID nuevo y estable: reutilízalo si se pierde la respuesta.'),
+  ingredientId: uuid.optional().describe('Solo para add: ID existente obtenido con search_ingredients.'),
+  expectedVersion: z.string().regex(/^[0-9a-f]{64}$/).optional().describe('Obligatoria para update/remove: copia version de la entrada devuelta por get_inventory.'),
+  amount: amount.nullable().optional().describe('Cantidad total que queda, no incremento. null deja sin cantidad. Omitirla en update conserva la actual.'),
+  space: z.enum(['pantry', 'freezer']).optional(),
+  enteredOn: date.optional().describe('Fecha de entrada original, YYYY-MM-DD. Obligatoria para add.'),
+  arrivedOn: date.optional().describe('Fecha de llegada al espacio actual, igual o posterior a enteredOn. En add, se usa enteredOn si se omite.'),
+}).strict().superRefine((input, context) => {
+  const fields = ['amount', 'space', 'enteredOn', 'arrivedOn'] as const;
+  if (input.action === 'add') {
+    if (!input.ingredientId || !input.enteredOn || !input.space) context.addIssue({ code: 'custom', message: 'Para añadir indica ingrediente, espacio y fecha de entrada.' });
+    if (input.expectedVersion !== undefined) context.addIssue({ code: 'custom', message: 'El alta no utiliza una versión anterior.' });
+  } else {
+    if (!input.expectedVersion) context.addIssue({ code: 'custom', message: 'Consulta el inventario y copia la versión de la entrada.' });
+    if (input.ingredientId !== undefined) context.addIssue({ code: 'custom', message: 'Esta operación no cambia el ingrediente del catálogo.' });
+    if (input.action === 'update' && !fields.some(field => input[field] !== undefined)) context.addIssue({ code: 'custom', message: 'Indica algún cambio en la entrada.' });
+    if (input.action === 'remove' && fields.some(field => input[field] !== undefined)) context.addIssue({ code: 'custom', message: 'La eliminación solo utiliza los IDs y la versión.' });
+  }
+  if (input.enteredOn && input.arrivedOn && input.arrivedOn < input.enteredOn) context.addIssue({ code: 'custom', message: 'La llegada no puede ser anterior a la entrada.' });
+});
 const recipeFields = {
   name: text, ingredientIds: z.array(uuid).min(1).max(100),
   ingredientAmounts: z.record(uuid, amount),

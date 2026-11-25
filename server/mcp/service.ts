@@ -1,10 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { z } from 'zod';
+import { createHash } from 'node:crypto';
 import { mapIngredientAmounts } from '../../src/app/utils/ingredient-amount.utils';
-import { allowedIngredientAmount } from '../../src/app/utils/ingredient-measures.utils';
+import { allowedIngredientAmount, measuredAmount } from '../../src/app/utils/ingredient-measures.utils';
+import { inventoryFingerprint, validInventory } from '../../src/app/utils/inventory.utils';
+import type { InventoryItem, InventoryPlace, InventoryChange } from '../../src/app/models/inventory.model';
+import type { Ingredient } from '../../src/app/models/recipe.model';
 import type { RecipeRow, IngredientRow } from '../../src/app/models/database.model';
 import type { MealSelection } from '../../src/app/models/scheduled-meal.model';
-import { createRecipeSchema, searchRecipesSchema, updateRecipeSchema } from './schemas';
+import { createRecipeSchema, searchRecipesSchema, updateRecipeSchema, manageInventoryIngredientSchema } from './schemas';
 import type { McpConfig } from './config';
 
 export class ToolError extends Error {
@@ -15,10 +19,10 @@ function checked<T>(result: { data: T; error: { code?: string; message: string }
   if (result.error) {
     const code = result.error.code;
     if (code === '42501') throw new ToolError('FORBIDDEN', 'Esta cuenta no tiene permisos para esta operación.');
-    if (code === 'PT409') throw new ToolError('CONFLICT', 'Los datos han cambiado. Consulta de nuevo la receta o el plan antes de guardar.');
+    if (code === 'PT409' || code === '40001' || code === '23505') throw new ToolError('CONFLICT', 'Los datos han cambiado. Consulta de nuevo antes de guardar.');
     if (code === 'P0002') throw new ToolError('NOT_FOUND', 'La receta ya no existe.');
     if (code === '23503') throw new ToolError('NOT_FOUND', 'Alguna receta o ingrediente ya no existe. Consulta los datos de nuevo.');
-    if (code === '22023' || code === '22P02' || code === '23514') throw new ToolError('VALIDATION', 'Los datos no cumplen las reglas del recetario. Revisa cantidades, comensales y recetas.');
+    if (code === '22023' || code === '22P02' || code === '23514') throw new ToolError('VALIDATION', 'Los datos no cumplen las reglas del recetario. Revisa cantidades, fechas y datos seleccionados.');
     // Do not expose SQL internals, infrastructure details or credentials to the model.
     throw new ToolError('DATABASE_ERROR', 'No se pudo completar la operación en Supabase. Si era un guardado, consulta el resultado antes de reintentarlo.');
   }
@@ -28,6 +32,8 @@ function checked<T>(result: { data: T; error: { code?: string; message: string }
 const summary = 'id,name,minutes,servings,pending,meal_types,rating,fitness,difficulty';
 const ingredientSelect = 'id,name,category,base_unit,unit_quantity';
 const escapePattern = (value: string) => `%${value.replace(/[\\%_]/g, '\\$&')}%`;
+const inventoryVersion = (placeId: string, item: InventoryItem) => createHash('sha256')
+  .update(inventoryFingerprint([{ id: placeId, name: '', items: [item] }])).digest('hex');
 
 export class LaurelService {
   constructor(private readonly client: SupabaseClient, private readonly config: McpConfig, private readonly userId?: string) {}
@@ -71,6 +77,84 @@ export class LaurelService {
     const result = await this.client.from('ingredients').select(ingredientSelect, { count: 'exact' })
       .ilike('name', escapePattern(search)).order('name').order('id').range(offset, offset + limit - 1);
     return { items: checked(result) ?? [], total: result.count, offset, limit };
+  }
+
+  private async readInventory(): Promise<InventoryPlace[]> {
+    const response = await this.client.rpc('get_inventory');
+    if (response.error?.code === 'PGRST202') throw new ToolError('MIGRATION_REQUIRED',
+      'Supabase no encuentra el inventario. Revisa las migraciones de inventario existentes y recarga la caché de la API.');
+    const places = checked(response);
+    if (!validInventory(places)) throw new ToolError('DATABASE_ERROR', 'El inventario no tiene un formato válido.');
+    return places;
+  }
+
+  async getInventory() {
+    await this.requireEditor();
+    const places = await this.readInventory();
+    return { places: places.map(place => ({ ...place, items: place.items.map(item => ({ ...item,
+      version: inventoryVersion(place.id, item), editableIngredient: item.ingredientId !== null && item.recipeId === null,
+    })) })) };
+  }
+
+  async manageInventoryIngredient(input: z.infer<typeof manageInventoryIngredientSchema>) {
+    await this.requireEditor();
+    const places = await this.readInventory();
+    const place = places.find(value => value.id.toLowerCase() === input.placeId);
+    if (!place) throw new ToolError('NOT_FOUND', 'El lugar no existe en tu inventario. Consulta get_inventory.');
+    const located = places.flatMap(value => value.items.map(item => ({ placeId: value.id.toLowerCase(), item })))
+      .find(value => value.item.id.toLowerCase() === input.itemId);
+    if (located && located.placeId !== input.placeId) throw new ToolError('CONFLICT', 'La entrada está en otro lugar. Consulta get_inventory.');
+    const previous = located?.item ?? null;
+    if (previous && (previous.ingredientId === null || previous.recipeId !== null)) throw new ToolError('VALIDATION', 'Esta herramienta solo modifica ingredientes del inventario, no productos libres ni recetas preparadas.');
+    if (input.action !== 'add') {
+      if (!previous) {
+        if (input.action === 'remove') return { action: input.action, placeId: input.placeId, itemId: input.itemId, saved: true, alreadyAbsent: true };
+        throw new ToolError('NOT_FOUND', 'La entrada ya no existe. Consulta get_inventory.');
+      }
+      if (inventoryVersion(input.placeId, previous) !== input.expectedVersion) throw new ToolError('CONFLICT', 'La entrada ha cambiado. Consulta get_inventory antes de modificarla.');
+    }
+    let desired: InventoryItem | null = null;
+    if (input.action !== 'remove') {
+      const ingredientId = input.action === 'add' ? input.ingredientId! : previous!.ingredientId!;
+      let ingredient: Ingredient | undefined;
+      // Unrelated edits and removals keep snapshots even if the catalogue ingredient was deleted.
+      if (input.action === 'add' || input.amount !== undefined) {
+        const row = checked(await this.client.from('ingredients').select(ingredientSelect).eq('id', ingredientId).maybeSingle()) as IngredientRow | null;
+        if (!row) throw new ToolError('NOT_FOUND', 'El ingrediente ya no existe. Busca un ingrediente real con search_ingredients.');
+        ingredient = { id: row.id, name: row.name, category: row.category, baseUnit: row.base_unit,
+          unitQuantity: row.unit_quantity == null ? null : Number(row.unit_quantity) };
+      }
+      const originalAmount = previous?.ingredientId?.toLowerCase() === ingredientId.toLowerCase() ? previous.amount : null;
+      let nextAmount = previous?.amount ?? null;
+      if (input.amount !== undefined || input.action === 'add') {
+        const requested = input.amount ?? null;
+        nextAmount = requested?.kind === 'specific'
+          ? measuredAmount(requested.unit, requested.value, ingredient, originalAmount)
+          : requested;
+        if (!allowedIngredientAmount(nextAmount, ingredient, originalAmount)) throw new ToolError('VALIDATION', 'La cantidad no coincide con las medidas del ingrediente. Consulta search_ingredients.');
+      }
+      desired = input.action === 'add'
+        ? { id: input.itemId, ingredientId: ingredient!.id, name: ingredient!.name, category: ingredient!.category,
+          recipeId: null, servings: null, amount: nextAmount, space: input.space!, enteredOn: input.enteredOn!, arrivedOn: input.arrivedOn ?? input.enteredOn! }
+        : { ...previous!, amount: nextAmount,
+          ...(input.space !== undefined ? { space: input.space } : {}),
+          ...(input.enteredOn !== undefined ? { enteredOn: input.enteredOn } : {}),
+          ...(input.arrivedOn !== undefined ? { arrivedOn: input.arrivedOn } : {}) };
+      if (!validInventory([{ ...place, items: [desired] }])) throw new ToolError('VALIDATION', 'Revisa las cantidades y las fechas de entrada y llegada del ingrediente.');
+      if (input.action === 'add' && previous) {
+        if (inventoryVersion(input.placeId, previous) !== inventoryVersion(input.placeId, desired)) throw new ToolError('CONFLICT', 'Ese ID ya identifica otra entrada o ha cambiado. Consulta get_inventory.');
+        return { action: input.action, placeId: input.placeId, itemId: input.itemId, saved: true, alreadyPresent: true, version: inventoryVersion(input.placeId, previous) };
+      }
+    }
+    const change: InventoryChange = { placeId: input.placeId, itemId: input.itemId,
+      before: input.action === 'add' ? null : previous, after: desired };
+    const response = await this.client.rpc('apply_inventory_changes', { p_changes: [change] });
+    if (response.error?.code === 'PGRST202') throw new ToolError('MIGRATION_REQUIRED',
+      'Supabase no encuentra el guardado del inventario. Revisa las migraciones de inventario existentes y recarga la caché de la API.');
+    if (checked(response) !== true) throw new ToolError('UNCONFIRMED', 'No se pudo confirmar el cambio. Consulta get_inventory antes de reintentarlo.');
+    // No follow-up read can turn a committed write into an apparent failure.
+    return { action: input.action, placeId: input.placeId, itemId: input.itemId, saved: true,
+      ...(desired ? { version: inventoryVersion(input.placeId, desired) } : {}) };
   }
 
   async createRecipe(input: z.infer<typeof createRecipeSchema>) {
